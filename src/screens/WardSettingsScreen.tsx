@@ -1,0 +1,410 @@
+import React from "react";
+import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
+
+import type { StaffMember, Ward } from "../types/domain";
+
+const shiftCountOptions = [1, 2, 3, 4];
+const breakDurationOptions = [15, 30, 60];
+const defaultRotaShifts = [
+  { id: "shift-1", startsAt: "07:00", endsAt: "15:00" },
+  { id: "shift-2", startsAt: "15:00", endsAt: "23:00" },
+  { id: "shift-3", startsAt: "23:00", endsAt: "07:00" },
+  { id: "shift-4", startsAt: "07:00", endsAt: "13:00" }
+];
+const fallbackRotaShift = { id: "shift-fallback", startsAt: "07:00", endsAt: "15:00" };
+
+type WardSettingsScreenProps = {
+  selectedStaffId: string;
+  selectedWardId: string;
+  staff: StaffMember[];
+  wards: Ward[];
+  onBack: () => void;
+  onUpdateWardInterval: (wardId: string, observationIntervalMinutes: number) => void;
+  onUpdateWardRotaEnabled: (wardId: string, staffRotaEnabled: boolean) => void;
+  onUpdateWardRotaSettings: (ward: Ward) => void;
+};
+
+export function WardSettingsScreen({
+  selectedStaffId,
+  selectedWardId,
+  staff,
+  wards,
+  onBack,
+  onUpdateWardInterval,
+  onUpdateWardRotaEnabled,
+  onUpdateWardRotaSettings
+}: WardSettingsScreenProps) {
+  const selectedWard = wards.find((ward) => ward.id === selectedWardId);
+  const selectedStaff = staff.find((member) => member.id === selectedStaffId);
+  const canEditWardSettings = selectedStaff?.role === "manager";
+
+  const updateInterval = (minutes: number) => {
+    if (!selectedWard || !canEditWardSettings) return;
+    onUpdateWardInterval(selectedWard.id, Math.max(5, minutes));
+  };
+
+  const toggleRota = () => {
+    if (!selectedWard || !canEditWardSettings) return;
+    onUpdateWardRotaEnabled(selectedWard.id, !selectedWard.staffRotaEnabled);
+  };
+
+  const updateShiftCount = (shiftCount: number) => {
+    if (!selectedWard || !canEditWardSettings) return;
+
+    const rotaShifts = Array.from({ length: shiftCount }, (_, index) => {
+      const existingShift = selectedWard.rotaShifts[index];
+      const defaultShift = defaultRotaShifts[index] ?? fallbackRotaShift;
+
+      return {
+        id: existingShift?.id ?? `${selectedWard.id}-shift-${index + 1}`,
+        startsAt: existingShift?.startsAt ?? defaultShift.startsAt,
+        endsAt: existingShift?.endsAt ?? defaultShift.endsAt
+      };
+    });
+
+    onUpdateWardRotaSettings({ ...selectedWard, rotaShiftCount: shiftCount, rotaShifts });
+  };
+
+  const updateShiftTime = (shiftId: string, field: "startsAt" | "endsAt", value: string) => {
+    if (!selectedWard || !canEditWardSettings) return;
+
+    onUpdateWardRotaSettings({
+      ...selectedWard,
+      rotaShifts: selectedWard.rotaShifts.map((shift) =>
+        shift.id === shiftId ? { ...shift, [field]: value } : shift
+      )
+    });
+  };
+
+  const updateBreakDuration = (breakDurationMinutes: number) => {
+    if (!selectedWard || !canEditWardSettings) return;
+    onUpdateWardRotaSettings({ ...selectedWard, breakDurationMinutes });
+  };
+
+  return (
+    <View style={styles.screen}>
+      <View style={styles.header}>
+        <View>
+          <Text style={styles.title}>Ward settings</Text>
+          <Text style={styles.meta}>
+            {selectedWard?.name ?? "Select a ward"} | {canEditWardSettings ? "Manager access" : "Manager locked"}
+          </Text>
+        </View>
+        <TouchableOpacity accessibilityRole="button" onPress={onBack} style={styles.backButton}>
+          <Text style={styles.backButtonText}>Back to start</Text>
+        </TouchableOpacity>
+      </View>
+
+      <View style={styles.panel}>
+        <Text style={styles.settingLabel}>Intermittent observation interval</Text>
+        <View style={styles.optionRow}>
+          {[15, 30, 60].map((minutes) => (
+            <TouchableOpacity
+              accessibilityRole="button"
+              disabled={!selectedWard || !canEditWardSettings}
+              key={minutes}
+              onPress={() => updateInterval(minutes)}
+              style={[
+                styles.optionButton,
+                selectedWard?.observationIntervalMinutes === minutes && styles.optionButtonActive,
+                !canEditWardSettings && styles.disabledControl
+              ]}
+            >
+              <Text
+                style={[
+                  styles.optionText,
+                  selectedWard?.observationIntervalMinutes === minutes && styles.optionTextActive
+                ]}
+              >
+                {minutes} min
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+
+        <View style={styles.stepperRow}>
+          <TouchableOpacity
+            accessibilityRole="button"
+            disabled={!selectedWard || !canEditWardSettings}
+            onPress={() => updateInterval((selectedWard?.observationIntervalMinutes ?? 15) - 5)}
+            style={[styles.stepperButton, !canEditWardSettings && styles.disabledControl]}
+          >
+            <Text style={styles.stepperText}>-5</Text>
+          </TouchableOpacity>
+          <Text style={styles.stepperValue}>{selectedWard?.observationIntervalMinutes ?? 0} minutes</Text>
+          <TouchableOpacity
+            accessibilityRole="button"
+            disabled={!selectedWard || !canEditWardSettings}
+            onPress={() => updateInterval((selectedWard?.observationIntervalMinutes ?? 15) + 5)}
+            style={[styles.stepperButton, !canEditWardSettings && styles.disabledControl]}
+          >
+            <Text style={styles.stepperText}>+5</Text>
+          </TouchableOpacity>
+        </View>
+
+        <View style={styles.settingBlock}>
+          <View>
+            <Text style={styles.settingLabel}>Staff rota</Text>
+            <Text style={styles.meta}>
+              {selectedWard?.staffRotaEnabled ? "Rota page available for this ward" : "Rota hidden for this ward"}
+            </Text>
+          </View>
+          <TouchableOpacity
+            accessibilityRole="button"
+            disabled={!selectedWard || !canEditWardSettings}
+            onPress={toggleRota}
+            style={[
+              styles.toggleButton,
+              selectedWard?.staffRotaEnabled && styles.toggleButtonActive,
+              !canEditWardSettings && styles.disabledControl
+            ]}
+          >
+            <Text style={[styles.toggleText, selectedWard?.staffRotaEnabled && styles.optionTextActive]}>
+              {selectedWard?.staffRotaEnabled ? "On" : "Off"}
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        {selectedWard?.staffRotaEnabled ? (
+          <>
+            <Text style={styles.settingLabel}>Shifts per day</Text>
+            <View style={styles.optionRow}>
+              {shiftCountOptions.map((shiftCount) => (
+                <TouchableOpacity
+                  accessibilityRole="button"
+                  disabled={!canEditWardSettings}
+                  key={shiftCount}
+                  onPress={() => updateShiftCount(shiftCount)}
+                  style={[
+                    styles.optionButton,
+                    styles.compactButton,
+                    selectedWard.rotaShiftCount === shiftCount && styles.optionButtonActive,
+                    !canEditWardSettings && styles.disabledControl
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.optionText,
+                      selectedWard.rotaShiftCount === shiftCount && styles.optionTextActive
+                    ]}
+                  >
+                    {shiftCount}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            {selectedWard.rotaShifts.map((shift, index) => (
+              <View key={shift.id} style={styles.shiftBlock}>
+                <Text style={styles.shiftTitle}>Shift {index + 1}</Text>
+                <TimeSettingRow
+                  disabled={!canEditWardSettings}
+                  label="Start"
+                  selected={shift.startsAt}
+                  onSelect={(value) => updateShiftTime(shift.id, "startsAt", value)}
+                />
+                <TimeSettingRow
+                  disabled={!canEditWardSettings}
+                  label="End"
+                  selected={shift.endsAt}
+                  onSelect={(value) => updateShiftTime(shift.id, "endsAt", value)}
+                />
+              </View>
+            ))}
+
+            <Text style={styles.settingLabel}>Break duration</Text>
+            <View style={styles.optionRow}>
+              {breakDurationOptions.map((minutes) => (
+                <TouchableOpacity
+                  accessibilityRole="button"
+                  disabled={!canEditWardSettings}
+                  key={minutes}
+                  onPress={() => updateBreakDuration(minutes)}
+                  style={[
+                    styles.optionButton,
+                    selectedWard.breakDurationMinutes === minutes && styles.optionButtonActive,
+                    !canEditWardSettings && styles.disabledControl
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.optionText,
+                      selectedWard.breakDurationMinutes === minutes && styles.optionTextActive
+                    ]}
+                  >
+                    {minutes === 60 ? "1 hour" : `${minutes} min`}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </>
+        ) : null}
+      </View>
+    </View>
+  );
+}
+
+type TimeSettingRowProps = {
+  disabled: boolean;
+  label: string;
+  selected: string;
+  onSelect: (value: string) => void;
+};
+
+function TimeSettingRow({ disabled, label, selected, onSelect }: TimeSettingRowProps) {
+  return (
+    <View style={styles.timeSettingRow}>
+      <Text style={styles.timeSettingLabel}>{label}</Text>
+      <View style={styles.timeStepper}>
+        <TouchableOpacity
+          accessibilityRole="button"
+          disabled={disabled}
+          onPress={() => onSelect(shiftTimeByMinutes(selected, -30))}
+          style={[styles.timeStepButton, disabled && styles.disabledControl]}
+        >
+          <Text style={styles.timeStepButtonText}>-</Text>
+        </TouchableOpacity>
+        <View style={styles.timeValueBox}>
+          <Text style={styles.timeValueText}>{selected}</Text>
+        </View>
+        <TouchableOpacity
+          accessibilityRole="button"
+          disabled={disabled}
+          onPress={() => onSelect(shiftTimeByMinutes(selected, 30))}
+          style={[styles.timeStepButton, disabled && styles.disabledControl]}
+        >
+          <Text style={styles.timeStepButtonText}>+</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+}
+
+function shiftTimeByMinutes(time: string, deltaMinutes: number) {
+  const [hourText = "0", minuteText = "0"] = time.split(":");
+  const totalMinutes = Number(hourText) * 60 + Number(minuteText);
+  const minutesInDay = 24 * 60;
+  const nextTotalMinutes = (totalMinutes + deltaMinutes + minutesInDay) % minutesInDay;
+  const nextHours = Math.floor(nextTotalMinutes / 60);
+  const nextMinutes = nextTotalMinutes % 60;
+
+  return `${String(nextHours).padStart(2, "0")}:${String(nextMinutes).padStart(2, "0")}`;
+}
+
+const styles = StyleSheet.create({
+  screen: { gap: 12 },
+  header: {
+    alignItems: "center",
+    backgroundColor: "#ffffff",
+    borderColor: "#d8e0e3",
+    borderRadius: 8,
+    borderWidth: StyleSheet.hairlineWidth,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    padding: 12
+  },
+  title: { color: "#18262c", fontSize: 20, fontWeight: "900" },
+  meta: { color: "#607078", fontSize: 13, fontWeight: "800", marginTop: 3 },
+  backButton: {
+    alignItems: "center",
+    borderColor: "#1f5262",
+    borderRadius: 6,
+    borderWidth: 1,
+    justifyContent: "center",
+    minHeight: 42,
+    paddingHorizontal: 12
+  },
+  backButtonText: { color: "#1f5262", fontSize: 13, fontWeight: "900" },
+  panel: {
+    backgroundColor: "#ffffff",
+    borderColor: "#d8e0e3",
+    borderRadius: 8,
+    borderWidth: StyleSheet.hairlineWidth,
+    padding: 14
+  },
+  settingLabel: { color: "#31454d", fontSize: 13, fontWeight: "900", marginBottom: 8, marginTop: 12 },
+  optionRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  optionButton: {
+    alignItems: "center",
+    backgroundColor: "#ffffff",
+    borderColor: "#c7d2d6",
+    borderRadius: 6,
+    borderWidth: 1,
+    justifyContent: "center",
+    minHeight: 42,
+    minWidth: 86,
+    paddingHorizontal: 12
+  },
+  compactButton: { minWidth: 46 },
+  optionButtonActive: { backgroundColor: "#1f5262", borderColor: "#1f5262" },
+  optionText: { color: "#30434a", fontSize: 14, fontWeight: "900" },
+  optionTextActive: { color: "#ffffff" },
+  disabledControl: { opacity: 0.45 },
+  stepperRow: { alignItems: "center", flexDirection: "row", gap: 10, marginTop: 10 },
+  stepperButton: {
+    alignItems: "center",
+    backgroundColor: "#ffffff",
+    borderColor: "#c7d2d6",
+    borderRadius: 6,
+    borderWidth: 1,
+    height: 38,
+    justifyContent: "center",
+    width: 58
+  },
+  stepperText: { color: "#1f5262", fontSize: 15, fontWeight: "900" },
+  stepperValue: { color: "#30434a", fontSize: 14, fontWeight: "900", minWidth: 92, textAlign: "center" },
+  settingBlock: {
+    alignItems: "center",
+    borderTopColor: "#d8e0e3",
+    borderTopWidth: StyleSheet.hairlineWidth,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginTop: 14,
+    paddingTop: 12
+  },
+  toggleButton: {
+    alignItems: "center",
+    backgroundColor: "#ffffff",
+    borderColor: "#c7d2d6",
+    borderRadius: 6,
+    borderWidth: 1,
+    justifyContent: "center",
+    minHeight: 38,
+    minWidth: 70
+  },
+  toggleButtonActive: { backgroundColor: "#1f5262", borderColor: "#1f5262" },
+  toggleText: { color: "#30434a", fontSize: 14, fontWeight: "900" },
+  shiftBlock: {
+    backgroundColor: "#f8fafb",
+    borderColor: "#d8e0e3",
+    borderRadius: 6,
+    borderWidth: 1,
+    marginTop: 10,
+    padding: 10
+  },
+  shiftTitle: { color: "#18262c", fontSize: 13, fontWeight: "900", marginBottom: 8 },
+  timeSettingRow: { marginBottom: 8 },
+  timeSettingLabel: { color: "#607078", fontSize: 12, fontWeight: "900", marginBottom: 6 },
+  timeStepper: { alignItems: "center", flexDirection: "row", gap: 8 },
+  timeStepButton: {
+    alignItems: "center",
+    backgroundColor: "#ffffff",
+    borderColor: "#c7d2d6",
+    borderRadius: 6,
+    borderWidth: 1,
+    height: 34,
+    justifyContent: "center",
+    width: 42
+  },
+  timeStepButtonText: { color: "#1f5262", fontSize: 18, fontWeight: "900", lineHeight: 20 },
+  timeValueBox: {
+    alignItems: "center",
+    backgroundColor: "#1f5262",
+    borderRadius: 6,
+    justifyContent: "center",
+    minHeight: 34,
+    minWidth: 76,
+    paddingHorizontal: 10
+  },
+  timeValueText: { color: "#ffffff", fontSize: 13, fontWeight: "900" }
+});

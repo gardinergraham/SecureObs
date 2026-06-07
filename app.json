@@ -1,0 +1,19 @@
+{
+  "expo": {
+    "name": "Secure Obs",
+    "slug": "secure-obs",
+    "version": "0.1.0",
+    "orientation": "default",
+    "userInterfaceStyle": "light",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "geckostudios.SecureSolutions"
+    },
+    "android": {
+      "package": "com.geckostudios.secureobs"
+    },
+    "extra": {
+      "apiUrl": ""
+    }
+  }
+}
