@@ -12,6 +12,9 @@
     "android": {
       "package": "com.geckostudios.secureobs"
     },
+    "plugins": [
+      "react-native-nfc-manager"
+    ],
     "extra": {
       "apiUrl": "",
       "eas": {

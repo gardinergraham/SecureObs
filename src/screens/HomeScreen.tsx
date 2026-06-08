@@ -24,6 +24,7 @@ type HomeScreenProps = {
   onSelectSite: (siteId: string) => void;
   onSelectWard: (wardId: string) => void;
   onReadStaffCardData: (cardData: string) => string;
+  onScanStaffCard: () => Promise<string>;
   onOpenWardSettings: () => void;
   onStart: () => void;
 };
@@ -39,11 +40,13 @@ export function HomeScreen({
   onSelectSite,
   onSelectWard,
   onReadStaffCardData,
+  onScanStaffCard,
   onOpenWardSettings,
   onStart
 }: HomeScreenProps) {
   const [staffCardData, setStaffCardData] = useState("");
   const [staffCardMessage, setStaffCardMessage] = useState("");
+  const [isScanningStaffCard, setIsScanningStaffCard] = useState(false);
   const canStart = selectedStaffId.length > 0 && selectedSiteId.length > 0 && selectedWardId.length > 0;
   const selectedWard = wards.find((ward) => ward.id === selectedWardId);
   const selectedStaff = staff.find((member) => member.id === selectedStaffId);
@@ -67,6 +70,29 @@ export function HomeScreen({
 
         <View style={styles.cardPanel}>
           <Text style={styles.cardTitle}>NFC staff card demo</Text>
+          <View style={styles.cardActionRow}>
+            <TouchableOpacity
+              accessibilityRole="button"
+              disabled={isScanningStaffCard}
+              onPress={async () => {
+                setIsScanningStaffCard(true);
+                setStaffCardMessage("Hold the staff card against the tablet.");
+
+                try {
+                  setStaffCardMessage(await onScanStaffCard());
+                } catch (error) {
+                  setStaffCardMessage(error instanceof Error ? error.message : "Unable to read that NFC card.");
+                } finally {
+                  setIsScanningStaffCard(false);
+                }
+              }}
+              style={[styles.cardButton, isScanningStaffCard && styles.cardButtonDisabled]}
+            >
+              <Text style={styles.cardButtonText}>
+                {isScanningStaffCard ? "Scanning..." : "Scan NFC card"}
+              </Text>
+            </TouchableOpacity>
+          </View>
           <TextInput
             autoCapitalize="none"
             onChangeText={setStaffCardData}
@@ -77,9 +103,9 @@ export function HomeScreen({
           <TouchableOpacity
             accessibilityRole="button"
             onPress={() => setStaffCardMessage(onReadStaffCardData(staffCardData))}
-            style={styles.cardButton}
+            style={styles.cardSecondaryButton}
           >
-            <Text style={styles.cardButtonText}>Use staff card</Text>
+            <Text style={styles.cardSecondaryButtonText}>Use pasted card data</Text>
           </TouchableOpacity>
           {staffCardMessage ? <Text style={styles.cardMessage}>{staffCardMessage}</Text> : null}
         </View>
@@ -257,6 +283,12 @@ const styles = StyleSheet.create({
     minHeight: 42,
     paddingHorizontal: 10
   },
+  cardActionRow: {
+    alignItems: "center",
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8
+  },
   cardButton: {
     alignItems: "center",
     alignSelf: "flex-start",
@@ -266,9 +298,27 @@ const styles = StyleSheet.create({
     minHeight: 40,
     paddingHorizontal: 14
   },
+  cardButtonDisabled: {
+    backgroundColor: "#97a9b0"
+  },
   cardButtonText: {
     color: "#ffffff",
     fontSize: 13,
+    fontWeight: "900"
+  },
+  cardSecondaryButton: {
+    alignItems: "center",
+    alignSelf: "flex-start",
+    borderColor: "#1f5262",
+    borderRadius: 6,
+    borderWidth: 1,
+    justifyContent: "center",
+    minHeight: 36,
+    paddingHorizontal: 12
+  },
+  cardSecondaryButtonText: {
+    color: "#1f5262",
+    fontSize: 12,
     fontWeight: "900"
   },
   cardMessage: {

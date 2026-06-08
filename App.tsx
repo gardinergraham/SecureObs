@@ -14,6 +14,7 @@ import { WardDashboard } from "./src/screens/WardDashboard";
 import { WardSettingsScreen } from "./src/screens/WardSettingsScreen";
 import { seedData } from "./src/data/seedData";
 import { parseStaffCardData } from "./src/utils/nfcStaffCard";
+import { readNfcTextPayload } from "./src/utils/nfcReader";
 import type {
   News2Reading,
   Observation,
@@ -109,6 +110,12 @@ export default function App() {
 
     handleSelectStaff(matchedStaff.id);
     return `Selected ${matchedStaff.name} from STAFFCODE ${parsedCard.staffCode}.`;
+  };
+
+  const handleScanStaffCard = async () => {
+    const cardData = await readNfcTextPayload();
+
+    return handleReadStaffCardData(cardData);
   };
 
   const handleSelectSite = (siteId: string) => {
@@ -243,6 +250,7 @@ export default function App() {
             onSelectSite={handleSelectSite}
             onSelectWard={handleSelectWard}
             onReadStaffCardData={handleReadStaffCardData}
+            onScanStaffCard={handleScanStaffCard}
             onOpenWardSettings={() => setScreen("wardSettings")}
             onStart={() => setScreen("observations")}
           />
