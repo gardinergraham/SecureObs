@@ -174,87 +174,77 @@ export function StaffRotaScreen({
               {ward?.rotaShiftCount ?? shiftSlots.length} shifts | Observations 1h | Breaks{" "}
               {ward?.breakDurationMinutes ?? 30}m
             </Text>
-            {shiftSlots.map((slot, index) => (
-              <View key={`${slot.startsAt}-${slot.endsAt}`} style={styles.slotRow}>
-                <Text style={styles.slotTime}>
-                  Shift {index + 1}{"\n"}
-                  {slot.startsAt} - {slot.endsAt}
-                </Text>
-                <View style={styles.assignmentList}>
-                  {getObservationSlotsForShift(observationSlots, slot).map((coverageSlot) => {
-                    const slotAssignments = getAssignmentsForSlot(wardAssignments, coverageSlot);
-                    const coveringStaff = getCoveredStaffOptions(
-                      staffShiftAssignments,
-                      staff,
-                      ward,
-                      selectedWardId,
-                      todayKey,
-                      coverageSlot
-                    );
+            <View style={styles.assignmentList}>
+              {observationSlots.map((coverageSlot) => {
+                const slotAssignments = getAssignmentsForSlot(wardAssignments, coverageSlot);
+                const coveringStaff = getCoveredStaffOptions(
+                  staffShiftAssignments,
+                  staff,
+                  ward,
+                  selectedWardId,
+                  todayKey,
+                  coverageSlot
+                );
 
-                    return (
-                      <View
-                        key={`${coverageSlot.startsAt}-${coverageSlot.endsAt}`}
-                        style={[styles.coverageRow, slotAssignments.length === 0 && styles.coverageGapRow]}
-                      >
-                        <Text style={styles.coverageTime}>
-                          {coverageSlot.startsAt} - {coverageSlot.endsAt}
-                        </Text>
-                        <View style={styles.coverageAssignments}>
-                          {coveringStaff.length > 0 ? (
-                            <View style={styles.coveringStaffBox}>
-                              <Text style={styles.coveringStaffLabel}>Covering staff</Text>
-                              <Text style={styles.coveringStaffText}>
-                                {coveringStaff
-                                  .map((option) => `${option.member.name} (${option.shiftLabels.join(", ")})`)
-                                  .join("  |  ")}
-                              </Text>
-                            </View>
-                          ) : (
-                            <Text style={styles.coverWarningText}>No staff cover set for this time</Text>
-                          )}
-                          {slotAssignments.length === 0 ? (
-                            <Text style={styles.gapText}>Gap</Text>
-                          ) : (
-                            slotAssignments.map((assignment) => (
-                              <View key={assignment.id} style={styles.assignmentCard}>
-                                <Text style={styles.assignmentTitle}>
-                                  {staff.find((member) => member.id === assignment.staffId)?.name ?? "Unknown staff"}
-                                </Text>
-                                <Text style={styles.assignmentMeta}>
-                                  {assignment.startsAt} - {assignment.endsAt} | {assignment.role}
-                                  {assignment.patientId
-                                    ? ` | ${
-                                        patients.find((patient) => patient.id === assignment.patientId)?.firstName ?? ""
-                                      }`
-                                    : ""}
-                                </Text>
-                                <View style={styles.assignmentActions}>
-                                  <TouchableOpacity
-                                    accessibilityRole="button"
-                                    onPress={() => editAssignment(assignment)}
-                                    style={styles.smallButton}
-                                  >
-                                    <Text style={styles.smallButtonText}>Change</Text>
-                                  </TouchableOpacity>
-                                  <TouchableOpacity
-                                    accessibilityRole="button"
-                                    onPress={() => onRemoveAssignment(assignment.id)}
-                                    style={[styles.smallButton, styles.removeButton]}
-                                  >
-                                    <Text style={[styles.smallButtonText, styles.removeButtonText]}>Remove</Text>
-                                  </TouchableOpacity>
-                                </View>
-                              </View>
-                            ))
-                          )}
+                return (
+                  <View
+                    key={`${coverageSlot.startsAt}-${coverageSlot.endsAt}`}
+                    style={[styles.coverageRow, slotAssignments.length === 0 && styles.coverageGapRow]}
+                  >
+                    <Text style={styles.coverageTime}>
+                      {coverageSlot.startsAt} - {coverageSlot.endsAt}
+                    </Text>
+                    <View style={styles.coverageAssignments}>
+                      {coveringStaff.length > 0 ? (
+                        <View style={styles.coveringStaffBox}>
+                          <Text style={styles.coveringStaffLabel}>Covering staff</Text>
+                          <Text style={styles.coveringStaffText}>
+                            {coveringStaff
+                              .map((option) => `${option.member.name} (${option.shiftLabels.join(", ")})`)
+                              .join("  |  ")}
+                          </Text>
                         </View>
-                      </View>
-                    );
-                  })}
-                </View>
-              </View>
-            ))}
+                      ) : (
+                        <Text style={styles.coverWarningText}>No staff cover set for this time</Text>
+                      )}
+                      {slotAssignments.length === 0 ? (
+                        <Text style={styles.gapText}>Gap</Text>
+                      ) : (
+                        slotAssignments.map((assignment) => (
+                          <View key={assignment.id} style={styles.assignmentCard}>
+                            <Text style={styles.assignmentTitle}>
+                              {staff.find((member) => member.id === assignment.staffId)?.name ?? "Unknown staff"}
+                            </Text>
+                            <Text style={styles.assignmentMeta}>
+                              {assignment.startsAt} - {assignment.endsAt} | {assignment.role}
+                              {assignment.patientId
+                                ? ` | ${patients.find((patient) => patient.id === assignment.patientId)?.firstName ?? ""}`
+                                : ""}
+                            </Text>
+                            <View style={styles.assignmentActions}>
+                              <TouchableOpacity
+                                accessibilityRole="button"
+                                onPress={() => editAssignment(assignment)}
+                                style={styles.smallButton}
+                              >
+                                <Text style={styles.smallButtonText}>Change</Text>
+                              </TouchableOpacity>
+                              <TouchableOpacity
+                                accessibilityRole="button"
+                                onPress={() => onRemoveAssignment(assignment.id)}
+                                style={[styles.smallButton, styles.removeButton]}
+                              >
+                                <Text style={[styles.smallButtonText, styles.removeButtonText]}>Remove</Text>
+                              </TouchableOpacity>
+                            </View>
+                          </View>
+                        ))
+                      )}
+                    </View>
+                  </View>
+                );
+              })}
+            </View>
           </ScrollView>
         </View>
 
@@ -401,34 +391,30 @@ function buildObservationSlots(ward: Ward | undefined): TimeSlot[] {
 }
 
 function buildTimeSlots(ward: Ward | undefined, durationMinutes: number): TimeSlot[] {
-  return buildShiftSlots(ward).flatMap((shift) => {
-    const shiftStart = timeToMinutes(shift.startsAt);
-    let shiftEnd = timeToMinutes(shift.endsAt);
+  const shifts = buildShiftSlots(ward);
 
-    if (shiftEnd <= shiftStart) {
-      shiftEnd += 24 * 60;
-    }
+  if (shifts.length === 0) {
+    return [fallbackTimeSlot];
+  }
 
-    const slots: TimeSlot[] = [];
-    for (let start = shiftStart; start < shiftEnd; start += durationMinutes) {
-      const end = Math.min(start + durationMinutes, shiftEnd);
+  const timelineStart = timeToMinutes(shifts[0]?.startsAt ?? fallbackTimeSlot.startsAt);
+  let timelineEnd = timeToMinutes(shifts[shifts.length - 1]?.endsAt ?? fallbackTimeSlot.endsAt);
 
-      slots.push({
-        startsAt: formatMinutesAsTime(start),
-        endsAt: formatMinutesAsTime(end)
-      });
-    }
+  while (timelineEnd <= timelineStart) {
+    timelineEnd += 24 * 60;
+  }
 
-    return slots;
-  });
-}
+  const slots: TimeSlot[] = [];
+  for (let start = timelineStart; start < timelineEnd; start += durationMinutes) {
+    const end = Math.min(start + durationMinutes, timelineEnd);
 
-function getAssignmentsForShift(assignments: RotaAssignment[], shift: TimeSlot) {
-  return assignments.filter((assignment) => timeFallsInSlot(assignment.startsAt, shift));
-}
+    slots.push({
+      startsAt: formatMinutesAsTime(start),
+      endsAt: formatMinutesAsTime(end)
+    });
+  }
 
-function getObservationSlotsForShift(observationSlots: TimeSlot[], shift: TimeSlot) {
-  return observationSlots.filter((slot) => timeFallsInSlot(slot.startsAt, shift));
+  return slots;
 }
 
 function getAssignmentsForSlot(assignments: RotaAssignment[], slot: TimeSlot) {

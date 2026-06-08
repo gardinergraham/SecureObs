@@ -41,8 +41,8 @@ export const seedData: {
       staffRotaEnabled: true,
       rotaShiftCount: 3,
       rotaShifts: [
-        { id: "ward-1-shift-1", startsAt: "07:00", endsAt: "13:30" },
-        { id: "ward-1-shift-2", startsAt: "13:30", endsAt: "21:30" },
+        { id: "ward-1-shift-1", startsAt: "07:00", endsAt: "15:00" },
+        { id: "ward-1-shift-2", startsAt: "13:30", endsAt: "23:00" },
         { id: "ward-1-shift-3", startsAt: "21:30", endsAt: "07:00" }
       ],
       breakDurationMinutes: 30,

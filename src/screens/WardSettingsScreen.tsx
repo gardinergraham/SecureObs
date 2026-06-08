@@ -7,8 +7,8 @@ const shiftCountOptions = [1, 2, 3, 4];
 const breakDurationOptions = [15, 30, 60];
 const defaultRotaShifts = [
   { id: "shift-1", startsAt: "07:00", endsAt: "15:00" },
-  { id: "shift-2", startsAt: "15:00", endsAt: "23:00" },
-  { id: "shift-3", startsAt: "23:00", endsAt: "07:00" },
+  { id: "shift-2", startsAt: "13:30", endsAt: "23:00" },
+  { id: "shift-3", startsAt: "21:30", endsAt: "07:00" },
   { id: "shift-4", startsAt: "07:00", endsAt: "13:00" }
 ];
 const fallbackRotaShift = { id: "shift-fallback", startsAt: "07:00", endsAt: "15:00" };
