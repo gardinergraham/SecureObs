@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "Secure Obs",
-    "slug": "secure-obs",
+    "slug": "secureobs",
     "version": "0.1.0",
     "orientation": "default",
     "userInterfaceStyle": "light",
@@ -13,7 +13,10 @@
       "package": "com.geckostudios.secureobs"
     },
     "extra": {
-      "apiUrl": ""
+      "apiUrl": "",
+      "eas": {
+        "projectId": "3a264172-0d73-4056-9140-2340a37741f7"
+      }
     }
   }
 }

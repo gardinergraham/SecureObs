@@ -9,6 +9,11 @@ type TimeSlot = {
   endsAt: string;
 };
 
+type CoveredStaffOption = {
+  member: StaffMember;
+  shiftLabels: string[];
+};
+
 const fallbackTimeSlot: TimeSlot = { startsAt: "07:00", endsAt: "15:00" };
 const observationSlotMinutes = 60;
 
@@ -56,33 +61,11 @@ export function StaffRotaScreen({
   const [editingAssignmentId, setEditingAssignmentId] = useState<string | null>(null);
   const [notes, setNotes] = useState("");
   const selectableTimeSlots = selectedRole === "Break" ? breakSlots : observationSlots;
-  const coveredStaffIds = useMemo(
-    () =>
-      new Set(
-        staffShiftAssignments
-          .filter((assignment) => {
-            if (assignment.wardId !== selectedWardId || assignment.date !== todayKey) {
-              return false;
-            }
-
-            const coverShift = ward?.rotaShifts.find((shift) => shift.id === assignment.shiftId);
-            if (!coverShift) {
-              return false;
-            }
-
-            return slotsOverlap(
-              {
-                startsAt: coverShift.startsAt,
-                endsAt: coverShift.endsAt
-              },
-              selectedSlot
-            );
-          })
-          .map((assignment) => assignment.staffId)
-      ),
-    [selectedSlot, selectedWardId, staffShiftAssignments, todayKey, ward?.rotaShifts]
+  const coveredStaffOptions = useMemo(
+    () => getCoveredStaffOptions(staffShiftAssignments, staff, ward, selectedWardId, todayKey, selectedSlot),
+    [selectedSlot, selectedWardId, staff, staffShiftAssignments, todayKey, ward]
   );
-  const wardStaff = staff.filter((member) => coveredStaffIds.has(member.id));
+  const wardStaff = coveredStaffOptions.map((option) => option.member);
   const conflictMessage = getAssignmentConflict({
     assignments: wardAssignments,
     editingAssignmentId,
@@ -200,6 +183,14 @@ export function StaffRotaScreen({
                 <View style={styles.assignmentList}>
                   {getObservationSlotsForShift(observationSlots, slot).map((coverageSlot) => {
                     const slotAssignments = getAssignmentsForSlot(wardAssignments, coverageSlot);
+                    const coveringStaff = getCoveredStaffOptions(
+                      staffShiftAssignments,
+                      staff,
+                      ward,
+                      selectedWardId,
+                      todayKey,
+                      coverageSlot
+                    );
 
                     return (
                       <View
@@ -210,6 +201,18 @@ export function StaffRotaScreen({
                           {coverageSlot.startsAt} - {coverageSlot.endsAt}
                         </Text>
                         <View style={styles.coverageAssignments}>
+                          {coveringStaff.length > 0 ? (
+                            <View style={styles.coveringStaffBox}>
+                              <Text style={styles.coveringStaffLabel}>Covering staff</Text>
+                              <Text style={styles.coveringStaffText}>
+                                {coveringStaff
+                                  .map((option) => `${option.member.name} (${option.shiftLabels.join(", ")})`)
+                                  .join("  |  ")}
+                              </Text>
+                            </View>
+                          ) : (
+                            <Text style={styles.coverWarningText}>No staff cover set for this time</Text>
+                          )}
                           {slotAssignments.length === 0 ? (
                             <Text style={styles.gapText}>Gap</Text>
                           ) : (
@@ -303,7 +306,8 @@ export function StaffRotaScreen({
               <Text style={styles.warningText}>No staff cover is assigned for this ward at this time.</Text>
             ) : null}
             <OptionRow
-              options={wardStaff.map((member) => {
+              options={coveredStaffOptions.map((option) => {
+                const { member } = option;
                 const enhancedAssignment = getStaffEnhancedAssignment(
                   wardAssignments,
                   member.id,
@@ -315,8 +319,10 @@ export function StaffRotaScreen({
                 return {
                   id: member.id,
                   label: enhancedAssignment
-                    ? `${member.name} - enhanced ${patient ? `Room ${patient.roomNumber}` : "assigned"}`
-                    : member.name
+                    ? `${member.name} (${option.shiftLabels.join(", ")}) - enhanced ${
+                        patient ? `Room ${patient.roomNumber}` : "assigned"
+                      }`
+                    : `${member.name} (${option.shiftLabels.join(", ")})`
                 };
               })}
               selectedId={selectedStaffId}
@@ -436,6 +442,48 @@ function getAssignmentsForSlot(assignments: RotaAssignment[], slot: TimeSlot) {
 
       return left.role.localeCompare(right.role);
     });
+}
+
+function getCoveredStaffOptions(
+  staffShiftAssignments: StaffShiftAssignment[],
+  staff: StaffMember[],
+  ward: Ward | undefined,
+  selectedWardId: string,
+  dateKey: string,
+  slot: TimeSlot
+): CoveredStaffOption[] {
+  const coveredByStaffId = new Map<string, CoveredStaffOption>();
+  const wardShifts = ward?.rotaShifts.slice(0, ward.rotaShiftCount) ?? [];
+
+  staffShiftAssignments
+    .filter((assignment) => assignment.wardId === selectedWardId && assignment.date === dateKey)
+    .forEach((assignment) => {
+      const shiftIndex = wardShifts.findIndex((shift) => shift.id === assignment.shiftId);
+      const coverShift = wardShifts[shiftIndex];
+
+      if (!coverShift || !slotsOverlap({ startsAt: coverShift.startsAt, endsAt: coverShift.endsAt }, slot)) {
+        return;
+      }
+
+      const member = staff.find((staffMember) => staffMember.id === assignment.staffId);
+      if (!member) {
+        return;
+      }
+
+      const shiftLabel = `Shift ${shiftIndex + 1}`;
+      const existing = coveredByStaffId.get(member.id);
+
+      if (existing) {
+        if (!existing.shiftLabels.includes(shiftLabel)) {
+          existing.shiftLabels.push(shiftLabel);
+        }
+        return;
+      }
+
+      coveredByStaffId.set(member.id, { member, shiftLabels: [shiftLabel] });
+    });
+
+  return Array.from(coveredByStaffId.values()).sort((left, right) => left.member.name.localeCompare(right.member.name));
 }
 
 function formatRotaDate(date: Date) {
@@ -754,6 +802,36 @@ const styles = StyleSheet.create({
   coverageAssignments: {
     flex: 1,
     gap: 6
+  },
+  coveringStaffBox: {
+    backgroundColor: "#edf7f2",
+    borderColor: "#b9d8ca",
+    borderRadius: 6,
+    borderWidth: 1,
+    padding: 7
+  },
+  coveringStaffLabel: {
+    color: "#315748",
+    fontSize: 11,
+    fontWeight: "900",
+    marginBottom: 2,
+    textTransform: "uppercase"
+  },
+  coveringStaffText: {
+    color: "#203c32",
+    fontSize: 12,
+    fontWeight: "800",
+    lineHeight: 17
+  },
+  coverWarningText: {
+    backgroundColor: "#fff4d7",
+    borderColor: "#e4b85b",
+    borderRadius: 6,
+    borderWidth: 1,
+    color: "#7a4b00",
+    fontSize: 12,
+    fontWeight: "900",
+    padding: 7
   },
   gapText: {
     color: "#8a5a00",
