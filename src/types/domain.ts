@@ -70,6 +70,7 @@ export type StaffShiftAssignment = {
 export type StaffMember = {
   id: string;
   keyNumber: number;
+  staffCode: string;
   name: string;
   role: "nurse" | "hcf" | "security" | "manager";
   wardId: string;

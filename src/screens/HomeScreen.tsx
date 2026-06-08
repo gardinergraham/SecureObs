@@ -1,5 +1,5 @@
-import React from "react";
-import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import React, { useState } from "react";
+import { StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 
 import type { Site, StaffMember, Ward } from "../types/domain";
 
@@ -23,6 +23,7 @@ type HomeScreenProps = {
   onSelectStaff: (staffId: string) => void;
   onSelectSite: (siteId: string) => void;
   onSelectWard: (wardId: string) => void;
+  onReadStaffCardData: (cardData: string) => string;
   onOpenWardSettings: () => void;
   onStart: () => void;
 };
@@ -37,9 +38,12 @@ export function HomeScreen({
   onSelectStaff,
   onSelectSite,
   onSelectWard,
+  onReadStaffCardData,
   onOpenWardSettings,
   onStart
 }: HomeScreenProps) {
+  const [staffCardData, setStaffCardData] = useState("");
+  const [staffCardMessage, setStaffCardMessage] = useState("");
   const canStart = selectedStaffId.length > 0 && selectedSiteId.length > 0 && selectedWardId.length > 0;
   const selectedWard = wards.find((ward) => ward.id === selectedWardId);
   const selectedStaff = staff.find((member) => member.id === selectedStaffId);
@@ -55,11 +59,30 @@ export function HomeScreen({
           label="Staff"
           options={staff.map((member) => ({
             id: member.id,
-            label: `${member.name} (${member.keyNumber})`
+            label: `${member.name} (${member.staffCode})`
           }))}
           selectedId={selectedStaffId}
           onSelect={onSelectStaff}
         />
+
+        <View style={styles.cardPanel}>
+          <Text style={styles.cardTitle}>NFC staff card demo</Text>
+          <TextInput
+            autoCapitalize="none"
+            onChangeText={setStaffCardData}
+            placeholder="totalmobile://formcapture?SCORE=1&CLINICIAN=GrahamGardiner&STAFFCODE=GardinerG"
+            style={styles.cardInput}
+            value={staffCardData}
+          />
+          <TouchableOpacity
+            accessibilityRole="button"
+            onPress={() => setStaffCardMessage(onReadStaffCardData(staffCardData))}
+            style={styles.cardButton}
+          >
+            <Text style={styles.cardButtonText}>Use staff card</Text>
+          </TouchableOpacity>
+          {staffCardMessage ? <Text style={styles.cardMessage}>{staffCardMessage}</Text> : null}
+        </View>
 
         <SelectorRow
           label="Site"
@@ -209,6 +232,49 @@ const styles = StyleSheet.create({
   },
   selectorTextActive: {
     color: "#ffffff"
+  },
+  cardPanel: {
+    backgroundColor: "#f8fafb",
+    borderColor: "#d8e0e3",
+    borderRadius: 8,
+    borderWidth: StyleSheet.hairlineWidth,
+    gap: 8,
+    marginBottom: 16,
+    padding: 12
+  },
+  cardTitle: {
+    color: "#31454d",
+    fontSize: 13,
+    fontWeight: "900"
+  },
+  cardInput: {
+    backgroundColor: "#ffffff",
+    borderColor: "#c7d2d6",
+    borderRadius: 6,
+    borderWidth: 1,
+    color: "#18262c",
+    fontSize: 13,
+    minHeight: 42,
+    paddingHorizontal: 10
+  },
+  cardButton: {
+    alignItems: "center",
+    alignSelf: "flex-start",
+    backgroundColor: "#1f5262",
+    borderRadius: 6,
+    justifyContent: "center",
+    minHeight: 40,
+    paddingHorizontal: 14
+  },
+  cardButtonText: {
+    color: "#ffffff",
+    fontSize: 13,
+    fontWeight: "900"
+  },
+  cardMessage: {
+    color: "#315748",
+    fontSize: 12,
+    fontWeight: "800"
   },
   settingsPanel: {
     backgroundColor: "#f8fafb",

@@ -82,6 +82,7 @@ export const seedData: {
     {
       id: "staff-1",
       keyNumber: 101,
+      staffCode: "NurseA",
       name: "Alex Nurse",
       role: "nurse",
       wardId: "ward-1",
@@ -91,6 +92,7 @@ export const seedData: {
     {
       id: "staff-2",
       keyNumber: 207,
+      staffCode: "MorganH",
       name: "Morgan HCF",
       role: "hcf",
       wardId: "ward-1",
@@ -100,6 +102,7 @@ export const seedData: {
     {
       id: "staff-3",
       keyNumber: 314,
+      staffCode: "RileyM",
       name: "Riley Ward Manager",
       role: "manager",
       wardId: "ward-2",
@@ -109,6 +112,7 @@ export const seedData: {
     {
       id: "staff-4",
       keyNumber: 118,
+      staffCode: "JamieN",
       name: "Jamie Night Nurse",
       role: "nurse",
       wardId: "ward-1",
@@ -118,6 +122,7 @@ export const seedData: {
     {
       id: "staff-5",
       keyNumber: 226,
+      staffCode: "CaseyH",
       name: "Casey HCF",
       role: "hcf",
       wardId: "ward-1",
@@ -127,6 +132,7 @@ export const seedData: {
     {
       id: "staff-6",
       keyNumber: 241,
+      staffCode: "DevonH",
       name: "Devon HCF",
       role: "hcf",
       wardId: "ward-1",
@@ -136,6 +142,7 @@ export const seedData: {
     {
       id: "staff-7",
       keyNumber: 411,
+      staffCode: "HarperS",
       name: "Harper Security",
       role: "security",
       wardId: "ward-1",
@@ -145,6 +152,7 @@ export const seedData: {
     {
       id: "staff-8",
       keyNumber: 512,
+      staffCode: "RowanN",
       name: "Rowan Nurse",
       role: "nurse",
       wardId: "ward-3",
@@ -154,11 +162,22 @@ export const seedData: {
     {
       id: "staff-9",
       keyNumber: 529,
+      staffCode: "AveryH",
       name: "Avery HCF",
       role: "hcf",
       wardId: "ward-3",
       allowedSiteIds: ["site-2"],
       allowedWardIds: ["ward-3"]
+    },
+    {
+      id: "staff-10",
+      keyNumber: 700,
+      staffCode: "GardinerG",
+      name: "Graham Gardiner",
+      role: "manager",
+      wardId: "ward-1",
+      allowedSiteIds: ["site-1", "site-2"],
+      allowedWardIds: ["ward-1", "ward-2", "ward-3"]
     }
   ],
   staffShiftAssignments: [

@@ -13,6 +13,7 @@ import { StaffRotaScreen } from "./src/screens/StaffRotaScreen";
 import { WardDashboard } from "./src/screens/WardDashboard";
 import { WardSettingsScreen } from "./src/screens/WardSettingsScreen";
 import { seedData } from "./src/data/seedData";
+import { parseStaffCardData } from "./src/utils/nfcStaffCard";
 import type {
   News2Reading,
   Observation,
@@ -89,6 +90,25 @@ export default function App() {
     setSelectedWardId(firstWard?.id ?? "");
     const firstPatient = patients.find((patient) => patient.wardId === firstWard?.id);
     setSelectedPatientId(firstPatient?.id ?? "");
+  };
+
+  const handleReadStaffCardData = (cardData: string) => {
+    const parsedCard = parseStaffCardData(cardData);
+
+    if (!parsedCard) {
+      return "No STAFFCODE found on that card data.";
+    }
+
+    const matchedStaff = seedData.staff.find(
+      (staff) => staff.staffCode.toLowerCase() === parsedCard.staffCode.toLowerCase()
+    );
+
+    if (!matchedStaff) {
+      return `No demo staff found for STAFFCODE ${parsedCard.staffCode}.`;
+    }
+
+    handleSelectStaff(matchedStaff.id);
+    return `Selected ${matchedStaff.name} from STAFFCODE ${parsedCard.staffCode}.`;
   };
 
   const handleSelectSite = (siteId: string) => {
@@ -222,6 +242,7 @@ export default function App() {
             onSelectStaff={handleSelectStaff}
             onSelectSite={handleSelectSite}
             onSelectWard={handleSelectWard}
+            onReadStaffCardData={handleReadStaffCardData}
             onOpenWardSettings={() => setScreen("wardSettings")}
             onStart={() => setScreen("observations")}
           />
