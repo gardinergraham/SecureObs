@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>SecureObs Privacy Policy</title>
+    <meta name="description" content="Privacy information for SecureObs." />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header class="site-header">
+      <a class="brand" href="index.html" aria-label="SecureObs home">
+        <img src="../assets/SecureObs.png" alt="" />
+        <span>SecureObs</span>
+      </a>
+      <nav aria-label="Main navigation">
+        <a href="index.html#features">Features</a>
+        <a href="index.html#security">Security</a>
+        <a href="support.html">Support</a>
+        <a href="privacy.html">Privacy</a>
+      </nav>
+    </header>
+
+    <main class="content-page">
+      <section class="page-panel">
+        <p class="eyebrow">Privacy</p>
+        <h1>SecureObs Privacy Policy</h1>
+        <p class="updated">Last updated: 9 June 2026</p>
+
+        <h2>Prototype Status</h2>
+        <p>
+          SecureObs is currently a prototype and demonstration application. Demo builds may use local sample
+          data so the workflow can be reviewed before a production backend is connected.
+        </p>
+
+        <h2>Clinical Data</h2>
+        <p>
+          The intended production model is for observation records and patient information to be stored on
+          Trust-controlled infrastructure through a secure backend API connected to Trust-hosted SQL
+          databases. The mobile app should not connect directly to SQL databases.
+        </p>
+
+        <h2>Staff Identification</h2>
+        <p>
+          SecureObs can use NFC staff card data to identify a staff member by a staff code. The app should
+          use that code to match a staff record held by the Trust or authorised backend service.
+        </p>
+
+        <h2>Website Data</h2>
+        <p>
+          This website is informational. It does not collect patient information, observation records, or
+          staff card data.
+        </p>
+
+        <h2>Security Approach</h2>
+        <ul>
+          <li>Clinical data should be transmitted over HTTPS.</li>
+          <li>Production access should be controlled by staff role, ward, and site.</li>
+          <li>Observation history should be auditable.</li>
+          <li>Data retention should follow Trust policy and applicable clinical governance requirements.</li>
+        </ul>
+
+        <h2>Contact</h2>
+        <p>
+          Privacy and support contact details should be confirmed by the Trust or SecureObs implementation
+          lead before wider testing or production release.
+        </p>
+      </section>
+    </main>
+
+    <footer>
+      <span>SecureObs prototype</span>
+      <span><a href="index.html">Home</a> · <a href="support.html">Support</a></span>
+    </footer>
+  </body>
+</html>

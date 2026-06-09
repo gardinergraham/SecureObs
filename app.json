@@ -3,6 +3,7 @@
     "name": "Secure Obs",
     "slug": "secureobs",
     "version": "0.1.0",
+    "icon": "./assets/SecureObs.png",
     "orientation": "default",
     "userInterfaceStyle": "light",
     "ios": {

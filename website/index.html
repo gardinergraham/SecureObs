@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>SecureObs | Secure Observation Recording</title>
+    <meta
+      name="description"
+      content="SecureObs supports secure ward observation recording, NEWS2, enhanced observations, staff rota cover, NFC staff login, and Trust-hosted data workflows."
+    />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header class="site-header">
+      <a class="brand" href="index.html" aria-label="SecureObs home">
+        <img src="../assets/SecureObs.png" alt="" />
+        <span>SecureObs</span>
+      </a>
+      <nav aria-label="Main navigation">
+        <a href="#features">Features</a>
+        <a href="#security">Security</a>
+        <a href="support.html">Support</a>
+        <a href="privacy.html">Privacy</a>
+      </nav>
+    </header>
+
+    <main>
+      <section class="hero">
+        <div class="hero-copy">
+          <p class="eyebrow">Secure ward observation workflow</p>
+          <h1>Digital observations for secure clinical environments.</h1>
+          <p class="lead">
+            SecureObs is being developed to support general observations, enhanced observations, NEWS2
+            recording, staff cover, security checks, and NFC staff identification in one ward-focused
+            Android app.
+          </p>
+          <div class="hero-actions">
+            <a class="primary-link" href="#features">View app features</a>
+            <a class="secondary-link" href="#security">Data security</a>
+          </div>
+        </div>
+        <div class="hero-image" aria-label="SecureObs tablet preview">
+          <img src="../assets/secureobspad.png" alt="SecureObs shown on a tablet" />
+        </div>
+      </section>
+
+      <section id="features" class="section">
+        <div class="section-heading">
+          <p class="eyebrow">What the app does</p>
+          <h2>Built around the ward observation workflow.</h2>
+        </div>
+        <div class="feature-grid">
+          <article>
+            <span class="feature-icon">01</span>
+            <h3>General observations</h3>
+            <p>
+              Staff can select a patient, record location and presentation, save the check, and see overdue
+              intermittent observations clearly highlighted.
+            </p>
+          </article>
+          <article>
+            <span class="feature-icon">02</span>
+            <h3>NEWS2 recording</h3>
+            <p>
+              NEWS2 values are captured with Scale 1 and Scale 2 support, current score visibility, and
+              patient-level history for previous readings.
+            </p>
+          </article>
+          <article>
+            <span class="feature-icon">03</span>
+            <h3>Enhanced observations</h3>
+            <p>
+              Enhanced and TESO checks support dedicated patient workflows, staff assignment, presentation,
+              location, comments, and saved history.
+            </p>
+          </article>
+          <article>
+            <span class="feature-icon">04</span>
+            <h3>Staff rota cover</h3>
+            <p>
+              Ward managers can configure shift times, breaks, staff cover, handover overlaps, and rota gaps
+              so cover can be seen at a glance.
+            </p>
+          </article>
+        </div>
+      </section>
+
+      <section class="section split-section">
+        <div>
+          <p class="eyebrow">NFC staff login</p>
+          <h2>Tap a staff card to identify the clinician.</h2>
+          <p>
+            SecureObs can read NFC staff card data on Android EAS builds and use the staff code from the
+            card to select the matching staff member. The current supported card format is:
+          </p>
+          <pre><code>totalmobile://formcapture?SCORE=1&amp;CLINICIAN=GrahamGardiner&amp;STAFFCODE=GardinerG</code></pre>
+          <p>
+            The app extracts <strong>STAFFCODE</strong> as the stable identifier, while the staff name can be
+            displayed for confirmation.
+          </p>
+        </div>
+        <div class="phone-shot">
+          <div class="phone-header">Start ward observations</div>
+          <div class="phone-row active">Graham Gardiner (GardinerG)</div>
+          <div class="phone-card">
+            <span>NFC staff card demo</span>
+            <button type="button">Scan NFC card</button>
+            <small>Selected Graham Gardiner from STAFFCODE GardinerG.</small>
+          </div>
+          <div class="phone-row">North Secure Hospital</div>
+          <div class="phone-row">Cedar Ward</div>
+        </div>
+      </section>
+
+      <section class="section screen-section">
+        <div class="section-heading">
+          <p class="eyebrow">App views</p>
+          <h2>Clear screens for repeated clinical use.</h2>
+        </div>
+        <div class="screen-grid">
+          <article class="screen-card">
+            <div class="screen-topline">General observations</div>
+            <div class="patient-row alert">Room 4 | NEWS2 - Score 5</div>
+            <div class="patient-row">Room 5 | NEWS2 - Score 0</div>
+            <div class="patient-row">Room 6 | Enhanced/TESO</div>
+          </article>
+          <article class="screen-card">
+            <div class="screen-topline">Previous observations</div>
+            <div class="calendar-grid" aria-hidden="true">
+              <span></span><span></span><span class="marked"></span><span></span><span></span><span></span><span></span>
+              <span></span><span class="selected"></span><span></span><span></span><span class="marked"></span><span></span><span></span>
+            </div>
+            <p>Calendar-based history by patient and observation type.</p>
+          </article>
+          <article class="screen-card">
+            <div class="screen-topline">Staff rota</div>
+            <div class="rota-slot">13:00 - 14:00 | Shift 1 + Shift 2</div>
+            <div class="rota-slot">14:00 - 15:00 | Shift 1 + Shift 2</div>
+            <div class="rota-slot gap">15:00 - 16:00 | Gap</div>
+          </article>
+        </div>
+      </section>
+
+      <section id="security" class="section secure-band">
+        <div>
+          <p class="eyebrow">Trust-hosted data model</p>
+          <h2>Designed so clinical data remains under Trust control.</h2>
+          <p>
+            The production architecture is intended to use a secure backend API connected to SQL databases
+            hosted on the Trust's own servers. The Android app should communicate with that API over HTTPS
+            rather than connecting directly to SQL.
+          </p>
+        </div>
+        <div class="security-list">
+          <p>Secure API layer between app and SQL database</p>
+          <p>Trust-controlled hosting and data retention</p>
+          <p>Role-based staff access by site and ward</p>
+          <p>NFC staff identification mapped to staff records</p>
+          <p>Audit-ready observation history for clinical review</p>
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      <span>SecureObs prototype</span>
+      <span><a href="support.html">Support</a> · <a href="privacy.html">Privacy</a></span>
+    </footer>
+  </body>
+</html>
