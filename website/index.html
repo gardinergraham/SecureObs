@@ -91,21 +91,17 @@
           <h2>Tap a staff card to identify the clinician.</h2>
           <p>
             SecureObs can read NFC staff card data on Android EAS builds and use the staff code from the
-            card to select the matching staff member. The current supported card format is:
-          </p>
-          <pre><code>totalmobile://formcapture?SCORE=1&amp;CLINICIAN=GrahamGardiner&amp;STAFFCODE=GardinerG</code></pre>
-          <p>
-            The app extracts <strong>STAFFCODE</strong> as the stable identifier, while the staff name can be
-            displayed for confirmation.
+            card to select the matching staff member. Card values are treated as confidential identifiers
+            and are mapped to staff records inside the authorised system.
           </p>
         </div>
         <div class="phone-shot">
           <div class="phone-header">Start ward observations</div>
-          <div class="phone-row active">Graham Gardiner (GardinerG)</div>
+          <div class="phone-row active">Staff member identified</div>
           <div class="phone-card">
             <span>NFC staff card demo</span>
             <button type="button">Scan NFC card</button>
-            <small>Selected Graham Gardiner from STAFFCODE GardinerG.</small>
+            <small>Card accepted and matched to authorised staff access.</small>
           </div>
           <div class="phone-row">North Secure Hospital</div>
           <div class="phone-row">Cedar Ward</div>
