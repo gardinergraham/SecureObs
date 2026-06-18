@@ -24,6 +24,9 @@ const locations: PatientLocation[] = [
 ];
 
 const presentations: PatientPresentation[] = ["Awake", "Asleep"];
+const patientSortModes = ["Rooms", "Ending soonest", "On Enhanced observations"] as const;
+
+type PatientSortMode = (typeof patientSortModes)[number];
 
 type WardDashboardProps = {
   wards: Ward[];
@@ -40,6 +43,7 @@ type WardDashboardProps = {
   onOpenPatientSettings: () => void;
   onOpenPreviousObservations: () => void;
   onOpenSecurityChecks: () => void;
+  onOpenMedicationChart: () => void;
   onOpenStaffRota: () => void;
   onObservationSaved: (observation: Observation) => void;
   onSelectPatient: (patientId: string) => void;
@@ -60,6 +64,7 @@ export function WardDashboard({
   onOpenPatientSettings,
   onOpenPreviousObservations,
   onOpenSecurityChecks,
+  onOpenMedicationChart,
   onOpenStaffRota,
   onObservationSaved,
   onSelectPatient
@@ -71,11 +76,29 @@ export function WardDashboard({
   const [location, setLocation] = useState<PatientLocation>("Side room");
   const [presentation, setPresentation] = useState<PatientPresentation>("Awake");
   const [comments, setComments] = useState("");
+  const [patientSortMode, setPatientSortMode] = useState<PatientSortMode>("Rooms");
 
-  const orderedPatients = useMemo(
-    () => [...patients].sort((a, b) => a.roomNumber - b.roomNumber),
-    [patients]
-  );
+  const orderedPatients = useMemo(() => {
+    const wardIntervalMinutes = selectedWard?.observationIntervalMinutes ?? 15;
+
+    return [...patients].sort((a, b) => {
+      if (patientSortMode === "Ending soonest") {
+        const dueDifference = getMinutesUntilDue(a, wardIntervalMinutes, now) - getMinutesUntilDue(b, wardIntervalMinutes, now);
+        if (dueDifference !== 0) {
+          return dueDifference;
+        }
+      }
+
+      if (patientSortMode === "On Enhanced observations") {
+        const enhancedDifference = Number(b.observationLevel !== "Intermittent") - Number(a.observationLevel !== "Intermittent");
+        if (enhancedDifference !== 0) {
+          return enhancedDifference;
+        }
+      }
+
+      return a.roomNumber - b.roomNumber;
+    });
+  }, [now, patientSortMode, patients, selectedWard?.observationIntervalMinutes]);
   const latestNews2ByPatientId = useMemo(() => {
     const latestByPatientId = new Map<string, News2Reading>();
 
@@ -112,7 +135,7 @@ export function WardDashboard({
       patientId: selectedPatient.id,
       observerName,
       source: "General observations",
-      type: selectedPatient.observationLevel,
+      type: "Intermittent",
       location,
       presentation,
       comments,
@@ -147,21 +170,36 @@ export function WardDashboard({
         <TouchableOpacity accessibilityRole="button" style={[styles.modeButton, styles.modeButtonActive]}>
           <Text style={[styles.modeButtonText, styles.modeButtonTextActive]}>General observations</Text>
         </TouchableOpacity>
-        <TouchableOpacity accessibilityRole="button" onPress={onOpenNews2} style={styles.modeButton}>
-          <Text style={styles.modeButtonText}>NEWS2</Text>
-        </TouchableOpacity>
-        <TouchableOpacity accessibilityRole="button" onPress={onOpenEnhanced} style={styles.modeButton}>
-          <Text style={styles.modeButtonText}>Enhanced/TESO</Text>
-        </TouchableOpacity>
+        {selectedWard?.news2Enabled ? (
+          <TouchableOpacity accessibilityRole="button" onPress={onOpenNews2} style={styles.modeButton}>
+            <Text style={styles.modeButtonText}>NEWS2</Text>
+          </TouchableOpacity>
+        ) : null}
+        {selectedWard?.enhancedObservationsEnabled ? (
+          <TouchableOpacity accessibilityRole="button" onPress={onOpenEnhanced} style={styles.modeButton}>
+            <Text style={styles.modeButtonText}>Enhanced/TESO</Text>
+          </TouchableOpacity>
+        ) : null}
         <TouchableOpacity accessibilityRole="button" onPress={onOpenPatientSettings} style={styles.modeButton}>
           <Text style={styles.modeButtonText}>Patient settings</Text>
         </TouchableOpacity>
         <TouchableOpacity accessibilityRole="button" onPress={onOpenPreviousObservations} style={styles.modeButton}>
           <Text style={styles.modeButtonText}>Previous obs</Text>
         </TouchableOpacity>
-        <TouchableOpacity accessibilityRole="button" onPress={onOpenSecurityChecks} style={styles.modeButton}>
-          <Text style={styles.modeButtonText}>Security checks</Text>
-        </TouchableOpacity>
+        {selectedWard?.securityChecksEnabled ? (
+          <TouchableOpacity accessibilityRole="button" onPress={onOpenSecurityChecks} style={styles.modeButton}>
+            <Text style={styles.modeButtonText}>Security checks</Text>
+          </TouchableOpacity>
+        ) : null}
+        {selectedWard?.medicationChartEnabled ? (
+          <TouchableOpacity
+            accessibilityRole="button"
+            onPress={onOpenMedicationChart}
+            style={styles.modeButton}
+          >
+            <Text style={styles.modeButtonText}>Medication chart</Text>
+          </TouchableOpacity>
+        ) : null}
         {selectedWard?.staffRotaEnabled ? (
           <TouchableOpacity accessibilityRole="button" onPress={onOpenStaffRota} style={styles.modeButton}>
             <Text style={styles.modeButtonText}>Staff rota</Text>
@@ -176,8 +214,22 @@ export function WardDashboard({
           <View style={styles.listHeader}>
             <Text style={styles.panelTitle}>{selectedWard?.name ?? "Ward"} patients</Text>
             <Text style={styles.headerMeta}>
-              {selectedStaff?.name ?? "No staff selected"} | Room order
+              {selectedStaff?.name ?? "No staff selected"} | {patientSortMode}
             </Text>
+            <View style={styles.sortRow}>
+              {patientSortModes.map((sortMode) => (
+                <TouchableOpacity
+                  accessibilityRole="button"
+                  key={sortMode}
+                  onPress={() => setPatientSortMode(sortMode)}
+                  style={[styles.sortButton, patientSortMode === sortMode && styles.sortButtonActive]}
+                >
+                  <Text style={[styles.sortButtonText, patientSortMode === sortMode && styles.sortButtonTextActive]}>
+                    {sortMode}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
           </View>
 
           {orderedPatients.map((patient) => (
@@ -374,13 +426,7 @@ function OptionGrid({ options, selected, onSelect }: OptionGridProps) {
 }
 
 function getObservationTiming(patient: Patient, wardIntervalMinutes: number, now: number) {
-  if (patient.observationLevel !== "Intermittent") {
-    return { label: "Continuous", status: "continuous" as const };
-  }
-
-  const last = new Date(patient.latestObservationTime).getTime();
-  const due = last + wardIntervalMinutes * 60 * 1000;
-  const minutes = Math.round((due - now) / 60000);
+  const minutes = getMinutesUntilDue(patient, wardIntervalMinutes, now);
 
   if (minutes < 0) {
     return { label: `${Math.abs(minutes)}m overdue`, status: "overdue" as const };
@@ -395,6 +441,17 @@ function getObservationTiming(patient: Patient, wardIntervalMinutes: number, now
   }
 
   return { label: `Due in ${minutes}m`, status: "ok" as const };
+}
+
+function getMinutesUntilDue(patient: Patient, wardIntervalMinutes: number, now: number) {
+  const last = new Date(patient.latestObservationTime).getTime();
+
+  if (Number.isNaN(last)) {
+    return Number.NEGATIVE_INFINITY;
+  }
+
+  const due = last + wardIntervalMinutes * 60 * 1000;
+  return Math.round((due - now) / 60000);
 }
 
 function observationLevelStyle(level: Patient["observationLevel"]) {
@@ -660,6 +717,33 @@ const styles = StyleSheet.create({
     color: "#68777d",
     fontSize: 12,
     marginTop: 3
+  },
+  sortRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 6,
+    marginTop: 10
+  },
+  sortButton: {
+    alignItems: "center",
+    borderColor: "#c7d2d6",
+    borderRadius: 6,
+    borderWidth: 1,
+    justifyContent: "center",
+    minHeight: 34,
+    paddingHorizontal: 9
+  },
+  sortButtonActive: {
+    backgroundColor: "#1f5262",
+    borderColor: "#1f5262"
+  },
+  sortButtonText: {
+    color: "#30434a",
+    fontSize: 11,
+    fontWeight: "900"
+  },
+  sortButtonTextActive: {
+    color: "#ffffff"
   },
   patientRow: {
     alignItems: "center",

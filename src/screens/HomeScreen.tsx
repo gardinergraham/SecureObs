@@ -140,6 +140,12 @@ export function HomeScreen({
             </View>
           </View>
           <Text style={styles.rotaMeta}>
+            {selectedWard?.serviceType ?? "No service type"} | NEWS2 {selectedWard?.news2Enabled ? "on" : "off"} |{" "}
+            Enhanced {selectedWard?.enhancedObservationsEnabled ? "on" : "off"} | Security{" "}
+            {selectedWard?.securityChecksEnabled ? "on" : "off"} | Meds{" "}
+            {selectedWard?.medicationChartEnabled ? "on" : "off"}
+          </Text>
+          <Text style={styles.rotaMeta}>
             {selectedWard?.staffRotaEnabled ? "Staff rota enabled" : "Staff rota hidden"} |{" "}
             {selectedWard?.rotaShiftCount ?? 0} shifts | Breaks {selectedWard?.breakDurationMinutes ?? 0}m
           </Text>

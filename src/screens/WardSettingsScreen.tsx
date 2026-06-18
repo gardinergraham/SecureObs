@@ -1,8 +1,9 @@
 import React from "react";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 
-import type { StaffMember, Ward } from "../types/domain";
+import type { ServiceType, StaffMember, Ward } from "../types/domain";
 
+const serviceTypes: ServiceType[] = ["High secure hospital", "Medium secure hospital", "Care home"];
 const shiftCountOptions = [1, 2, 3, 4];
 const breakDurationOptions = [15, 30, 60];
 const defaultRotaShifts = [
@@ -41,6 +42,11 @@ export function WardSettingsScreen({
   const updateInterval = (minutes: number) => {
     if (!selectedWard || !canEditWardSettings) return;
     onUpdateWardInterval(selectedWard.id, Math.max(5, minutes));
+  };
+
+  const updateWardSettings = (updates: Partial<Ward>) => {
+    if (!selectedWard || !canEditWardSettings) return;
+    onUpdateWardRotaSettings({ ...selectedWard, ...updates });
   };
 
   const toggleRota = () => {
@@ -96,6 +102,64 @@ export function WardSettingsScreen({
       </View>
 
       <View style={styles.panel}>
+        <Text style={styles.settingLabel}>Service type</Text>
+        <View style={styles.optionRow}>
+          {serviceTypes.map((serviceType) => (
+            <TouchableOpacity
+              accessibilityRole="button"
+              disabled={!selectedWard || !canEditWardSettings}
+              key={serviceType}
+              onPress={() => updateWardSettings({ serviceType })}
+              style={[
+                styles.optionButton,
+                selectedWard?.serviceType === serviceType && styles.optionButtonActive,
+                !canEditWardSettings && styles.disabledControl
+              ]}
+            >
+              <Text
+                style={[
+                  styles.optionText,
+                  selectedWard?.serviceType === serviceType && styles.optionTextActive
+                ]}
+              >
+                {serviceType}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+
+        <Text style={styles.settingLabel}>Ward modules</Text>
+        <FeatureToggle
+          disabled={!selectedWard || !canEditWardSettings}
+          enabled={Boolean(selectedWard?.news2Enabled)}
+          label="NEWS2"
+          meta="NEWS2 charting and score history"
+          onToggle={() => updateWardSettings({ news2Enabled: !selectedWard?.news2Enabled })}
+        />
+        <FeatureToggle
+          disabled={!selectedWard || !canEditWardSettings}
+          enabled={Boolean(selectedWard?.enhancedObservationsEnabled)}
+          label="Enhanced observations"
+          meta="TESO start, care plan, and enhanced observation entries"
+          onToggle={() =>
+            updateWardSettings({ enhancedObservationsEnabled: !selectedWard?.enhancedObservationsEnabled })
+          }
+        />
+        <FeatureToggle
+          disabled={!selectedWard || !canEditWardSettings}
+          enabled={Boolean(selectedWard?.securityChecksEnabled)}
+          label="Security checks"
+          meta="Ward checkpoint recording"
+          onToggle={() => updateWardSettings({ securityChecksEnabled: !selectedWard?.securityChecksEnabled })}
+        />
+        <FeatureToggle
+          disabled={!selectedWard || !canEditWardSettings}
+          enabled={Boolean(selectedWard?.medicationChartEnabled)}
+          label="Medication chart"
+          meta="Due medication prompts and recording"
+          onToggle={() => updateWardSettings({ medicationChartEnabled: !selectedWard?.medicationChartEnabled })}
+        />
+
         <Text style={styles.settingLabel}>Intermittent observation interval</Text>
         <View style={styles.optionRow}>
           {[15, 30, 60].map((minutes) => (
@@ -244,6 +308,33 @@ export function WardSettingsScreen({
   );
 }
 
+type FeatureToggleProps = {
+  disabled: boolean;
+  enabled: boolean;
+  label: string;
+  meta: string;
+  onToggle: () => void;
+};
+
+function FeatureToggle({ disabled, enabled, label, meta, onToggle }: FeatureToggleProps) {
+  return (
+    <View style={styles.featureRow}>
+      <View style={styles.featureText}>
+        <Text style={styles.featureLabel}>{label}</Text>
+        <Text style={styles.featureMeta}>{meta}</Text>
+      </View>
+      <TouchableOpacity
+        accessibilityRole="button"
+        disabled={disabled}
+        onPress={onToggle}
+        style={[styles.toggleButton, enabled && styles.toggleButtonActive, disabled && styles.disabledControl]}
+      >
+        <Text style={[styles.toggleText, enabled && styles.optionTextActive]}>{enabled ? "On" : "Off"}</Text>
+      </TouchableOpacity>
+    </View>
+  );
+}
+
 type TimeSettingRowProps = {
   disabled: boolean;
   label: string;
@@ -340,6 +431,20 @@ const styles = StyleSheet.create({
   optionText: { color: "#30434a", fontSize: 14, fontWeight: "900" },
   optionTextActive: { color: "#ffffff" },
   disabledControl: { opacity: 0.45 },
+  featureRow: {
+    alignItems: "center",
+    backgroundColor: "#f8fafb",
+    borderColor: "#d8e0e3",
+    borderRadius: 6,
+    borderWidth: 1,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: 8,
+    padding: 10
+  },
+  featureText: { flex: 1, paddingRight: 10 },
+  featureLabel: { color: "#18262c", fontSize: 14, fontWeight: "900" },
+  featureMeta: { color: "#607078", fontSize: 12, fontWeight: "800", marginTop: 3 },
   stepperRow: { alignItems: "center", flexDirection: "row", gap: 10, marginTop: 10 },
   stepperButton: {
     alignItems: "center",

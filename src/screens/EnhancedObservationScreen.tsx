@@ -167,6 +167,13 @@ export function EnhancedObservationScreen({
                 <Text style={styles.ratioBadge}>{selectedPatient.enhancedObservation?.staffRatio ?? "1:1"}</Text>
               </View>
 
+              {selectedPatient.enhancedObservation?.carePlan ? (
+                <View style={styles.carePlanPanel}>
+                  <Text style={styles.carePlanTitle}>Plan of care</Text>
+                  <Text style={styles.carePlanText}>{selectedPatient.enhancedObservation.carePlan}</Text>
+                </View>
+              ) : null}
+
               <Text style={styles.label}>Assigned enhanced staff</Text>
               <View style={styles.optionRow}>
                 {staff.map((member) => {
@@ -496,6 +503,26 @@ const styles = StyleSheet.create({
     fontWeight: "900",
     paddingHorizontal: 10,
     paddingVertical: 7
+  },
+  carePlanPanel: {
+    backgroundColor: "#edf7f4",
+    borderColor: "#b9d8ca",
+    borderRadius: 8,
+    borderWidth: 1,
+    marginBottom: 12,
+    padding: 12
+  },
+  carePlanTitle: {
+    color: "#315748",
+    fontSize: 13,
+    fontWeight: "900",
+    marginBottom: 4
+  },
+  carePlanText: {
+    color: "#203c32",
+    fontSize: 13,
+    fontWeight: "700",
+    lineHeight: 19
   },
   label: {
     color: "#31454d",

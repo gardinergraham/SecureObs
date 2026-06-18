@@ -1,9 +1,18 @@
-import React, { useMemo, useState } from "react";
-import { StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import { ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 
-import type { Patient, StaffMember, StaffRatio, TesoReason, ObservationLevel } from "../types/domain";
+import type {
+  EnhancedObservationPlan,
+  ObservationLevel,
+  Patient,
+  StaffMember,
+  StaffRatio,
+  TesoEpisode,
+  TesoReason
+} from "../types/domain";
 
 const observationLevels: ObservationLevel[] = ["Intermittent", "Eyesight", "Within arms length"];
+const enhancedObservationLevels: Array<Exclude<ObservationLevel, "Intermittent">> = ["Eyesight", "Within arms length"];
 const ratios: StaffRatio[] = ["1:1", "2:1", "3:1", "4:1", "5:1", "6:1"];
 const reasons: TesoReason[] = [
   "Risk to self",
@@ -14,6 +23,13 @@ const reasons: TesoReason[] = [
   "Physical health",
   "Other"
 ];
+
+type TesoDraft = {
+  observationLevel: Exclude<ObservationLevel, "Intermittent"> | "";
+  staffRatio: StaffRatio;
+  reasons: TesoReason[];
+  otherReason: string;
+};
 
 type PatientSettingsScreenProps = {
   patients: Patient[];
@@ -37,14 +53,91 @@ export function PatientSettingsScreen({
     [patients]
   );
   const [selectedPatientId, setSelectedPatientId] = useState(orderedPatients[0]?.id ?? "");
+  const [tesoDraft, setTesoDraft] = useState<TesoDraft>(() => createDefaultDraft());
+  const detailScrollRef = useRef<ScrollView>(null);
   const selectedPatient = orderedPatients.find((patient) => patient.id === selectedPatientId) ?? orderedPatients[0];
+  const canStartTeso =
+    Boolean(tesoDraft.observationLevel) &&
+    tesoDraft.reasons.length > 0 &&
+    (!tesoDraft.reasons.includes("Other") || tesoDraft.otherReason.trim().length > 0);
 
-  const updatePatient = (patient: Patient, nextPatient: Patient) => {
+  useEffect(() => {
+    setTesoDraft(createDefaultDraft());
+  }, [selectedPatientId]);
+
+  const updatePatient = (nextPatient: Patient) => {
     if (!canEdit) {
       return;
     }
 
     onUpdatePatient(nextPatient);
+  };
+
+  const startTeso = () => {
+    if (!selectedPatient || !canEdit || selectedPatient.enhancedObservation || !canStartTeso || !tesoDraft.observationLevel) {
+      return;
+    }
+
+    const plan = createPlanFromDraft(tesoDraft, selectedStaff?.name ?? "");
+    const observationLevel = tesoDraft.observationLevel;
+
+    updatePatient({
+      ...selectedPatient,
+      observationLevel,
+      enhancedObservation: plan,
+      tesoHistory: [
+        createTesoEpisode({
+          plan,
+          observationLevel,
+          episodeId: `teso-${Date.now()}`
+        }),
+        ...(selectedPatient.tesoHistory ?? [])
+      ]
+    });
+    setTesoDraft(createDefaultDraft());
+  };
+
+  const endTeso = () => {
+    if (!selectedPatient || !canEdit || !selectedPatient.enhancedObservation) {
+      return;
+    }
+
+    const endedAt = new Date().toISOString();
+    const currentPlan = selectedPatient.enhancedObservation;
+    const history = selectedPatient.tesoHistory ?? [];
+    const activeEpisodeIndex = history.findIndex((episode) => !episode.endedAt);
+    const endedEpisode = createTesoEpisode({
+      plan: currentPlan,
+      observationLevel: selectedPatient.observationLevel === "Intermittent" ? "Eyesight" : selectedPatient.observationLevel,
+      episodeId: `teso-${Date.now()}`,
+      endedAt
+    });
+
+    const tesoHistory =
+      activeEpisodeIndex >= 0
+        ? history.map((episode, index) =>
+            index === activeEpisodeIndex
+              ? {
+                  ...episode,
+                  endedAt,
+                  reasons: currentPlan.reasons,
+                  otherReason: currentPlan.otherReason,
+                  observationLevel:
+                    selectedPatient.observationLevel === "Intermittent" ? episode.observationLevel : selectedPatient.observationLevel,
+                  staffRatio: currentPlan.staffRatio,
+                  authorisedBy: currentPlan.authorisedBy,
+                  carePlan: currentPlan.carePlan
+                }
+              : episode
+          )
+        : [endedEpisode, ...history];
+
+    updatePatient({
+      ...selectedPatient,
+      observationLevel: "Intermittent",
+      enhancedObservation: undefined,
+      tesoHistory
+    });
   };
 
   return (
@@ -82,7 +175,14 @@ export function PatientSettingsScreen({
           ))}
         </View>
 
-        <View style={styles.detailPane}>
+        <ScrollView
+          contentContainerStyle={styles.detailContent}
+          keyboardShouldPersistTaps="handled"
+          nestedScrollEnabled
+          ref={detailScrollRef}
+          showsVerticalScrollIndicator
+          style={styles.detailPane}
+        >
           {selectedPatient ? (
             <>
               <View style={styles.patientHeader}>
@@ -95,23 +195,47 @@ export function PatientSettingsScreen({
                 <Text style={styles.levelBadge}>{selectedPatient.observationLevel}</Text>
               </View>
 
-              <Text style={styles.label}>Observation level</Text>
-              <OptionRow
-                disabled={!canEdit}
-                options={observationLevels}
-                selected={selectedPatient.observationLevel}
-                onSelect={(level) => {
-                  const observationLevel = level as ObservationLevel;
-                  updatePatient(selectedPatient, {
-                    ...selectedPatient,
-                    observationLevel,
-                    enhancedObservation:
-                      observationLevel === "Intermittent"
-                        ? undefined
-                        : selectedPatient.enhancedObservation ?? createDefaultPlan(selectedStaff?.name ?? "")
-                  });
-                }}
-              />
+              <View style={styles.tesoActionPanel}>
+                <View style={styles.actionTextBlock}>
+                  <Text style={styles.actionTitle}>
+                    {selectedPatient.enhancedObservation ? "TESO currently active" : "TESO not active"}
+                  </Text>
+                  <Text style={styles.actionMeta}>
+                    {selectedPatient.enhancedObservation
+                      ? `Started ${formatDateTime(selectedPatient.enhancedObservation.startedAt)}`
+                      : "Patient is on intermittent observation unless a new TESO episode is started."}
+                  </Text>
+                </View>
+                <TouchableOpacity
+                  accessibilityRole="button"
+                  disabled={!canEdit || (!selectedPatient.enhancedObservation && !canStartTeso)}
+                  onPress={selectedPatient.enhancedObservation ? endTeso : startTeso}
+                  style={[
+                    styles.tesoActionButton,
+                    selectedPatient.enhancedObservation && styles.endTesoButton,
+                    (!canEdit || (!selectedPatient.enhancedObservation && !canStartTeso)) && styles.disabledControl
+                  ]}
+                >
+                  <Text style={styles.tesoActionButtonText}>
+                    {selectedPatient.enhancedObservation ? "End TESO" : "Start TESO"}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+
+              {selectedPatient.enhancedObservation ? (
+                <>
+                  <Text style={styles.label}>TESO level</Text>
+                  <OptionRow
+                    disabled={!canEdit}
+                    options={enhancedObservationLevels}
+                    selected={selectedPatient.observationLevel}
+                    onSelect={(level) => {
+                      const observationLevel = level as Exclude<ObservationLevel, "Intermittent">;
+                      updatePatient(syncActiveTesoEpisode({ ...selectedPatient, observationLevel }));
+                    }}
+                  />
+                </>
+              ) : null}
 
               <Text style={styles.label}>Seclusion</Text>
               <OptionRow
@@ -125,7 +249,7 @@ export function PatientSettingsScreen({
                       : "No seclusion"
                 }
                 onSelect={(value) =>
-                  updatePatient(selectedPatient, {
+                  updatePatient({
                     ...selectedPatient,
                     seclusion: value === "Seclusion",
                     longTermSeclusion: value === "Long-term seclusion"
@@ -133,7 +257,7 @@ export function PatientSettingsScreen({
                 }
               />
 
-              {selectedPatient.observationLevel !== "Intermittent" ? (
+              {selectedPatient.enhancedObservation ? (
               <View style={styles.tesoPanel}>
                 <Text style={styles.label}>TESO staff ratio</Text>
                 <OptionRow
@@ -141,13 +265,15 @@ export function PatientSettingsScreen({
                   options={ratios}
                   selected={selectedPatient.enhancedObservation?.staffRatio ?? "1:1"}
                   onSelect={(staffRatio) =>
-                    updatePatient(selectedPatient, {
-                      ...selectedPatient,
-                      enhancedObservation: {
-                        ...(selectedPatient.enhancedObservation ?? createDefaultPlan(selectedStaff?.name ?? "")),
-                        staffRatio: staffRatio as StaffRatio
-                      }
-                    })
+                    updatePatient(
+                      syncActiveTesoEpisode({
+                        ...selectedPatient,
+                        enhancedObservation: {
+                          ...(selectedPatient.enhancedObservation ?? createDefaultPlan(selectedStaff?.name ?? "")),
+                          staffRatio: staffRatio as StaffRatio
+                        }
+                      })
+                    )
                   }
                 />
 
@@ -163,13 +289,15 @@ export function PatientSettingsScreen({
                       ? currentPlan.reasons.filter((item) => item !== reason)
                       : [...currentPlan.reasons, reason as TesoReason];
 
-                    updatePatient(selectedPatient, {
-                      ...selectedPatient,
-                      enhancedObservation: {
-                        ...currentPlan,
-                        reasons: nextReasons
-                      }
-                    });
+                    updatePatient(
+                      syncActiveTesoEpisode({
+                        ...selectedPatient,
+                        enhancedObservation: {
+                          ...currentPlan,
+                          reasons: nextReasons
+                        }
+                      })
+                    );
                   }}
                 />
 
@@ -177,13 +305,15 @@ export function PatientSettingsScreen({
                 <TextInput
                   editable={canEdit}
                   onChangeText={(otherReason) =>
-                    updatePatient(selectedPatient, {
-                      ...selectedPatient,
-                      enhancedObservation: {
-                        ...(selectedPatient.enhancedObservation ?? createDefaultPlan(selectedStaff?.name ?? "")),
-                        otherReason
-                      }
-                    })
+                    updatePatient(
+                      syncActiveTesoEpisode({
+                        ...selectedPatient,
+                        enhancedObservation: {
+                          ...(selectedPatient.enhancedObservation ?? createDefaultPlan(selectedStaff?.name ?? "")),
+                          otherReason
+                        }
+                      })
+                    )
                   }
                   placeholder="Required when Other is selected"
                   style={[styles.input, !canEdit && styles.disabledControl]}
@@ -194,13 +324,15 @@ export function PatientSettingsScreen({
                 <TextInput
                   editable={canEdit}
                   onChangeText={(startedAt) =>
-                    updatePatient(selectedPatient, {
-                      ...selectedPatient,
-                      enhancedObservation: {
-                        ...(selectedPatient.enhancedObservation ?? createDefaultPlan(selectedStaff?.name ?? "")),
-                        startedAt
-                      }
-                    })
+                    updatePatient(
+                      syncActiveTesoEpisode({
+                        ...selectedPatient,
+                        enhancedObservation: {
+                          ...(selectedPatient.enhancedObservation ?? createDefaultPlan(selectedStaff?.name ?? "")),
+                          startedAt
+                        }
+                      })
+                    )
                   }
                   style={[styles.input, !canEdit && styles.disabledControl]}
                   value={selectedPatient.enhancedObservation?.startedAt ?? ""}
@@ -210,26 +342,137 @@ export function PatientSettingsScreen({
                 <TextInput
                   editable={canEdit}
                   onChangeText={(authorisedBy) =>
-                    updatePatient(selectedPatient, {
-                      ...selectedPatient,
-                      enhancedObservation: {
-                        ...(selectedPatient.enhancedObservation ?? createDefaultPlan(selectedStaff?.name ?? "")),
-                        authorisedBy
-                      }
-                    })
+                    updatePatient(
+                      syncActiveTesoEpisode({
+                        ...selectedPatient,
+                        enhancedObservation: {
+                          ...(selectedPatient.enhancedObservation ?? createDefaultPlan(selectedStaff?.name ?? "")),
+                          authorisedBy
+                        }
+                      })
+                    )
                   }
                   style={[styles.input, !canEdit && styles.disabledControl]}
                   value={selectedPatient.enhancedObservation?.authorisedBy ?? ""}
                 />
+
+                <Text style={styles.label}>Plan of care</Text>
+                <TextInput
+                  editable={canEdit}
+                  multiline
+                  onFocus={() => {
+                    setTimeout(() => detailScrollRef.current?.scrollToEnd({ animated: true }), 120);
+                    setTimeout(() => detailScrollRef.current?.scrollToEnd({ animated: true }), 420);
+                  }}
+                  onChangeText={(carePlan) =>
+                    updatePatient(
+                      syncActiveTesoEpisode({
+                        ...selectedPatient,
+                        enhancedObservation: {
+                          ...(selectedPatient.enhancedObservation ?? createDefaultPlan(selectedStaff?.name ?? "")),
+                          carePlan
+                        }
+                      })
+                    )
+                  }
+                  placeholder="Describe how staff should support the patient during this enhanced observation period"
+                  style={[styles.input, styles.carePlanInput, !canEdit && styles.disabledControl]}
+                  textAlignVertical="top"
+                  value={selectedPatient.enhancedObservation?.carePlan ?? ""}
+                />
               </View>
               ) : (
-                <Text style={styles.infoText}>This patient is on general intermittent observation only.</Text>
+                <View style={styles.tesoPanel}>
+                  <Text style={styles.label}>Prepare TESO level</Text>
+                  <OptionRow
+                    disabled={!canEdit}
+                    options={enhancedObservationLevels}
+                    selected={tesoDraft.observationLevel}
+                    onSelect={(observationLevel) =>
+                      setTesoDraft((currentDraft) => ({
+                        ...currentDraft,
+                        observationLevel: observationLevel as Exclude<ObservationLevel, "Intermittent">
+                      }))
+                    }
+                  />
+
+                  <Text style={styles.label}>TESO staff ratio</Text>
+                  <OptionRow
+                    disabled={!canEdit}
+                    options={ratios}
+                    selected={tesoDraft.staffRatio}
+                    onSelect={(staffRatio) =>
+                      setTesoDraft((currentDraft) => ({ ...currentDraft, staffRatio: staffRatio as StaffRatio }))
+                    }
+                  />
+
+                  <Text style={styles.label}>Reason for enhanced observation</Text>
+                  <OptionRow
+                    disabled={!canEdit}
+                    multi
+                    options={reasons}
+                    selected={tesoDraft.reasons}
+                    onSelect={(reason) =>
+                      setTesoDraft((currentDraft) => {
+                        const typedReason = reason as TesoReason;
+                        const nextReasons = currentDraft.reasons.includes(typedReason)
+                          ? currentDraft.reasons.filter((item) => item !== typedReason)
+                          : [...currentDraft.reasons, typedReason];
+
+                        return { ...currentDraft, reasons: nextReasons };
+                      })
+                    }
+                  />
+
+                  <Text style={styles.label}>Other reason</Text>
+                  <TextInput
+                    editable={canEdit}
+                    onChangeText={(otherReason) => setTesoDraft((currentDraft) => ({ ...currentDraft, otherReason }))}
+                    placeholder="Required when Other is selected"
+                    style={[styles.input, !canEdit && styles.disabledControl]}
+                    value={tesoDraft.otherReason}
+                  />
+
+                  <Text style={styles.infoText}>
+                    Select the TESO level, staff ratio, and reason before starting the TESO episode. The plan of care can be added after it starts.
+                  </Text>
+                </View>
               )}
+
+              <View style={styles.historyPanel}>
+                <Text style={styles.panelTitle}>TESO history</Text>
+                {(selectedPatient.tesoHistory ?? []).length === 0 ? (
+                  <Text style={styles.infoText}>No TESO episodes recorded for this patient.</Text>
+                ) : (
+                  <View style={styles.historyTable}>
+                    <View style={[styles.historyRow, styles.historyHeaderRow]}>
+                      <Text style={[styles.historyCell, styles.historyStartCell]}>Start time</Text>
+                      <Text style={styles.historyCell}>Reason</Text>
+                      <Text style={styles.historyCell}>Level</Text>
+                      <Text style={styles.historyCell}>End</Text>
+                    </View>
+                    {(selectedPatient.tesoHistory ?? []).map((episode) => (
+                      <View key={episode.id} style={styles.historyRow}>
+                        <Text style={[styles.historyCell, styles.historyStartCell]}>
+                          {formatDateTime(episode.startedAt)}
+                        </Text>
+                        <Text style={styles.historyCell}>{formatReasons(episode)}</Text>
+                        <Text style={styles.historyCell}>
+                          {episode.observationLevel} | {episode.staffRatio}
+                        </Text>
+                        <Text style={styles.historyCell}>
+                          {episode.endedAt ? formatDateTime(episode.endedAt) : "Active"}
+                        </Text>
+                      </View>
+                    ))}
+                  </View>
+                )}
+              </View>
             </>
           ) : (
             <Text style={styles.infoText}>No patient selected.</Text>
           )}
-        </View>
+        </ScrollView>
       </View>
     </View>
   );
@@ -270,15 +513,106 @@ function OptionRow({ options, selected, disabled, multi, onSelect }: OptionRowPr
   );
 }
 
-function createDefaultPlan(authorisedBy: string) {
+function createDefaultPlan(authorisedBy: string): EnhancedObservationPlan {
   return {
     staffRatio: "1:1" as StaffRatio,
     reasons: ["Risk to self"] as TesoReason[],
     otherReason: "",
     startedAt: new Date().toISOString(),
     authorisedBy,
-    assignedStaffIds: []
+    assignedStaffIds: [],
+    carePlan: ""
   };
+}
+
+function createDefaultDraft(): TesoDraft {
+  return {
+    observationLevel: "",
+    staffRatio: "1:1",
+    reasons: [],
+    otherReason: ""
+  };
+}
+
+function createPlanFromDraft(draft: TesoDraft, authorisedBy: string): EnhancedObservationPlan {
+  return {
+    staffRatio: draft.staffRatio,
+    reasons: draft.reasons,
+    otherReason: draft.otherReason,
+    startedAt: new Date().toISOString(),
+    authorisedBy,
+    assignedStaffIds: [],
+    carePlan: ""
+  };
+}
+
+function createTesoEpisode({
+  plan,
+  observationLevel,
+  episodeId,
+  endedAt
+}: {
+  plan: ReturnType<typeof createDefaultPlan>;
+  observationLevel: Exclude<ObservationLevel, "Intermittent">;
+  episodeId: string;
+  endedAt?: string;
+}): TesoEpisode {
+  return {
+    id: episodeId,
+    startedAt: plan.startedAt,
+    endedAt,
+    reasons: plan.reasons,
+    otherReason: plan.otherReason,
+    observationLevel,
+    staffRatio: plan.staffRatio,
+    authorisedBy: plan.authorisedBy,
+    carePlan: plan.carePlan
+  };
+}
+
+function syncActiveTesoEpisode(patient: Patient): Patient {
+  if (!patient.enhancedObservation || patient.observationLevel === "Intermittent") {
+    return patient;
+  }
+
+  const history = patient.tesoHistory ?? [];
+  const activeEpisodeIndex = history.findIndex((episode) => !episode.endedAt);
+  const activeEpisode = createTesoEpisode({
+    plan: patient.enhancedObservation,
+    observationLevel: patient.observationLevel,
+    episodeId: `teso-${Date.now()}`
+  });
+
+  return {
+    ...patient,
+    tesoHistory:
+      activeEpisodeIndex >= 0
+        ? history.map((episode, index) => (index === activeEpisodeIndex ? { ...episode, ...activeEpisode, id: episode.id } : episode))
+        : [activeEpisode, ...history]
+  };
+}
+
+function formatReasons(episode: TesoEpisode) {
+  const reasonsText = episode.reasons.join(", ");
+  return episode.otherReason ? `${reasonsText} - ${episode.otherReason}` : reasonsText || "Not recorded";
+}
+
+function formatDateTime(value: string | undefined) {
+  if (!value) {
+    return "Not recorded";
+  }
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+
+  return date.toLocaleString([], {
+    day: "2-digit",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit"
+  });
 }
 
 const styles = StyleSheet.create({
@@ -339,8 +673,12 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     borderWidth: StyleSheet.hairlineWidth,
     flex: 0.62,
+    maxHeight: 720,
     minWidth: 430,
     padding: 14
+  },
+  detailContent: {
+    paddingBottom: 260
   },
   panelTitle: {
     color: "#18262c",
@@ -439,6 +777,48 @@ const styles = StyleSheet.create({
     marginTop: 12,
     padding: 12
   },
+  tesoActionPanel: {
+    alignItems: "flex-start",
+    backgroundColor: "#f8fafb",
+    borderColor: "#d8e0e3",
+    borderRadius: 8,
+    borderWidth: StyleSheet.hairlineWidth,
+    flexDirection: "column",
+    gap: 12,
+    marginTop: 14,
+    padding: 12
+  },
+  actionTextBlock: {
+    minWidth: 220
+  },
+  actionTitle: {
+    color: "#18262c",
+    fontSize: 15,
+    fontWeight: "900"
+  },
+  actionMeta: {
+    color: "#607078",
+    fontSize: 12,
+    fontWeight: "700",
+    marginTop: 3
+  },
+  tesoActionButton: {
+    alignItems: "center",
+    backgroundColor: "#1f5262",
+    borderRadius: 6,
+    justifyContent: "center",
+    minHeight: 44,
+    minWidth: 124,
+    paddingHorizontal: 14
+  },
+  endTesoButton: {
+    backgroundColor: "#8f2d25"
+  },
+  tesoActionButtonText: {
+    color: "#ffffff",
+    fontSize: 13,
+    fontWeight: "900"
+  },
   input: {
     backgroundColor: "#ffffff",
     borderColor: "#c7d2d6",
@@ -448,6 +828,45 @@ const styles = StyleSheet.create({
     fontSize: 14,
     minHeight: 42,
     paddingHorizontal: 10
+  },
+  carePlanInput: {
+    lineHeight: 20,
+    minHeight: 150,
+    paddingTop: 10
+  },
+  historyPanel: {
+    backgroundColor: "#ffffff",
+    borderColor: "#d8e0e3",
+    borderRadius: 8,
+    borderWidth: StyleSheet.hairlineWidth,
+    marginTop: 12,
+    padding: 12
+  },
+  historyTable: {
+    borderColor: "#d8e0e3",
+    borderRadius: 6,
+    borderWidth: 1,
+    overflow: "hidden"
+  },
+  historyRow: {
+    borderTopColor: "#edf1f2",
+    borderTopWidth: StyleSheet.hairlineWidth,
+    flexDirection: "row"
+  },
+  historyHeaderRow: {
+    backgroundColor: "#edf7f4",
+    borderTopWidth: 0
+  },
+  historyCell: {
+    color: "#31454d",
+    flex: 1,
+    fontSize: 12,
+    fontWeight: "800",
+    lineHeight: 17,
+    padding: 8
+  },
+  historyStartCell: {
+    flex: 0.9
   },
   infoText: {
     color: "#607078",

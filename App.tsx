@@ -4,6 +4,7 @@ import { StatusBar } from "expo-status-bar";
 
 import { EnhancedObservationScreen } from "./src/screens/EnhancedObservationScreen";
 import { HomeScreen } from "./src/screens/HomeScreen";
+import { MedicationChartScreen } from "./src/screens/MedicationChartScreen";
 import { News2Screen } from "./src/screens/News2Screen";
 import { PatientSettingsScreen } from "./src/screens/PatientSettingsScreen";
 import { PreviousObservationsScreen } from "./src/screens/PreviousObservationsScreen";
@@ -16,6 +17,8 @@ import { seedData } from "./src/data/seedData";
 import { parseStaffCardData } from "./src/utils/nfcStaffCard";
 import { readNfcTextPayload } from "./src/utils/nfcReader";
 import type {
+  MedicationAdministration,
+  MedicationPrescription,
   News2Reading,
   Observation,
   Patient,
@@ -36,6 +39,7 @@ type AppScreen =
   | "staffCover"
   | "staffRota"
   | "wardSettings"
+  | "medicationChart"
   | "news2"
   | "securityChecks";
 
@@ -49,6 +53,12 @@ export default function App() {
     () => createDemoStaffShiftAssignments()
   );
   const [securityChecks, setSecurityChecks] = useState<SecurityCheck[]>(seedData.securityChecks);
+  const [medicationPrescriptions, setMedicationPrescriptions] = useState<MedicationPrescription[]>(
+    seedData.medicationPrescriptions
+  );
+  const [medicationAdministrations, setMedicationAdministrations] = useState<MedicationAdministration[]>(
+    seedData.medicationAdministrations
+  );
   const [wards, setWards] = useState<Ward[]>(seedData.wards);
   const [selectedStaffId, setSelectedStaffId] = useState(seedData.staff[0]?.id ?? "");
   const selectedStaff = seedData.staff.find((staff) => staff.id === selectedStaffId) ?? seedData.staff[0];
@@ -138,6 +148,10 @@ export default function App() {
 
   const handleObservationSaved = (observation: Observation) => {
     setObservations((currentObservations) => [observation, ...currentObservations]);
+    if (observation.source !== "General observations") {
+      return;
+    }
+
     setPatients((currentPatients) =>
       currentPatients.map((patient) =>
         patient.id === observation.patientId
@@ -187,9 +201,23 @@ export default function App() {
   };
 
   const handleUpdatePatient = (updatedPatient: Patient) => {
+    const previousPatient = patients.find((patient) => patient.id === updatedPatient.id);
+    const tesoHasEnded =
+      Boolean(previousPatient?.enhancedObservation) &&
+      !updatedPatient.enhancedObservation &&
+      updatedPatient.observationLevel === "Intermittent";
+
     setPatients((currentPatients) =>
       currentPatients.map((patient) => (patient.id === updatedPatient.id ? updatedPatient : patient))
     );
+
+    if (tesoHasEnded) {
+      setRotaAssignments((currentAssignments) =>
+        currentAssignments.filter(
+          (assignment) => assignment.role !== "Enhanced/TESO" || assignment.patientId !== updatedPatient.id
+        )
+      );
+    }
   };
 
   const handleCreateRotaAssignment = (assignment: RotaAssignment) => {
@@ -224,6 +252,22 @@ export default function App() {
     setSecurityChecks((currentChecks) => [check, ...currentChecks]);
   };
 
+  const handleCreateMedicationPrescription = (prescription: MedicationPrescription) => {
+    setMedicationPrescriptions((currentPrescriptions) => [prescription, ...currentPrescriptions]);
+  };
+
+  const handleCreateMedicationAdministration = (administration: MedicationAdministration) => {
+    setMedicationAdministrations((currentAdministrations) => [administration, ...currentAdministrations]);
+  };
+
+  const handleDiscontinueMedicationPrescription = (updatedPrescription: MedicationPrescription) => {
+    setMedicationPrescriptions((currentPrescriptions) =>
+      currentPrescriptions.map((prescription) =>
+        prescription.id === updatedPrescription.id ? updatedPrescription : prescription
+      )
+    );
+  };
+
   return (
     <SafeAreaView style={styles.shell}>
       <StatusBar style="dark" />
@@ -237,7 +281,11 @@ export default function App() {
         </View>
       </View>
 
-      <ScrollView contentContainerStyle={screen === "home" ? styles.homeContent : styles.content} horizontal={false}>
+      <ScrollView
+        contentContainerStyle={screen === "home" ? styles.homeContent : styles.content}
+        horizontal={false}
+        keyboardShouldPersistTaps="handled"
+      >
         {screen === "home" ? (
           <HomeScreen
             selectedStaffId={selectedStaffId}
@@ -281,6 +329,7 @@ export default function App() {
             onOpenPatientSettings={() => setScreen("patientSettings")}
             onOpenPreviousObservations={() => setScreen("previousObservations")}
             onOpenSecurityChecks={() => setScreen("securityChecks")}
+            onOpenMedicationChart={() => setScreen("medicationChart")}
             onOpenStaffRota={() => setScreen("staffRota")}
             onObservationSaved={handleObservationSaved}
             onSelectPatient={setSelectedPatientId}
@@ -339,6 +388,20 @@ export default function App() {
             staff={seedData.staff}
             onBack={() => setScreen("observations")}
             onCreateReading={handleCreateNews2Reading}
+            onSelectPatient={setSelectedPatientId}
+          />
+        ) : screen === "medicationChart" ? (
+          <MedicationChartScreen
+            administrations={medicationAdministrations}
+            patients={wardPatients}
+            prescriptions={medicationPrescriptions}
+            selectedPatientId={selectedPatientId}
+            selectedStaffId={selectedStaffId}
+            staff={seedData.staff}
+            onBack={() => setScreen("observations")}
+            onCreateAdministration={handleCreateMedicationAdministration}
+            onCreatePrescription={handleCreateMedicationPrescription}
+            onDiscontinuePrescription={handleDiscontinueMedicationPrescription}
             onSelectPatient={setSelectedPatientId}
           />
         ) : screen === "securityChecks" ? (
@@ -516,11 +579,11 @@ const styles = StyleSheet.create({
   homeContent: {
     minWidth: 820,
     padding: 14,
-    paddingBottom: 32
+    paddingBottom: 96
   },
   content: {
     minWidth: 820,
     padding: 14,
-    paddingBottom: 32
+    paddingBottom: 112
   }
 });

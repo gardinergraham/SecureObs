@@ -3,7 +3,7 @@ import { ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 
 
 import type { Patient, RotaAssignment, RotaRole, StaffMember, StaffShiftAssignment, Ward } from "../types/domain";
 
-const roles: RotaRole[] = ["General observations", "Enhanced/TESO", "Security checks", "Break"];
+const defaultRoles: RotaRole[] = ["General observations", "Enhanced/TESO", "Security checks", "Break"];
 type TimeSlot = {
   startsAt: string;
   endsAt: string;
@@ -49,6 +49,19 @@ export function StaffRotaScreen({
   const shiftSlots = useMemo(() => buildShiftSlots(ward), [ward]);
   const observationSlots = useMemo(() => buildObservationSlots(ward), [ward]);
   const breakSlots = useMemo(() => buildBreakSlots(ward), [ward]);
+  const availableRoles = useMemo(() => {
+    return defaultRoles.filter((role) => {
+      if (role === "Enhanced/TESO") {
+        return ward?.enhancedObservationsEnabled;
+      }
+
+      if (role === "Security checks") {
+        return ward?.securityChecksEnabled;
+      }
+
+      return true;
+    });
+  }, [ward?.enhancedObservationsEnabled, ward?.securityChecksEnabled]);
   const wardAssignments = useMemo(
     () => assignments.filter((assignment) => assignment.wardId === selectedWardId),
     [assignments, selectedWardId]
@@ -74,6 +87,12 @@ export function StaffRotaScreen({
     slot: selectedSlot,
     staffId: selectedStaffId
   });
+
+  useEffect(() => {
+    if (!availableRoles.includes(selectedRole)) {
+      setSelectedRole("General observations");
+    }
+  }, [availableRoles, selectedRole]);
 
   useEffect(() => {
     if (selectableTimeSlots.length === 0) {
@@ -102,6 +121,20 @@ export function StaffRotaScreen({
       setSelectedStaffId(wardStaff[0]?.id ?? "");
     }
   }, [selectedStaffId, wardStaff]);
+
+  useEffect(() => {
+    if (enhancedPatients.length === 0) {
+      setSelectedPatientId("");
+      if (selectedRole === "Enhanced/TESO") {
+        setSelectedRole("General observations");
+      }
+      return;
+    }
+
+    if (!enhancedPatients.some((patient) => patient.id === selectedPatientId)) {
+      setSelectedPatientId(enhancedPatients[0]?.id ?? "");
+    }
+  }, [enhancedPatients, selectedPatientId, selectedRole]);
 
   const addAssignment = () => {
     if (!selectedStaffId || !ward || (selectedRole === "Enhanced/TESO" && !selectedPatientId) || conflictMessage) {
@@ -257,24 +290,28 @@ export function StaffRotaScreen({
           >
             <Text style={styles.panelTitle}>{editingAssignmentId ? "Change assignment" : "Assign role"}</Text>
 
-            <Text style={styles.label}>Enhanced patient need</Text>
-            <OptionRow
-              options={enhancedPatients.map((patient) => {
-                const required = getRequiredStaffCount(patient);
-                const assigned = getEnhancedAssignmentCount(wardAssignments, patient.id, selectedSlot);
-                const status = required > 0 && assigned >= required ? "Met" : "Needs";
+            {ward?.enhancedObservationsEnabled ? (
+              <>
+                <Text style={styles.label}>Enhanced patient need</Text>
+                <OptionRow
+                  options={enhancedPatients.map((patient) => {
+                    const required = getRequiredStaffCount(patient);
+                    const assigned = getEnhancedAssignmentCount(wardAssignments, patient.id, selectedSlot);
+                    const status = required > 0 && assigned >= required ? "Met" : "Needs";
 
-                return {
-                  id: patient.id,
-                  label: `${status} ${assigned}/${required} | Room ${patient.roomNumber} ${patient.firstName}`
-                };
-              })}
-              selectedId={selectedPatientId}
-              onSelect={(patientId) => {
-                setSelectedPatientId(patientId);
-                setSelectedRole("Enhanced/TESO");
-              }}
-            />
+                    return {
+                      id: patient.id,
+                      label: `${status} ${assigned}/${required} | Room ${patient.roomNumber} ${patient.firstName}`
+                    };
+                  })}
+                  selectedId={selectedPatientId}
+                  onSelect={(patientId) => {
+                    setSelectedPatientId(patientId);
+                    setSelectedRole("Enhanced/TESO");
+                  }}
+                />
+              </>
+            ) : null}
 
             <Text style={styles.label}>Time</Text>
             <OptionRow
@@ -321,7 +358,7 @@ export function StaffRotaScreen({
 
             <Text style={styles.label}>Role</Text>
             <OptionRow
-              options={roles.map((role) => ({ id: role, label: role }))}
+              options={availableRoles.map((role) => ({ id: role, label: role }))}
               selectedId={selectedRole}
               onSelect={(role) => setSelectedRole(role as RotaRole)}
             />

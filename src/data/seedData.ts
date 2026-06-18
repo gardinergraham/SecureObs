@@ -1,4 +1,6 @@
 import type {
+  MedicationAdministration,
+  MedicationPrescription,
   Observation,
   Patient,
   PatientIncompatibility,
@@ -22,6 +24,8 @@ export const seedData: {
   staff: StaffMember[];
   staffShiftAssignments: StaffShiftAssignment[];
   patients: Patient[];
+  medicationPrescriptions: MedicationPrescription[];
+  medicationAdministrations: MedicationAdministration[];
   rotaAssignments: RotaAssignment[];
   observations: Observation[];
   incompatibilities: PatientIncompatibility[];
@@ -37,7 +41,12 @@ export const seedData: {
       id: "ward-1",
       siteId: "site-1",
       name: "Cedar Ward",
+      serviceType: "High secure hospital",
       observationIntervalMinutes: 15,
+      news2Enabled: true,
+      enhancedObservationsEnabled: true,
+      securityChecksEnabled: true,
+      medicationChartEnabled: true,
       staffRotaEnabled: true,
       rotaShiftCount: 3,
       rotaShifts: [
@@ -52,7 +61,12 @@ export const seedData: {
       id: "ward-2",
       siteId: "site-1",
       name: "Maple Ward",
+      serviceType: "Medium secure hospital",
       observationIntervalMinutes: 30,
+      news2Enabled: true,
+      enhancedObservationsEnabled: true,
+      securityChecksEnabled: true,
+      medicationChartEnabled: false,
       staffRotaEnabled: false,
       rotaShiftCount: 3,
       rotaShifts: [
@@ -67,7 +81,12 @@ export const seedData: {
       id: "ward-3",
       siteId: "site-2",
       name: "River Ward",
+      serviceType: "Care home",
       observationIntervalMinutes: 60,
+      news2Enabled: true,
+      enhancedObservationsEnabled: true,
+      securityChecksEnabled: false,
+      medicationChartEnabled: true,
       staffRotaEnabled: true,
       rotaShiftCount: 2,
       rotaShifts: [
@@ -178,6 +197,18 @@ export const seedData: {
       wardId: "ward-1",
       allowedSiteIds: ["site-1", "site-2"],
       allowedWardIds: ["ward-1", "ward-2", "ward-3"]
+    },
+    {
+      id: "staff-11",
+      keyNumber: 901,
+      staffCode: "PatelD",
+      name: "Dr Anita Patel",
+      role: "doctor",
+      designation: "Prescriber",
+      canPrescribe: true,
+      wardId: "ward-1",
+      allowedSiteIds: ["site-1", "site-2"],
+      allowedWardIds: ["ward-1", "ward-2", "ward-3"]
     }
   ],
   staffShiftAssignments: [
@@ -247,8 +278,21 @@ export const seedData: {
         otherReason: "",
         startedAt: now,
         authorisedBy: "Riley Ward Manager",
-        assignedStaffIds: ["staff-1"]
-      }
+        assignedStaffIds: ["staff-1"],
+        carePlan: "Offer regular reassurance, maintain eyesight observation, and encourage time in quiet areas when unsettled."
+      },
+      tesoHistory: [
+        {
+          id: "teso-patient-1-active",
+          startedAt: now,
+          reasons: ["Risk to self"],
+          otherReason: "",
+          observationLevel: "Eyesight",
+          staffRatio: "1:1",
+          authorisedBy: "Riley Ward Manager",
+          carePlan: "Offer regular reassurance, maintain eyesight observation, and encourage time in quiet areas when unsettled."
+        }
+      ]
     },
     {
       id: "patient-2",
@@ -272,8 +316,21 @@ export const seedData: {
         otherReason: "",
         startedAt: now,
         authorisedBy: "Riley Ward Manager",
-        assignedStaffIds: ["staff-1", "staff-2"]
-      }
+        assignedStaffIds: ["staff-1", "staff-2"],
+        carePlan: "Use calm verbal engagement, maintain two staff nearby, and support structured activities away from busy areas."
+      },
+      tesoHistory: [
+        {
+          id: "teso-patient-2-active",
+          startedAt: now,
+          reasons: ["Security", "Risk to others"],
+          otherReason: "",
+          observationLevel: "Within arms length",
+          staffRatio: "2:1",
+          authorisedBy: "Riley Ward Manager",
+          carePlan: "Use calm verbal engagement, maintain two staff nearby, and support structured activities away from busy areas."
+        }
+      ]
     },
     {
       id: "patient-4",
@@ -308,6 +365,44 @@ export const seedData: {
       onOffWard: "On ward",
       seclusion: true,
       longTermSeclusion: false
+    }
+  ],
+  medicationPrescriptions: [
+    {
+      id: "med-prescription-1",
+      patientId: "patient-1",
+      drugName: "Paracetamol",
+      dose: "1 g",
+      route: "Oral",
+      administrationTimes: ["08:00", "14:00", "20:00"],
+      startDate: now,
+      additionalInstructions: "Maximum 4 g in 24 hours.",
+      prescribedBy: "Dr Anita Patel",
+      prescribedAt: now
+    },
+    {
+      id: "med-prescription-2",
+      patientId: "patient-2",
+      drugName: "Lorazepam",
+      dose: "1 mg",
+      route: "Oral",
+      administrationTimes: ["22:00"],
+      startDate: now,
+      additionalInstructions: "Offer with evening medication round if clinically indicated.",
+      prescribedBy: "Dr Anita Patel",
+      prescribedAt: now
+    }
+  ],
+  medicationAdministrations: [
+    {
+      id: "med-admin-1",
+      prescriptionId: "med-prescription-1",
+      patientId: "patient-1",
+      scheduledAt: new Date("2026-06-05T08:00:00.000Z").toISOString(),
+      status: "Given",
+      recordedBy: "Alex Nurse",
+      recordedAt: now,
+      notes: "Taken with water."
     }
   ],
   rotaAssignments: [

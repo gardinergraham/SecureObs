@@ -24,6 +24,8 @@ export type PatientPresentation = "Awake" | "Asleep";
 export type ObservationSource = "General observations" | "Enhanced/TESO";
 export type News2Consciousness = "Alert" | "New confusion" | "Voice" | "Pain" | "Unresponsive";
 export type Spo2Scale = "Scale 1" | "Scale 2";
+export type ServiceType = "High secure hospital" | "Medium secure hospital" | "Care home";
+export type MedicationAdministrationStatus = "Given" | "Omitted" | "Refused";
 
 export type Site = {
   id: string;
@@ -34,7 +36,12 @@ export type Ward = {
   id: string;
   siteId: string;
   name: string;
+  serviceType: ServiceType;
   observationIntervalMinutes: number;
+  news2Enabled: boolean;
+  enhancedObservationsEnabled: boolean;
+  securityChecksEnabled: boolean;
+  medicationChartEnabled: boolean;
   staffRotaEnabled: boolean;
   rotaShiftCount: number;
   rotaShifts: RotaShift[];
@@ -72,7 +79,9 @@ export type StaffMember = {
   keyNumber: number;
   staffCode: string;
   name: string;
-  role: "nurse" | "hcf" | "security" | "manager";
+  role: "nurse" | "hcf" | "security" | "manager" | "doctor";
+  designation?: string;
+  canPrescribe?: boolean;
   wardId: string;
   allowedSiteIds: string[];
   allowedWardIds: string[];
@@ -85,6 +94,19 @@ export type EnhancedObservationPlan = {
   startedAt: string;
   authorisedBy: string;
   assignedStaffIds: string[];
+  carePlan: string;
+};
+
+export type TesoEpisode = {
+  id: string;
+  startedAt: string;
+  endedAt?: string;
+  reasons: TesoReason[];
+  otherReason: string;
+  observationLevel: Exclude<ObservationLevel, "Intermittent">;
+  staffRatio: StaffRatio;
+  authorisedBy: string;
+  carePlan: string;
 };
 
 export type Patient = {
@@ -104,6 +126,7 @@ export type Patient = {
   seclusion: boolean;
   longTermSeclusion: boolean;
   enhancedObservation?: EnhancedObservationPlan;
+  tesoHistory?: TesoEpisode[];
 };
 
 export type Observation = {
@@ -132,6 +155,34 @@ export type News2Reading = {
   consciousness: News2Consciousness;
   temperature: number;
   totalScore: number;
+};
+
+export type MedicationPrescription = {
+  id: string;
+  patientId: string;
+  drugName: string;
+  dose: string;
+  route: string;
+  administrationTimes: string[];
+  startDate: string;
+  stopDate?: string;
+  additionalInstructions: string;
+  prescribedBy: string;
+  prescribedAt: string;
+  discontinuedBy?: string;
+  discontinuedAt?: string;
+  discontinueReason?: string;
+};
+
+export type MedicationAdministration = {
+  id: string;
+  prescriptionId: string;
+  patientId: string;
+  scheduledAt: string;
+  status: MedicationAdministrationStatus;
+  recordedBy: string;
+  recordedAt: string;
+  notes: string;
 };
 
 export type PatientIncompatibility = {
