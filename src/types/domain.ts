@@ -26,6 +26,7 @@ export type News2Consciousness = "Alert" | "New confusion" | "Voice" | "Pain" | 
 export type Spo2Scale = "Scale 1" | "Scale 2";
 export type ServiceType = "High secure hospital" | "Medium secure hospital" | "Care home";
 export type MedicationAdministrationStatus = "Given" | "Omitted" | "Refused";
+export type MedicationOmissionCode = "R" | "N" | "X" | "F" | "S" | "O" | "U";
 
 export type Site = {
   id: string;
@@ -180,6 +181,7 @@ export type MedicationAdministration = {
   patientId: string;
   scheduledAt: string;
   status: MedicationAdministrationStatus;
+  omissionCode?: MedicationOmissionCode;
   recordedBy: string;
   recordedAt: string;
   notes: string;

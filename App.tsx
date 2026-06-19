@@ -62,6 +62,7 @@ export default function App() {
   const [wards, setWards] = useState<Ward[]>(seedData.wards);
   const [selectedStaffId, setSelectedStaffId] = useState(seedData.staff[0]?.id ?? "");
   const selectedStaff = seedData.staff.find((staff) => staff.id === selectedStaffId) ?? seedData.staff[0];
+  const selectedStaffCanPrescribe = Boolean(selectedStaff?.canPrescribe || selectedStaff?.role === "doctor");
   const firstAllowedSiteId = selectedStaff?.allowedSiteIds[0] ?? seedData.sites[0]?.id ?? "";
   const firstAllowedWardId = selectedStaff?.allowedWardIds[0] ?? wards[0]?.id ?? "";
   const [selectedSiteId, setSelectedSiteId] = useState(firstAllowedSiteId);
@@ -393,6 +394,7 @@ export default function App() {
         ) : screen === "medicationChart" ? (
           <MedicationChartScreen
             administrations={medicationAdministrations}
+            initialViewMode={selectedStaffCanPrescribe ? "admin" : "chart"}
             patients={wardPatients}
             prescriptions={medicationPrescriptions}
             selectedPatientId={selectedPatientId}
