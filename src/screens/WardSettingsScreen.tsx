@@ -1,5 +1,5 @@
-import React from "react";
-import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import React, { useState } from "react";
+import { Alert, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 
 import type { ServiceType, StaffMember, Ward } from "../types/domain";
 
@@ -23,6 +23,7 @@ type WardSettingsScreenProps = {
   onUpdateWardInterval: (wardId: string, observationIntervalMinutes: number) => void;
   onUpdateWardRotaEnabled: (wardId: string, staffRotaEnabled: boolean) => void;
   onUpdateWardRotaSettings: (ward: Ward) => void;
+  onCreateStaff: (staff: StaffMember) => Promise<void>;
 };
 
 export function WardSettingsScreen({
@@ -33,11 +34,16 @@ export function WardSettingsScreen({
   onBack,
   onUpdateWardInterval,
   onUpdateWardRotaEnabled,
-  onUpdateWardRotaSettings
+  onUpdateWardRotaSettings,
+  onCreateStaff
 }: WardSettingsScreenProps) {
   const selectedWard = wards.find((ward) => ward.id === selectedWardId);
   const selectedStaff = staff.find((member) => member.id === selectedStaffId);
   const canEditWardSettings = selectedStaff?.role === "manager";
+  const [newStaffName, setNewStaffName] = useState("");
+  const [newStaffCode, setNewStaffCode] = useState("");
+  const [newStaffRole, setNewStaffRole] = useState<StaffMember["role"]>("nurse");
+  const [isSavingStaff, setIsSavingStaff] = useState(false);
 
   const updateInterval = (minutes: number) => {
     if (!selectedWard || !canEditWardSettings) return;
@@ -87,6 +93,40 @@ export function WardSettingsScreen({
     onUpdateWardRotaSettings({ ...selectedWard, breakDurationMinutes });
   };
 
+  const addWardStaff = async () => {
+    if (!selectedWard || !selectedStaff || !canEditWardSettings) return;
+    if (!newStaffName.trim() || !newStaffCode.trim()) {
+      Alert.alert("Staff details needed", "Enter the staff name and STAFFCODE before saving.");
+      return;
+    }
+
+    const staffMember: StaffMember = {
+      id: `staff-${newStaffCode.trim().toLowerCase()}`,
+      organisationId: selectedStaff.organisationId,
+      keyNumber: Date.now() % 100000,
+      staffCode: newStaffCode.trim(),
+      name: newStaffName.trim(),
+      role: newStaffRole,
+      designation: newStaffRole === "hcf" ? "HCF" : newStaffRole === "nurse" ? "Nurse" : newStaffRole,
+      canPrescribe: newStaffRole === "doctor",
+      wardId: selectedWard.id,
+      allowedSiteIds: [selectedWard.siteId],
+      allowedWardIds: [selectedWard.id],
+      active: true
+    };
+
+    setIsSavingStaff(true);
+    try {
+      await onCreateStaff(staffMember);
+      setNewStaffName("");
+      setNewStaffCode("");
+      setNewStaffRole("nurse");
+      Alert.alert("Staff added", `${staffMember.name} can now use STAFFCODE ${staffMember.staffCode}.`);
+    } finally {
+      setIsSavingStaff(false);
+    }
+  };
+
   return (
     <View style={styles.screen}>
       <View style={styles.header}>
@@ -102,6 +142,53 @@ export function WardSettingsScreen({
       </View>
 
       <View style={styles.panel}>
+        <View style={styles.staffSetupPanel}>
+          <Text style={styles.settingLabel}>Ward staff setup</Text>
+          <Text style={styles.meta}>
+            Add staff for {selectedWard?.name ?? "this ward"}. They can then use their NFC STAFFCODE.
+          </Text>
+          <TextInput
+            editable={canEditWardSettings}
+            onChangeText={setNewStaffName}
+            placeholder="Staff name"
+            style={styles.input}
+            value={newStaffName}
+          />
+          <TextInput
+            autoCapitalize="none"
+            editable={canEditWardSettings}
+            onChangeText={setNewStaffCode}
+            placeholder="STAFFCODE"
+            style={styles.input}
+            value={newStaffCode}
+          />
+          <View style={styles.optionRow}>
+            {(["nurse", "hcf", "security", "doctor"] as StaffMember["role"][]).map((role) => (
+              <TouchableOpacity
+                accessibilityRole="button"
+                disabled={!canEditWardSettings}
+                key={role}
+                onPress={() => setNewStaffRole(role)}
+                style={[
+                  styles.optionButton,
+                  newStaffRole === role && styles.optionButtonActive,
+                  !canEditWardSettings && styles.disabledControl
+                ]}
+              >
+                <Text style={[styles.optionText, newStaffRole === role && styles.optionTextActive]}>{role}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+          <TouchableOpacity
+            accessibilityRole="button"
+            disabled={!canEditWardSettings || isSavingStaff}
+            onPress={addWardStaff}
+            style={[styles.saveStaffButton, (!canEditWardSettings || isSavingStaff) && styles.disabledControl]}
+          >
+            <Text style={styles.saveStaffButtonText}>{isSavingStaff ? "Saving..." : "Add staff member"}</Text>
+          </TouchableOpacity>
+        </View>
+
         <Text style={styles.settingLabel}>Service type</Text>
         <View style={styles.optionRow}>
           {serviceTypes.map((serviceType) => (
@@ -413,6 +500,33 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     padding: 14
   },
+  staffSetupPanel: {
+    backgroundColor: "#f8fafb",
+    borderColor: "#d8e0e3",
+    borderRadius: 8,
+    borderWidth: 1,
+    gap: 8,
+    marginBottom: 8,
+    padding: 12
+  },
+  input: {
+    backgroundColor: "#ffffff",
+    borderColor: "#c7d2d6",
+    borderRadius: 6,
+    borderWidth: 1,
+    color: "#18262c",
+    fontSize: 15,
+    minHeight: 44,
+    paddingHorizontal: 10
+  },
+  saveStaffButton: {
+    alignItems: "center",
+    backgroundColor: "#1f5262",
+    borderRadius: 6,
+    justifyContent: "center",
+    minHeight: 44
+  },
+  saveStaffButtonText: { color: "#ffffff", fontSize: 14, fontWeight: "900" },
   settingLabel: { color: "#31454d", fontSize: 13, fontWeight: "900", marginBottom: 8, marginTop: 12 },
   optionRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   optionButton: {

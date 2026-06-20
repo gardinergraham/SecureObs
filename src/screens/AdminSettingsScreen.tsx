@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from "react";
 import { Alert, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 
-import type { ServiceType, Site, Ward } from "../types/domain";
+import type { ServiceType, Site, StaffMember, Ward } from "../types/domain";
 
 const serviceTypes: ServiceType[] = ["High secure hospital", "Medium secure hospital", "Care home"];
 const intervals = [5, 10, 15, 30, 60];
@@ -11,6 +11,7 @@ type AdminSettingsScreenProps = {
   wards: Ward[];
   onBack: () => void;
   onCreateSite: (site: Site) => Promise<void>;
+  onCreateStaff: (staff: StaffMember) => Promise<void>;
   onCreateWard: (ward: Ward) => Promise<void>;
 };
 
@@ -19,11 +20,14 @@ export function AdminSettingsScreen({
   wards,
   onBack,
   onCreateSite,
+  onCreateStaff,
   onCreateWard
 }: AdminSettingsScreenProps) {
   const [siteName, setSiteName] = useState("");
   const [selectedSiteId, setSelectedSiteId] = useState(sites[0]?.id ?? "");
   const [wardName, setWardName] = useState("");
+  const [managerName, setManagerName] = useState("");
+  const [managerStaffCode, setManagerStaffCode] = useState("");
   const [serviceType, setServiceType] = useState<ServiceType>("Care home");
   const [observationIntervalMinutes, setObservationIntervalMinutes] = useState(15);
   const [isSaving, setIsSaving] = useState(false);
@@ -61,6 +65,10 @@ export function AdminSettingsScreen({
       Alert.alert("Ward details needed", "Choose a site and enter the ward name before saving.");
       return;
     }
+    if ((managerName.trim() || managerStaffCode.trim()) && (!managerName.trim() || !managerStaffCode.trim())) {
+      Alert.alert("Manager details needed", "Enter both the ward manager name and STAFFCODE.");
+      return;
+    }
 
     const ward: Ward = {
       id: createId("ward", `${selectedSiteId}-${trimmedName}`),
@@ -86,8 +94,25 @@ export function AdminSettingsScreen({
     setIsSaving(true);
     try {
       await onCreateWard(ward);
+      if (managerName.trim() && managerStaffCode.trim()) {
+        await onCreateStaff({
+          id: `staff-${managerStaffCode.trim().toLowerCase()}`,
+          keyNumber: Date.now() % 100000,
+          staffCode: managerStaffCode.trim(),
+          name: managerName.trim(),
+          role: "manager",
+          designation: "Ward Manager",
+          canPrescribe: false,
+          wardId: ward.id,
+          allowedSiteIds: [selectedSiteId],
+          allowedWardIds: [ward.id],
+          active: true
+        });
+      }
       setWardName("");
-      Alert.alert("Ward added", `${ward.name} has been added.`);
+      setManagerName("");
+      setManagerStaffCode("");
+      Alert.alert("Ward added", `${ward.name} has been added${managerName.trim() ? " with a manager" : ""}.`);
     } finally {
       setIsSaving(false);
     }
@@ -145,6 +170,19 @@ export function AdminSettingsScreen({
             placeholder="Ward name"
             style={styles.input}
             value={wardName}
+          />
+          <TextInput
+            onChangeText={setManagerName}
+            placeholder="Ward manager name"
+            style={styles.input}
+            value={managerName}
+          />
+          <TextInput
+            autoCapitalize="none"
+            onChangeText={setManagerStaffCode}
+            placeholder="Manager STAFFCODE for NFC card"
+            style={styles.input}
+            value={managerStaffCode}
           />
 
           <Text style={styles.label}>Service type</Text>

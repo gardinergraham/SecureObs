@@ -66,6 +66,13 @@ export async function lookupStaffByCode(staffCode: string, organisationId?: stri
   });
 }
 
+export async function createStaffMember(staff: StaffMember) {
+  return request<{ staff: StaffMember }>("/api/staff", {
+    method: "POST",
+    body: JSON.stringify(staff)
+  });
+}
+
 export async function createSecurityCheck(check: OrganisationScoped<SecurityCheck>) {
   return request<SecurityCheck>("/api/security-checks", {
     method: "POST",

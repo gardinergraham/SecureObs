@@ -10,6 +10,21 @@ const staffLookupSchema = z.object({
   organisationId: z.string().uuid().optional()
 });
 
+const staffMemberSchema = z.object({
+  id: z.string().optional(),
+  organisationId: z.string().uuid().optional().default("00000000-0000-0000-0000-000000000001"),
+  keyNumber: z.number().int().optional(),
+  staffCode: z.string().min(1),
+  name: z.string().min(1),
+  role: z.enum(["nurse", "hcf", "security", "manager", "doctor"]),
+  designation: z.string().optional(),
+  canPrescribe: z.boolean().default(false),
+  wardId: z.string().min(1),
+  allowedSiteIds: z.array(z.string()).min(1),
+  allowedWardIds: z.array(z.string()).min(1),
+  active: z.boolean().default(true)
+});
+
 router.get("/", async (_request, response, next) => {
   try {
     const result = await pool.query(`
@@ -37,6 +52,68 @@ router.get("/", async (_request, response, next) => {
       return;
     }
 
+    next(error);
+  }
+});
+
+router.post("/", async (request, response, next) => {
+  try {
+    const parsed = staffMemberSchema.safeParse(request.body);
+
+    if (!parsed.success) {
+      response.status(400).json({ error: "Invalid staff member", details: parsed.error.flatten() });
+      return;
+    }
+
+    const staff = parsed.data;
+    const result = await pool.query(
+      `
+        insert into staff_members (
+          organisation_id, key_number, staff_code, display_name, role, designation, can_prescribe,
+          ward_id, allowed_site_ids, allowed_ward_ids, active
+        ) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+        on conflict (organisation_id, staff_code) do update set
+          key_number = excluded.key_number,
+          display_name = excluded.display_name,
+          role = excluded.role,
+          designation = excluded.designation,
+          can_prescribe = excluded.can_prescribe,
+          ward_id = excluded.ward_id,
+          allowed_site_ids = excluded.allowed_site_ids,
+          allowed_ward_ids = excluded.allowed_ward_ids,
+          active = excluded.active,
+          updated_at = now()
+        returning
+          id,
+          organisation_id as "organisationId",
+          key_number as "keyNumber",
+          staff_code as "staffCode",
+          display_name as "name",
+          role,
+          designation,
+          can_prescribe as "canPrescribe",
+          ward_id as "wardId",
+          allowed_site_ids as "allowedSiteIds",
+          allowed_ward_ids as "allowedWardIds",
+          active
+      `,
+      [
+        staff.organisationId,
+        staff.keyNumber ?? null,
+        staff.staffCode,
+        staff.name,
+        staff.role,
+        staff.designation ?? null,
+        staff.canPrescribe,
+        staff.wardId,
+        staff.allowedSiteIds,
+        staff.allowedWardIds,
+        staff.active
+      ]
+    );
+
+    response.status(201).json({ staff: result.rows[0] });
+  } catch (error) {
     next(error);
   }
 });

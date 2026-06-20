@@ -20,6 +20,7 @@ import {
   createMedicationPrescription as persistMedicationPrescription,
   createNews2Reading as persistNews2Reading,
   createSite as persistSite,
+  createStaffMember as persistStaffMember,
   createSecurityCheck as persistSecurityCheck,
   createWard as persistWard,
   loadSites,
@@ -266,6 +267,14 @@ export default function App() {
     }
   };
 
+  const handleCreateStaffMember = async (staff: StaffMember) => {
+    const { staff: savedStaff } = await persistStaffMember({
+      ...staff,
+      organisationId: staff.organisationId ?? selectedStaff?.organisationId
+    });
+    setStaffMembers((currentStaff) => upsertStaffByCode(currentStaff, savedStaff));
+  };
+
   const handleUpdatePatient = (updatedPatient: Patient) => {
     const previousPatient = patients.find((patient) => patient.id === updatedPatient.id);
     const tesoHasEnded =
@@ -390,6 +399,7 @@ export default function App() {
             wards={wards}
             onBack={() => setScreen("home")}
             onCreateSite={handleCreateSite}
+            onCreateStaff={handleCreateStaffMember}
             onCreateWard={handleCreateWard}
           />
         ) : screen === "wardSettings" ? (
@@ -402,6 +412,7 @@ export default function App() {
             onUpdateWardInterval={handleUpdateWardInterval}
             onUpdateWardRotaEnabled={handleUpdateWardRotaEnabled}
             onUpdateWardRotaSettings={handleUpdateWardRotaSettings}
+            onCreateStaff={handleCreateStaffMember}
           />
         ) : screen === "observations" ? (
           <WardDashboard
