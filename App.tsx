@@ -1,7 +1,8 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { SafeAreaView, ScrollView, StyleSheet, Text, View } from "react-native";
 import { StatusBar } from "expo-status-bar";
 
+import { AdminSettingsScreen } from "./src/screens/AdminSettingsScreen";
 import { EnhancedObservationScreen } from "./src/screens/EnhancedObservationScreen";
 import { HomeScreen } from "./src/screens/HomeScreen";
 import { MedicationChartScreen } from "./src/screens/MedicationChartScreen";
@@ -18,7 +19,11 @@ import {
   createMedicationAdministration as persistMedicationAdministration,
   createMedicationPrescription as persistMedicationPrescription,
   createNews2Reading as persistNews2Reading,
+  createSite as persistSite,
   createSecurityCheck as persistSecurityCheck,
+  createWard as persistWard,
+  loadSites,
+  loadWards,
   lookupStaffByCode,
   updateMedicationPrescription as persistMedicationPrescriptionUpdate
 } from "./src/services/api";
@@ -34,6 +39,7 @@ import type {
   PatientPresentation,
   RotaAssignment,
   SecurityCheck,
+  Site,
   StaffMember,
   StaffShiftAssignment,
   Ward
@@ -41,6 +47,7 @@ import type {
 
 type AppScreen =
   | "home"
+  | "adminSettings"
   | "observations"
   | "enhanced"
   | "patientSettings"
@@ -69,6 +76,7 @@ export default function App() {
     seedData.medicationAdministrations
   );
   const [wards, setWards] = useState<Ward[]>(seedData.wards);
+  const [sites, setSites] = useState<Site[]>(seedData.sites);
   const [staffMembers, setStaffMembers] = useState<StaffMember[]>(seedData.staff);
   const [selectedStaffId, setSelectedStaffId] = useState(seedData.staff[0]?.id ?? "");
   const selectedStaff = staffMembers.find((staff) => staff.id === selectedStaffId) ?? staffMembers[0];
@@ -79,18 +87,38 @@ export default function App() {
   const [selectedWardId, setSelectedWardId] = useState(firstAllowedWardId);
   const [selectedPatientId, setSelectedPatientId] = useState(seedData.patients[0]?.id ?? "");
 
+  useEffect(() => {
+    const loadConfiguration = async () => {
+      try {
+        const [siteResult, wardResult] = await Promise.all([loadSites(), loadWards()]);
+        setSites(siteResult.sites);
+        setWards(wardResult.wards);
+      } catch (error) {
+        console.warn("Unable to load site and ward configuration", error);
+      }
+    };
+
+    void loadConfiguration();
+  }, []);
+
   const accessibleSites = useMemo(() => {
     if (!selectedStaff) {
-      return seedData.sites;
+      return sites;
     }
 
-    return seedData.sites.filter((site) => selectedStaff.allowedSiteIds.includes(site.id));
-  }, [selectedStaff]);
+    if (selectedStaff.staffCode === "GardinerG") {
+      return sites;
+    }
+
+    return sites.filter((site) => selectedStaff.allowedSiteIds.includes(site.id));
+  }, [selectedStaff, sites]);
 
   const siteWards = useMemo(
     () =>
       wards.filter(
-        (ward) => ward.siteId === selectedSiteId && selectedStaff?.allowedWardIds.includes(ward.id)
+        (ward) =>
+          ward.siteId === selectedSiteId &&
+          (selectedStaff?.staffCode === "GardinerG" || selectedStaff?.allowedWardIds.includes(ward.id))
       ),
     [selectedSiteId, selectedStaff, wards]
   );
@@ -222,6 +250,22 @@ export default function App() {
     );
   };
 
+  const handleCreateSite = async (site: Site) => {
+    const savedSite = await persistSite({ ...site, organisationId: selectedStaff?.organisationId });
+    setSites((currentSites) => upsertSite(currentSites, savedSite));
+    if (selectedStaff?.staffCode === "GardinerG") {
+      setSelectedSiteId(savedSite.id);
+    }
+  };
+
+  const handleCreateWard = async (ward: Ward) => {
+    const savedWard = await persistWard(ward);
+    setWards((currentWards) => upsertWard(currentWards, savedWard));
+    if (selectedStaff?.staffCode === "GardinerG") {
+      setSelectedWardId(savedWard.id);
+    }
+  };
+
   const handleUpdatePatient = (updatedPatient: Patient) => {
     const previousPatient = patients.find((patient) => patient.id === updatedPatient.id);
     const tesoHasEnded =
@@ -336,8 +380,17 @@ export default function App() {
             onSelectWard={handleSelectWard}
             onReadStaffCardData={handleReadStaffCardData}
             onScanStaffCard={handleScanStaffCard}
+            onOpenAdminSettings={() => setScreen("adminSettings")}
             onOpenWardSettings={() => setScreen("wardSettings")}
             onStart={() => setScreen("observations")}
+          />
+        ) : screen === "adminSettings" ? (
+          <AdminSettingsScreen
+            sites={sites}
+            wards={wards}
+            onBack={() => setScreen("home")}
+            onCreateSite={handleCreateSite}
+            onCreateWard={handleCreateWard}
           />
         ) : screen === "wardSettings" ? (
           <WardSettingsScreen
@@ -554,6 +607,18 @@ function upsertStaffByCode(currentStaff: StaffMember[], staff: StaffMember) {
   }
 
   return currentStaff.map((member, index) => (index === existingIndex ? staff : member));
+}
+
+function upsertSite(currentSites: Site[], site: Site) {
+  return currentSites.some((currentSite) => currentSite.id === site.id)
+    ? currentSites.map((currentSite) => (currentSite.id === site.id ? site : currentSite))
+    : [...currentSites, site];
+}
+
+function upsertWard(currentWards: Ward[], ward: Ward) {
+  return currentWards.some((currentWard) => currentWard.id === ward.id)
+    ? currentWards.map((currentWard) => (currentWard.id === ward.id ? ward : currentWard))
+    : [...currentWards, ward];
 }
 
 function scoreRespiration(value: number) {

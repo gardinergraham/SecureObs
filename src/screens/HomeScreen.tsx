@@ -25,6 +25,7 @@ type HomeScreenProps = {
   onSelectWard: (wardId: string) => void;
   onReadStaffCardData: (cardData: string) => Promise<string>;
   onScanStaffCard: () => Promise<string>;
+  onOpenAdminSettings: () => void;
   onOpenWardSettings: () => void;
   onStart: () => void;
 };
@@ -41,6 +42,7 @@ export function HomeScreen({
   onSelectWard,
   onReadStaffCardData,
   onScanStaffCard,
+  onOpenAdminSettings,
   onOpenWardSettings,
   onStart
 }: HomeScreenProps) {
@@ -50,6 +52,7 @@ export function HomeScreen({
   const canStart = selectedStaffId.length > 0 && selectedSiteId.length > 0 && selectedWardId.length > 0;
   const selectedWard = wards.find((ward) => ward.id === selectedWardId);
   const selectedStaff = staff.find((member) => member.id === selectedStaffId);
+  const canOpenAdminSettings = selectedStaff?.staffCode === "GardinerG";
   const canEditWardSettings = selectedStaff?.role === "manager";
 
   return (
@@ -169,6 +172,12 @@ export function HomeScreen({
             </Text>
           </TouchableOpacity>
         </View>
+
+        {canOpenAdminSettings ? (
+          <TouchableOpacity accessibilityRole="button" onPress={onOpenAdminSettings} style={styles.adminButton}>
+            <Text style={styles.adminButtonText}>Open SecureObs admin</Text>
+          </TouchableOpacity>
+        ) : null}
 
         <TouchableOpacity
           accessibilityRole="button"
@@ -534,6 +543,19 @@ const styles = StyleSheet.create({
     minHeight: 44
   },
   settingsButtonText: {
+    color: "#ffffff",
+    fontSize: 14,
+    fontWeight: "900"
+  },
+  adminButton: {
+    alignItems: "center",
+    backgroundColor: "#31454d",
+    borderRadius: 6,
+    marginBottom: 12,
+    minHeight: 44,
+    justifyContent: "center"
+  },
+  adminButtonText: {
     color: "#ffffff",
     fontSize: 14,
     fontWeight: "900"

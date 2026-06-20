@@ -5,7 +5,9 @@ import type {
   News2Reading,
   Observation,
   SecurityCheck,
-  StaffMember
+  Site,
+  StaffMember,
+  Ward
 } from "../types/domain";
 
 const defaultApiUrl = "https://adequate-energy-production.up.railway.app";
@@ -94,4 +96,26 @@ export async function createMedicationAdministration(administration: Organisatio
 
 export async function updateMedicationPrescription(prescription: OrganisationScoped<MedicationPrescription>) {
   return createMedicationPrescription(prescription);
+}
+
+export async function createSite(site: OrganisationScoped<Site>) {
+  return request<Site>("/api/config/sites", {
+    method: "POST",
+    body: JSON.stringify(site)
+  });
+}
+
+export async function loadSites() {
+  return request<{ sites: Site[] }>("/api/config/sites");
+}
+
+export async function createWard(ward: Ward) {
+  return request<Ward>("/api/config/wards", {
+    method: "POST",
+    body: JSON.stringify(ward)
+  });
+}
+
+export async function loadWards() {
+  return request<{ wards: Ward[] }>("/api/config/wards");
 }
