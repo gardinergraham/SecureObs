@@ -1,5 +1,12 @@
 import { seedData } from "../data/seedData";
-import type { Observation, StaffMember } from "../types/domain";
+import type {
+  MedicationAdministration,
+  MedicationPrescription,
+  News2Reading,
+  Observation,
+  SecurityCheck,
+  StaffMember
+} from "../types/domain";
 
 const defaultApiUrl = "https://adequate-energy-production.up.railway.app";
 const apiUrl = process.env.EXPO_PUBLIC_API_URL ?? defaultApiUrl;
@@ -32,7 +39,11 @@ export async function loadBootstrapData() {
   return request<typeof seedData>("/bootstrap");
 }
 
-export async function createObservation(observation: Omit<Observation, "id">) {
+export type OrganisationScoped<T> = T & {
+  organisationId?: string;
+};
+
+export async function createObservation(observation: OrganisationScoped<Omit<Observation, "id">>) {
   if (!apiUrl) {
     return {
       ...observation,
@@ -40,7 +51,7 @@ export async function createObservation(observation: Omit<Observation, "id">) {
     };
   }
 
-  return request<Observation>("/observations", {
+  return request<Observation>("/api/observations", {
     method: "POST",
     body: JSON.stringify(observation)
   });
@@ -51,4 +62,36 @@ export async function lookupStaffByCode(staffCode: string, organisationId?: stri
     method: "POST",
     body: JSON.stringify({ staffCode, organisationId })
   });
+}
+
+export async function createSecurityCheck(check: OrganisationScoped<SecurityCheck>) {
+  return request<SecurityCheck>("/api/security-checks", {
+    method: "POST",
+    body: JSON.stringify(check)
+  });
+}
+
+export async function createNews2Reading(reading: OrganisationScoped<News2Reading>) {
+  return request<News2Reading>("/api/news2-readings", {
+    method: "POST",
+    body: JSON.stringify(reading)
+  });
+}
+
+export async function createMedicationPrescription(prescription: OrganisationScoped<MedicationPrescription>) {
+  return request<MedicationPrescription>("/api/medication-prescriptions", {
+    method: "POST",
+    body: JSON.stringify(prescription)
+  });
+}
+
+export async function createMedicationAdministration(administration: OrganisationScoped<MedicationAdministration>) {
+  return request<MedicationAdministration>("/api/medication-administrations", {
+    method: "POST",
+    body: JSON.stringify(administration)
+  });
+}
+
+export async function updateMedicationPrescription(prescription: OrganisationScoped<MedicationPrescription>) {
+  return createMedicationPrescription(prescription);
 }

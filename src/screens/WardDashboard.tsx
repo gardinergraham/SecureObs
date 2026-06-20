@@ -139,7 +139,8 @@ export function WardDashboard({
       location,
       presentation,
       comments,
-      observedAt
+      observedAt,
+      organisationId: selectedStaff?.organisationId
     });
 
     onObservationSaved(observation);

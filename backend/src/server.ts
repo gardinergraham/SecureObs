@@ -3,6 +3,7 @@ import express, { type ErrorRequestHandler } from "express";
 import helmet from "helmet";
 
 import { config } from "./config.js";
+import { activityRouter } from "./routes/activity.js";
 import { healthRouter } from "./routes/health.js";
 import { staffRouter } from "./routes/staff.js";
 
@@ -14,6 +15,7 @@ app.use(express.json({ limit: "1mb" }));
 
 app.use("/health", healthRouter);
 app.use("/api/staff", staffRouter);
+app.use("/api", activityRouter);
 
 const errorHandler: ErrorRequestHandler = (error, _request, response, _next) => {
   console.error(error);

@@ -14,7 +14,14 @@ import { StaffRotaScreen } from "./src/screens/StaffRotaScreen";
 import { WardDashboard } from "./src/screens/WardDashboard";
 import { WardSettingsScreen } from "./src/screens/WardSettingsScreen";
 import { seedData } from "./src/data/seedData";
-import { lookupStaffByCode } from "./src/services/api";
+import {
+  createMedicationAdministration as persistMedicationAdministration,
+  createMedicationPrescription as persistMedicationPrescription,
+  createNews2Reading as persistNews2Reading,
+  createSecurityCheck as persistSecurityCheck,
+  lookupStaffByCode,
+  updateMedicationPrescription as persistMedicationPrescriptionUpdate
+} from "./src/services/api";
 import { parseStaffCardData } from "./src/utils/nfcStaffCard";
 import { readNfcTextPayload } from "./src/utils/nfcReader";
 import type {
@@ -261,18 +268,30 @@ export default function App() {
 
   const handleCreateNews2Reading = (reading: News2Reading) => {
     setNews2Readings((currentReadings) => [...currentReadings, reading]);
+    persistNews2Reading({ ...reading, organisationId: selectedStaff?.organisationId }).catch((error) => {
+      console.warn("Unable to persist NEWS2 reading", error);
+    });
   };
 
   const handleCreateSecurityCheck = (check: SecurityCheck) => {
     setSecurityChecks((currentChecks) => [check, ...currentChecks]);
+    persistSecurityCheck({ ...check, organisationId: selectedStaff?.organisationId }).catch((error) => {
+      console.warn("Unable to persist security check", error);
+    });
   };
 
   const handleCreateMedicationPrescription = (prescription: MedicationPrescription) => {
     setMedicationPrescriptions((currentPrescriptions) => [prescription, ...currentPrescriptions]);
+    persistMedicationPrescription({ ...prescription, organisationId: selectedStaff?.organisationId }).catch((error) => {
+      console.warn("Unable to persist medication prescription", error);
+    });
   };
 
   const handleCreateMedicationAdministration = (administration: MedicationAdministration) => {
     setMedicationAdministrations((currentAdministrations) => [administration, ...currentAdministrations]);
+    persistMedicationAdministration({ ...administration, organisationId: selectedStaff?.organisationId }).catch((error) => {
+      console.warn("Unable to persist medication administration", error);
+    });
   };
 
   const handleDiscontinueMedicationPrescription = (updatedPrescription: MedicationPrescription) => {
@@ -281,6 +300,9 @@ export default function App() {
         prescription.id === updatedPrescription.id ? updatedPrescription : prescription
       )
     );
+    persistMedicationPrescriptionUpdate({ ...updatedPrescription, organisationId: selectedStaff?.organisationId }).catch((error) => {
+      console.warn("Unable to persist medication prescription update", error);
+    });
   };
 
   return (

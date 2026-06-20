@@ -28,7 +28,8 @@ export function ObservationForm({ patient, staff }: ObservationFormProps) {
       location,
       presentation,
       comments,
-      observedAt: new Date().toISOString()
+      observedAt: new Date().toISOString(),
+      organisationId: observer?.organisationId
     });
 
     Alert.alert("Observation saved", "This prototype currently saves through mock/API-ready logic.");

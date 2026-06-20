@@ -98,7 +98,8 @@ export function EnhancedObservationScreen({
       location,
       presentation,
       comments,
-      observedAt
+      observedAt,
+      organisationId: selectedStaff?.organisationId
     });
 
     onObservationSaved(observation);
