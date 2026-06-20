@@ -6,7 +6,8 @@ import { pool } from "../db/pool.js";
 const router = Router();
 
 const staffLookupSchema = z.object({
-  staffCode: z.string().min(1)
+  staffCode: z.string().min(1),
+  organisationId: z.string().uuid().optional()
 });
 
 router.get("/", async (_request, response, next) => {
@@ -14,6 +15,7 @@ router.get("/", async (_request, response, next) => {
     const result = await pool.query(`
       select
         id,
+        organisation_id as "organisationId",
         key_number as "keyNumber",
         staff_code as "staffCode",
         display_name as "name",
@@ -30,6 +32,11 @@ router.get("/", async (_request, response, next) => {
 
     response.json({ staff: result.rows });
   } catch (error) {
+    if (error instanceof StaffLookupAmbiguousError) {
+      response.status(409).json({ error: "Staff code matches more than one organisation" });
+      return;
+    }
+
     next(error);
   }
 });
@@ -45,6 +52,11 @@ router.get("/by-code/:staffCode", async (request, response, next) => {
 
     response.json({ staff });
   } catch (error) {
+    if (error instanceof StaffLookupAmbiguousError) {
+      response.status(409).json({ error: "Staff code matches more than one organisation" });
+      return;
+    }
+
     next(error);
   }
 });
@@ -58,7 +70,7 @@ router.post("/lookup", async (request, response, next) => {
       return;
     }
 
-    const staff = await findActiveStaffByCode(parsed.data.staffCode);
+    const staff = await findActiveStaffByCode(parsed.data.staffCode, parsed.data.organisationId);
 
     if (!staff) {
       response.status(404).json({ error: "Staff member not found" });
@@ -71,11 +83,12 @@ router.post("/lookup", async (request, response, next) => {
   }
 });
 
-async function findActiveStaffByCode(staffCode: string) {
+async function findActiveStaffByCode(staffCode: string, organisationId?: string) {
   const result = await pool.query(
     `
       select
         id,
+        organisation_id as "organisationId",
         key_number as "keyNumber",
         staff_code as "staffCode",
         display_name as "name",
@@ -88,13 +101,25 @@ async function findActiveStaffByCode(staffCode: string) {
         active
       from staff_members
       where lower(staff_code) = lower($1)
+        and ($2::uuid is null or organisation_id = $2::uuid)
         and active = true
-      limit 1
+      order by display_name asc
+      limit 2
     `,
-    [staffCode]
+    [staffCode, organisationId ?? null]
   );
 
+  if (!organisationId && result.rows.length > 1) {
+    throw new StaffLookupAmbiguousError();
+  }
+
   return result.rows[0] ?? null;
+}
+
+class StaffLookupAmbiguousError extends Error {
+  constructor() {
+    super("Staff code matches more than one organisation");
+  }
 }
 
 export { router as staffRouter };

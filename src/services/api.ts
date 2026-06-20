@@ -1,7 +1,8 @@
 import { seedData } from "../data/seedData";
-import type { Observation } from "../types/domain";
+import type { Observation, StaffMember } from "../types/domain";
 
-const apiUrl = process.env.EXPO_PUBLIC_API_URL;
+const defaultApiUrl = "https://adequate-energy-production.up.railway.app";
+const apiUrl = process.env.EXPO_PUBLIC_API_URL ?? defaultApiUrl;
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   if (!apiUrl) {
@@ -42,5 +43,12 @@ export async function createObservation(observation: Omit<Observation, "id">) {
   return request<Observation>("/observations", {
     method: "POST",
     body: JSON.stringify(observation)
+  });
+}
+
+export async function lookupStaffByCode(staffCode: string, organisationId?: string) {
+  return request<{ staff: StaffMember }>("/api/staff/lookup", {
+    method: "POST",
+    body: JSON.stringify({ staffCode, organisationId })
   });
 }

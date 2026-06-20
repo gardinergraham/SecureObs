@@ -23,7 +23,7 @@ type HomeScreenProps = {
   onSelectStaff: (staffId: string) => void;
   onSelectSite: (siteId: string) => void;
   onSelectWard: (wardId: string) => void;
-  onReadStaffCardData: (cardData: string) => string;
+  onReadStaffCardData: (cardData: string) => Promise<string>;
   onScanStaffCard: () => Promise<string>;
   onOpenWardSettings: () => void;
   onStart: () => void;
@@ -102,7 +102,16 @@ export function HomeScreen({
           />
           <TouchableOpacity
             accessibilityRole="button"
-            onPress={() => setStaffCardMessage(onReadStaffCardData(staffCardData))}
+            onPress={async () => {
+              setIsScanningStaffCard(true);
+              try {
+                setStaffCardMessage(await onReadStaffCardData(staffCardData));
+              } catch (error) {
+                setStaffCardMessage(error instanceof Error ? error.message : "Unable to use that card data.");
+              } finally {
+                setIsScanningStaffCard(false);
+              }
+            }}
             style={styles.cardSecondaryButton}
           >
             <Text style={styles.cardSecondaryButtonText}>Use pasted card data</Text>

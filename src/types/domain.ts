@@ -77,6 +77,7 @@ export type StaffShiftAssignment = {
 
 export type StaffMember = {
   id: string;
+  organisationId?: string;
   keyNumber: number;
   staffCode: string;
   name: string;
@@ -86,6 +87,7 @@ export type StaffMember = {
   wardId: string;
   allowedSiteIds: string[];
   allowedWardIds: string[];
+  active?: boolean;
 };
 
 export type EnhancedObservationPlan = {

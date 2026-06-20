@@ -27,8 +27,9 @@ create table if not exists wards (
 
 create table if not exists staff_members (
   id uuid primary key default gen_random_uuid(),
+  organisation_id uuid not null references organisations(id),
   key_number integer,
-  staff_code text not null unique,
+  staff_code text not null,
   display_name text not null,
   role text not null check (role in ('nurse', 'hcf', 'security', 'manager', 'doctor')),
   designation text,
@@ -38,7 +39,8 @@ create table if not exists staff_members (
   allowed_ward_ids text[] not null default '{}',
   active boolean not null default true,
   created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
+  updated_at timestamptz not null default now(),
+  unique (organisation_id, staff_code)
 );
 
 create index if not exists staff_members_staff_code_lower_idx on staff_members (lower(staff_code));
@@ -62,6 +64,7 @@ values
 on conflict (id) do nothing;
 
 insert into staff_members (
+  organisation_id,
   key_number,
   staff_code,
   display_name,
@@ -73,11 +76,11 @@ insert into staff_members (
   allowed_ward_ids
 )
 values
-  (101, 'NurseA', 'Alex Nurse', 'nurse', null, false, 'ward-1', array['site-1'], array['ward-1', 'ward-2']),
-  (207, 'MorganH', 'Morgan HCF', 'hcf', null, false, 'ward-1', array['site-1', 'site-2'], array['ward-1', 'ward-3']),
-  (314, 'RileyM', 'Riley Ward Manager', 'manager', null, false, 'ward-2', array['site-1', 'site-2'], array['ward-1', 'ward-2', 'ward-3']),
-  (901, 'PatelD', 'Dr Anita Patel', 'doctor', 'Prescriber', true, 'ward-1', array['site-1', 'site-2'], array['ward-1', 'ward-2', 'ward-3'])
-on conflict (staff_code) do update set
+  ('00000000-0000-0000-0000-000000000001', 101, 'NurseA', 'Alex Nurse', 'nurse', null, false, 'ward-1', array['site-1'], array['ward-1', 'ward-2']),
+  ('00000000-0000-0000-0000-000000000001', 207, 'MorganH', 'Morgan HCF', 'hcf', null, false, 'ward-1', array['site-1', 'site-2'], array['ward-1', 'ward-3']),
+  ('00000000-0000-0000-0000-000000000001', 314, 'RileyM', 'Riley Ward Manager', 'manager', null, false, 'ward-2', array['site-1', 'site-2'], array['ward-1', 'ward-2', 'ward-3']),
+  ('00000000-0000-0000-0000-000000000001', 901, 'PatelD', 'Dr Anita Patel', 'doctor', 'Prescriber', true, 'ward-1', array['site-1', 'site-2'], array['ward-1', 'ward-2', 'ward-3'])
+on conflict (organisation_id, staff_code) do update set
   key_number = excluded.key_number,
   display_name = excluded.display_name,
   role = excluded.role,

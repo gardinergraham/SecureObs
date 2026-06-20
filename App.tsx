@@ -14,6 +14,7 @@ import { StaffRotaScreen } from "./src/screens/StaffRotaScreen";
 import { WardDashboard } from "./src/screens/WardDashboard";
 import { WardSettingsScreen } from "./src/screens/WardSettingsScreen";
 import { seedData } from "./src/data/seedData";
+import { lookupStaffByCode } from "./src/services/api";
 import { parseStaffCardData } from "./src/utils/nfcStaffCard";
 import { readNfcTextPayload } from "./src/utils/nfcReader";
 import type {
@@ -26,6 +27,7 @@ import type {
   PatientPresentation,
   RotaAssignment,
   SecurityCheck,
+  StaffMember,
   StaffShiftAssignment,
   Ward
 } from "./src/types/domain";
@@ -60,8 +62,9 @@ export default function App() {
     seedData.medicationAdministrations
   );
   const [wards, setWards] = useState<Ward[]>(seedData.wards);
+  const [staffMembers, setStaffMembers] = useState<StaffMember[]>(seedData.staff);
   const [selectedStaffId, setSelectedStaffId] = useState(seedData.staff[0]?.id ?? "");
-  const selectedStaff = seedData.staff.find((staff) => staff.id === selectedStaffId) ?? seedData.staff[0];
+  const selectedStaff = staffMembers.find((staff) => staff.id === selectedStaffId) ?? staffMembers[0];
   const selectedStaffCanPrescribe = Boolean(selectedStaff?.canPrescribe || selectedStaff?.role === "doctor");
   const firstAllowedSiteId = selectedStaff?.allowedSiteIds[0] ?? seedData.sites[0]?.id ?? "";
   const firstAllowedWardId = selectedStaff?.allowedWardIds[0] ?? wards[0]?.id ?? "";
@@ -91,8 +94,12 @@ export default function App() {
   );
 
   const handleSelectStaff = (staffId: string) => {
-    setSelectedStaffId(staffId);
-    const staff = seedData.staff.find((item) => item.id === staffId);
+    const staff = staffMembers.find((item) => item.id === staffId);
+    selectStaffSession(staff);
+  };
+
+  const selectStaffSession = (staff: StaffMember | undefined) => {
+    setSelectedStaffId(staff?.id ?? "");
     const firstSiteId = staff?.allowedSiteIds[0] ?? "";
     const firstWard = wards.find(
       (ward) => ward.siteId === firstSiteId && staff?.allowedWardIds.includes(ward.id)
@@ -104,23 +111,30 @@ export default function App() {
     setSelectedPatientId(firstPatient?.id ?? "");
   };
 
-  const handleReadStaffCardData = (cardData: string) => {
+  const handleReadStaffCardData = async (cardData: string) => {
     const parsedCard = parseStaffCardData(cardData);
 
     if (!parsedCard) {
       return "No STAFFCODE found on that card data.";
     }
 
-    const matchedStaff = seedData.staff.find(
-      (staff) => staff.staffCode.toLowerCase() === parsedCard.staffCode.toLowerCase()
-    );
+    try {
+      const { staff } = await lookupStaffByCode(parsedCard.staffCode);
+      setStaffMembers((currentStaff) => upsertStaffByCode(currentStaff, staff));
+      selectStaffSession(staff);
+      return `Selected ${staff.name} from Postgres STAFFCODE ${parsedCard.staffCode}.`;
+    } catch {
+      const matchedStaff = staffMembers.find(
+        (staff) => staff.staffCode.toLowerCase() === parsedCard.staffCode.toLowerCase()
+      );
 
-    if (!matchedStaff) {
-      return `No demo staff found for STAFFCODE ${parsedCard.staffCode}.`;
+      if (!matchedStaff) {
+        return `No staff found for STAFFCODE ${parsedCard.staffCode}.`;
+      }
+
+      selectStaffSession(matchedStaff);
+      return `Selected ${matchedStaff.name} from local STAFFCODE ${parsedCard.staffCode}.`;
     }
-
-    handleSelectStaff(matchedStaff.id);
-    return `Selected ${matchedStaff.name} from STAFFCODE ${parsedCard.staffCode}.`;
   };
 
   const handleScanStaffCard = async () => {
@@ -293,7 +307,7 @@ export default function App() {
             selectedSiteId={selectedSiteId}
             selectedWardId={selectedWardId}
             sites={accessibleSites}
-            staff={seedData.staff}
+            staff={staffMembers}
             wards={siteWards}
             onSelectStaff={handleSelectStaff}
             onSelectSite={handleSelectSite}
@@ -307,7 +321,7 @@ export default function App() {
           <WardSettingsScreen
             selectedStaffId={selectedStaffId}
             selectedWardId={selectedWardId}
-            staff={seedData.staff}
+            staff={staffMembers}
             wards={siteWards}
             onBack={() => setScreen("home")}
             onUpdateWardInterval={handleUpdateWardInterval}
@@ -322,7 +336,7 @@ export default function App() {
             selectedPatientId={selectedPatientId}
             selectedStaffId={selectedStaffId}
             selectedWardId={selectedWardId}
-            staff={seedData.staff}
+            staff={staffMembers}
             wards={siteWards}
             onBackToHome={() => setScreen("home")}
             onOpenNews2={() => setScreen("news2")}
@@ -340,7 +354,7 @@ export default function App() {
             observations={observations}
             patients={wardPatients}
             selectedStaffId={selectedStaffId}
-            staff={seedData.staff}
+            staff={staffMembers}
             onBack={() => setScreen("observations")}
             onObservationSaved={handleObservationSaved}
             onUpdatePatient={handleUpdatePatient}
@@ -361,7 +375,7 @@ export default function App() {
             patients={wardPatients}
             selectedWardId={selectedWardId}
             staffShiftAssignments={staffShiftAssignments}
-            staff={seedData.staff}
+            staff={staffMembers}
             wards={siteWards}
             onBack={() => setScreen("observations")}
             onCreateAssignment={handleCreateRotaAssignment}
@@ -374,7 +388,7 @@ export default function App() {
             assignments={staffShiftAssignments}
             selectedStaffId={selectedStaffId}
             selectedWardId={selectedWardId}
-            staff={seedData.staff}
+            staff={staffMembers}
             wards={siteWards}
             onAssignStaff={handleAssignStaffShift}
             onBack={() => setScreen("staffRota")}
@@ -386,7 +400,7 @@ export default function App() {
             readings={news2Readings}
             selectedPatientId={selectedPatientId}
             selectedStaffId={selectedStaffId}
-            staff={seedData.staff}
+            staff={staffMembers}
             onBack={() => setScreen("observations")}
             onCreateReading={handleCreateNews2Reading}
             onSelectPatient={setSelectedPatientId}
@@ -399,7 +413,7 @@ export default function App() {
             prescriptions={medicationPrescriptions}
             selectedPatientId={selectedPatientId}
             selectedStaffId={selectedStaffId}
-            staff={seedData.staff}
+            staff={staffMembers}
             onBack={() => setScreen("observations")}
             onCreateAdministration={handleCreateMedicationAdministration}
             onCreatePrescription={handleCreateMedicationPrescription}
@@ -411,7 +425,7 @@ export default function App() {
             areas={seedData.securityAreas.filter((area) => area.wardId === selectedWardId)}
             checks={securityChecks}
             selectedStaffId={selectedStaffId}
-            staff={seedData.staff}
+            staff={staffMembers}
             wardName={wards.find((ward) => ward.id === selectedWardId)?.name ?? "Ward"}
             onBack={() => setScreen("observations")}
             onCreateCheck={handleCreateSecurityCheck}
@@ -420,7 +434,7 @@ export default function App() {
           <PatientSettingsScreen
             patients={wardPatients}
             selectedStaffId={selectedStaffId}
-            staff={seedData.staff}
+            staff={staffMembers}
             onBack={() => setScreen("observations")}
             onUpdatePatient={handleUpdatePatient}
           />
@@ -506,6 +520,18 @@ function createDemoStaffShiftAssignments() {
     ...assignment,
     date
   }));
+}
+
+function upsertStaffByCode(currentStaff: StaffMember[], staff: StaffMember) {
+  const existingIndex = currentStaff.findIndex(
+    (member) => member.staffCode.toLowerCase() === staff.staffCode.toLowerCase()
+  );
+
+  if (existingIndex === -1) {
+    return [...currentStaff, staff];
+  }
+
+  return currentStaff.map((member, index) => (index === existingIndex ? staff : member));
 }
 
 function scoreRespiration(value: number) {
