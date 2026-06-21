@@ -40,10 +40,14 @@ export function PatientManagementScreen({
   const [targetWardId, setTargetWardId] = useState(selectedWardId);
   const [isSaving, setIsSaving] = useState(false);
   const activePatients = useMemo(
-    () => patients.filter((patient) => !patient.archived).sort((a, b) => a.roomNumber - b.roomNumber),
-    [patients]
+    () =>
+      patients
+        .filter((patient) => !patient.archived && patient.wardId === selectedWardId)
+        .sort((a, b) => a.roomNumber - b.roomNumber),
+    [patients, selectedWardId]
   );
   const selectedPatient = patients.find((patient) => patient.id === selectedPatientId);
+  const selectedPatientWard = wards.find((ward) => ward.id === selectedPatient?.wardId);
 
   const selectPatient = (patient: Patient) => {
     setSelectedPatientId(patient.id);
@@ -55,6 +59,47 @@ export function PatientManagementScreen({
       roomNumber: String(patient.roomNumber),
       observationLevel: patient.observationLevel
     });
+  };
+
+  const transferPatient = async (wardId: string) => {
+    if (!selectedPatient || !canManagePatients) {
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      await onSavePatient({
+        ...selectedPatient,
+        wardId,
+        onOffWard: "On ward",
+        latestObservationPlace: "Side room"
+      });
+      clearDraft();
+      Alert.alert("Patient transferred", `${selectedPatient.firstName} ${selectedPatient.surname} moved ward.`);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const setTrialLeave = async (onLeave: boolean) => {
+    if (!selectedPatient || !canManagePatients) {
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      await onSavePatient({
+        ...selectedPatient,
+        onOffWard: onLeave ? "Off ward" : "On ward",
+        latestObservationPlace: onLeave ? "LOA" : "Side room"
+      });
+      Alert.alert(
+        onLeave ? "Trial leave recorded" : "Patient returned",
+        `${selectedPatient.firstName} ${selectedPatient.surname} updated.`
+      );
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const clearDraft = () => {
@@ -138,7 +183,7 @@ export function PatientManagementScreen({
       <View style={styles.split}>
         <View style={styles.patientList}>
           <View style={styles.listHeader}>
-            <Text style={styles.panelTitle}>Active patients</Text>
+            <Text style={styles.panelTitle}>{selectedWard?.name ?? "Ward"} patients</Text>
             <TouchableOpacity accessibilityRole="button" onPress={clearDraft} style={styles.smallButton}>
               <Text style={styles.smallButtonText}>New</Text>
             </TouchableOpacity>
@@ -192,21 +237,11 @@ export function PatientManagementScreen({
             value={draft.roomNumber}
           />
 
-          <Text style={styles.label}>Ward</Text>
-          <View style={styles.optionRow}>
-            {wards.map((ward) => (
-              <TouchableOpacity
-                accessibilityRole="button"
-                disabled={!canManagePatients}
-                key={ward.id}
-                onPress={() => setTargetWardId(ward.id)}
-                style={[styles.optionButton, targetWardId === ward.id && styles.optionButtonActive]}
-              >
-                <Text style={[styles.optionText, targetWardId === ward.id && styles.optionTextActive]}>
-                  {ward.name}
-                </Text>
-              </TouchableOpacity>
-            ))}
+          <View style={styles.currentWardBox}>
+            <Text style={styles.currentWardLabel}>Current ward</Text>
+            <Text style={styles.currentWardText}>
+              {selectedPatient ? selectedPatientWard?.name ?? selectedPatient.wardId : selectedWard?.name ?? "No ward"}
+            </Text>
           </View>
 
           <Text style={styles.label}>Observation level</Text>
@@ -236,14 +271,47 @@ export function PatientManagementScreen({
           </TouchableOpacity>
 
           {selectedPatient ? (
-            <TouchableOpacity
-              accessibilityRole="button"
-              disabled={!canManagePatients || isSaving}
-              onPress={archivePatient}
-              style={[styles.archiveButton, (!canManagePatients || isSaving) && styles.disabledControl]}
-            >
-              <Text style={styles.archiveButtonText}>Archive patient</Text>
-            </TouchableOpacity>
+            <>
+              <View style={styles.transferPanel}>
+                <Text style={styles.label}>Transfer patient</Text>
+                <View style={styles.optionRow}>
+                  {wards
+                    .filter((ward) => ward.id !== selectedPatient.wardId)
+                    .map((ward) => (
+                      <TouchableOpacity
+                        accessibilityRole="button"
+                        disabled={!canManagePatients || isSaving}
+                        key={ward.id}
+                        onPress={() => transferPatient(ward.id)}
+                        style={[styles.transferButton, (!canManagePatients || isSaving) && styles.disabledControl]}
+                      >
+                        <Text style={styles.transferButtonText}>{ward.name}</Text>
+                      </TouchableOpacity>
+                    ))}
+                </View>
+              </View>
+
+              <View style={styles.leaveRow}>
+                <TouchableOpacity
+                  accessibilityRole="button"
+                  disabled={!canManagePatients || isSaving}
+                  onPress={() => setTrialLeave(selectedPatient.onOffWard !== "Off ward")}
+                  style={[styles.leaveButton, (!canManagePatients || isSaving) && styles.disabledControl]}
+                >
+                  <Text style={styles.leaveButtonText}>
+                    {selectedPatient.onOffWard === "Off ward" ? "Return on ward" : "Trial leave / off ward"}
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  accessibilityRole="button"
+                  disabled={!canManagePatients || isSaving}
+                  onPress={archivePatient}
+                  style={[styles.archiveButton, (!canManagePatients || isSaving) && styles.disabledControl]}
+                >
+                  <Text style={styles.archiveButtonText}>Archive patient</Text>
+                </TouchableOpacity>
+              </View>
+            </>
           ) : null}
         </View>
       </View>
@@ -363,6 +431,42 @@ const styles = StyleSheet.create({
   optionButtonActive: { backgroundColor: "#1f5262", borderColor: "#1f5262" },
   optionText: { color: "#30434a", fontSize: 12, fontWeight: "900" },
   optionTextActive: { color: "#ffffff" },
+  currentWardBox: {
+    backgroundColor: "#f8fafb",
+    borderColor: "#d8e0e3",
+    borderRadius: 7,
+    borderWidth: 1,
+    padding: 10
+  },
+  currentWardLabel: { color: "#607078", fontSize: 11, fontWeight: "900", textTransform: "uppercase" },
+  currentWardText: { color: "#18262c", fontSize: 14, fontWeight: "900", marginTop: 3 },
+  transferPanel: {
+    borderTopColor: "#d8e0e3",
+    borderTopWidth: StyleSheet.hairlineWidth,
+    gap: 8,
+    paddingTop: 10
+  },
+  transferButton: {
+    alignItems: "center",
+    borderColor: "#1f5262",
+    borderRadius: 6,
+    borderWidth: 1,
+    justifyContent: "center",
+    minHeight: 38,
+    paddingHorizontal: 10
+  },
+  transferButtonText: { color: "#1f5262", fontSize: 12, fontWeight: "900" },
+  leaveRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  leaveButton: {
+    alignItems: "center",
+    backgroundColor: "#31454d",
+    borderRadius: 6,
+    flex: 1,
+    justifyContent: "center",
+    minHeight: 42,
+    minWidth: 160
+  },
+  leaveButtonText: { color: "#ffffff", fontSize: 13, fontWeight: "900" },
   primaryButton: {
     alignItems: "center",
     backgroundColor: "#1f5262",

@@ -1,11 +1,16 @@
 import React, { useState } from "react";
 import { Alert, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 
-import type { ServiceType, StaffMember, Ward } from "../types/domain";
+import type { StaffMember, Ward } from "../types/domain";
 
-const serviceTypes: ServiceType[] = ["High secure hospital", "Medium secure hospital", "Care home"];
 const shiftCountOptions = [1, 2, 3, 4];
 const breakDurationOptions = [15, 30, 60];
+const bankAccessOptions = [
+  { label: "Today", hours: 12 },
+  { label: "24h", hours: 24 },
+  { label: "72h", hours: 72 },
+  { label: "7 days", hours: 168 }
+];
 const defaultRotaShifts = [
   { id: "shift-1", startsAt: "07:00", endsAt: "15:00" },
   { id: "shift-2", startsAt: "13:30", endsAt: "23:00" },
@@ -43,7 +48,18 @@ export function WardSettingsScreen({
   const [newStaffName, setNewStaffName] = useState("");
   const [newStaffCode, setNewStaffCode] = useState("");
   const [newStaffRole, setNewStaffRole] = useState<StaffMember["role"]>("nurse");
+  const [newStaffDesignation, setNewStaffDesignation] = useState("");
+  const [newStaffCanPrescribe, setNewStaffCanPrescribe] = useState(false);
+  const [newStaffActive, setNewStaffActive] = useState(true);
+  const [newStaffEmploymentType, setNewStaffEmploymentType] = useState<StaffMember["employmentType"]>("permanent");
+  const [newStaffAccessHours, setNewStaffAccessHours] = useState(12);
+  const [newStaffLoginPin, setNewStaffLoginPin] = useState("");
+  const [newStaffWardIds, setNewStaffWardIds] = useState<string[]>(selectedWardId ? [selectedWardId] : []);
+  const [editingStaffId, setEditingStaffId] = useState("");
   const [isSavingStaff, setIsSavingStaff] = useState(false);
+  const wardStaff = staff
+    .filter((member) => member.allowedWardIds.includes(selectedWardId) || member.wardId === selectedWardId)
+    .sort((left, right) => left.name.localeCompare(right.name));
 
   const updateInterval = (minutes: number) => {
     if (!selectedWard || !canEditWardSettings) return;
@@ -93,35 +109,92 @@ export function WardSettingsScreen({
     onUpdateWardRotaSettings({ ...selectedWard, breakDurationMinutes });
   };
 
-  const addWardStaff = async () => {
+  const selectStaffForEditing = (member: StaffMember) => {
+    setEditingStaffId(member.id);
+    setNewStaffName(member.name);
+    setNewStaffCode(member.staffCode);
+    setNewStaffRole(member.role);
+    setNewStaffDesignation(member.designation ?? "");
+    setNewStaffCanPrescribe(Boolean(member.canPrescribe));
+    setNewStaffActive(member.active !== false);
+    setNewStaffEmploymentType(member.employmentType ?? "permanent");
+    setNewStaffLoginPin(member.loginPin ?? "");
+    setNewStaffAccessHours(hoursUntil(member.accessExpiresAt) ?? 12);
+    setNewStaffWardIds(member.allowedWardIds.length > 0 ? member.allowedWardIds : [member.wardId]);
+  };
+
+  const clearStaffDraft = () => {
+    setEditingStaffId("");
+    setNewStaffName("");
+    setNewStaffCode("");
+    setNewStaffRole("nurse");
+    setNewStaffDesignation("");
+    setNewStaffCanPrescribe(false);
+    setNewStaffActive(true);
+    setNewStaffEmploymentType("permanent");
+    setNewStaffAccessHours(12);
+    setNewStaffLoginPin("");
+    setNewStaffWardIds(selectedWardId ? [selectedWardId] : []);
+  };
+
+  const toggleStaffWard = (wardId: string) => {
+    setNewStaffWardIds((currentWardIds) => {
+      if (currentWardIds.includes(wardId)) {
+        const nextWardIds = currentWardIds.filter((currentWardId) => currentWardId !== wardId);
+        return nextWardIds.length > 0 ? nextWardIds : currentWardIds;
+      }
+
+      return [...currentWardIds, wardId];
+    });
+  };
+
+  const saveWardStaff = async () => {
     if (!selectedWard || !selectedStaff || !canEditWardSettings) return;
     if (!newStaffName.trim() || !newStaffCode.trim()) {
       Alert.alert("Staff details needed", "Enter the staff name and STAFFCODE before saving.");
       return;
     }
+    if (newStaffWardIds.length === 0) {
+      Alert.alert("Ward access needed", "Select at least one ward for this staff member.");
+      return;
+    }
+    if (newStaffEmploymentType === "bank" && !newStaffLoginPin.trim()) {
+      Alert.alert("PIN needed", "Enter a temporary login PIN for bank staff.");
+      return;
+    }
+
+    const primaryWard = wards.find((ward) => ward.id === newStaffWardIds[0]) ?? selectedWard;
+    const allowedSiteIds = Array.from(
+      new Set(
+        newStaffWardIds
+          .map((wardId) => wards.find((ward) => ward.id === wardId)?.siteId)
+          .filter((siteId): siteId is string => Boolean(siteId))
+      )
+    );
 
     const staffMember: StaffMember = {
-      id: `staff-${newStaffCode.trim().toLowerCase()}`,
+      id: editingStaffId || `staff-${newStaffCode.trim().toLowerCase()}`,
       organisationId: selectedStaff.organisationId,
       keyNumber: Date.now() % 100000,
       staffCode: newStaffCode.trim(),
       name: newStaffName.trim(),
       role: newStaffRole,
-      designation: newStaffRole === "hcf" ? "HCF" : newStaffRole === "nurse" ? "Nurse" : newStaffRole,
-      canPrescribe: newStaffRole === "doctor",
-      wardId: selectedWard.id,
-      allowedSiteIds: [selectedWard.siteId],
-      allowedWardIds: [selectedWard.id],
-      active: true
+      designation: newStaffDesignation.trim() || defaultDesignation(newStaffRole),
+      canPrescribe: newStaffRole === "doctor" && newStaffCanPrescribe,
+      employmentType: newStaffEmploymentType,
+      accessExpiresAt: newStaffEmploymentType === "bank" ? buildAccessExpiry(newStaffAccessHours) : undefined,
+      loginPin: newStaffEmploymentType === "bank" ? newStaffLoginPin.trim() : undefined,
+      wardId: primaryWard.id,
+      allowedSiteIds,
+      allowedWardIds: newStaffWardIds,
+      active: newStaffActive
     };
 
     setIsSavingStaff(true);
     try {
       await onCreateStaff(staffMember);
-      setNewStaffName("");
-      setNewStaffCode("");
-      setNewStaffRole("nurse");
-      Alert.alert("Staff added", `${staffMember.name} can now use STAFFCODE ${staffMember.staffCode}.`);
+      clearStaffDraft();
+      Alert.alert("Staff saved", `${staffMember.name} can use STAFFCODE ${staffMember.staffCode}.`);
     } finally {
       setIsSavingStaff(false);
     }
@@ -145,8 +218,28 @@ export function WardSettingsScreen({
         <View style={styles.staffSetupPanel}>
           <Text style={styles.settingLabel}>Ward staff setup</Text>
           <Text style={styles.meta}>
-            Add staff for {selectedWard?.name ?? "this ward"}. They can then use their NFC STAFFCODE.
+            Add, edit or deactivate staff for {selectedWard?.name ?? "this ward"}.
           </Text>
+          <View style={styles.staffList}>
+            {wardStaff.map((member) => (
+              <TouchableOpacity
+                accessibilityRole="button"
+                disabled={!canEditWardSettings}
+                key={member.id}
+                onPress={() => selectStaffForEditing(member)}
+                style={[styles.staffRow, editingStaffId === member.id && styles.staffRowActive]}
+              >
+                <View style={styles.staffRowText}>
+                  <Text style={styles.staffName}>{member.name}</Text>
+                  <Text style={styles.staffMeta}>
+                    {member.staffCode} | {member.role} | {member.employmentType === "bank" ? "bank" : "permanent"} |{" "}
+                    {member.active === false ? "inactive" : accessStatus(member)}
+                  </Text>
+                </View>
+                {member.canPrescribe ? <Text style={styles.prescriberBadge}>Rx</Text> : null}
+              </TouchableOpacity>
+            ))}
+          </View>
           <TextInput
             editable={canEditWardSettings}
             onChangeText={setNewStaffName}
@@ -162,13 +255,25 @@ export function WardSettingsScreen({
             style={styles.input}
             value={newStaffCode}
           />
+          <TextInput
+            editable={canEditWardSettings}
+            onChangeText={setNewStaffDesignation}
+            placeholder="Designation"
+            style={styles.input}
+            value={newStaffDesignation}
+          />
           <View style={styles.optionRow}>
             {(["nurse", "hcf", "security", "doctor"] as StaffMember["role"][]).map((role) => (
               <TouchableOpacity
                 accessibilityRole="button"
                 disabled={!canEditWardSettings}
                 key={role}
-                onPress={() => setNewStaffRole(role)}
+                onPress={() => {
+                  setNewStaffRole(role);
+                  if (role !== "doctor") {
+                    setNewStaffCanPrescribe(false);
+                  }
+                }}
                 style={[
                   styles.optionButton,
                   newStaffRole === role && styles.optionButtonActive,
@@ -179,40 +284,132 @@ export function WardSettingsScreen({
               </TouchableOpacity>
             ))}
           </View>
-          <TouchableOpacity
-            accessibilityRole="button"
-            disabled={!canEditWardSettings || isSavingStaff}
-            onPress={addWardStaff}
-            style={[styles.saveStaffButton, (!canEditWardSettings || isSavingStaff) && styles.disabledControl]}
-          >
-            <Text style={styles.saveStaffButtonText}>{isSavingStaff ? "Saving..." : "Add staff member"}</Text>
-          </TouchableOpacity>
-        </View>
-
-        <Text style={styles.settingLabel}>Service type</Text>
-        <View style={styles.optionRow}>
-          {serviceTypes.map((serviceType) => (
+          <Text style={styles.subLabel}>Ward access</Text>
+          <View style={styles.optionRow}>
+            {wards.map((ward) => {
+              const active = newStaffWardIds.includes(ward.id);
+              return (
+                <TouchableOpacity
+                  accessibilityRole="button"
+                  disabled={!canEditWardSettings}
+                  key={ward.id}
+                  onPress={() => toggleStaffWard(ward.id)}
+                  style={[styles.optionButton, active && styles.optionButtonActive, !canEditWardSettings && styles.disabledControl]}
+                >
+                  <Text style={[styles.optionText, active && styles.optionTextActive]}>{ward.name}</Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+          <View style={styles.optionRow}>
             <TouchableOpacity
               accessibilityRole="button"
-              disabled={!selectedWard || !canEditWardSettings}
-              key={serviceType}
-              onPress={() => updateWardSettings({ serviceType })}
+              disabled={!canEditWardSettings}
+              onPress={() => setNewStaffEmploymentType("permanent")}
               style={[
-                styles.optionButton,
-                selectedWard?.serviceType === serviceType && styles.optionButtonActive,
+                styles.statusButton,
+                newStaffEmploymentType !== "bank" && styles.statusButtonActive,
                 !canEditWardSettings && styles.disabledControl
               ]}
             >
-              <Text
-                style={[
-                  styles.optionText,
-                  selectedWard?.serviceType === serviceType && styles.optionTextActive
-                ]}
-              >
-                {serviceType}
+              <Text style={[styles.statusButtonText, newStaffEmploymentType !== "bank" && styles.optionTextActive]}>
+                Permanent
               </Text>
             </TouchableOpacity>
-          ))}
+            <TouchableOpacity
+              accessibilityRole="button"
+              disabled={!canEditWardSettings}
+              onPress={() => setNewStaffEmploymentType("bank")}
+              style={[
+                styles.statusButton,
+                newStaffEmploymentType === "bank" && styles.statusButtonActive,
+                !canEditWardSettings && styles.disabledControl
+              ]}
+            >
+              <Text style={[styles.statusButtonText, newStaffEmploymentType === "bank" && styles.optionTextActive]}>
+                Bank/temp
+              </Text>
+            </TouchableOpacity>
+          </View>
+          {newStaffEmploymentType === "bank" ? (
+            <>
+              <TextInput
+                autoCapitalize="none"
+                editable={canEditWardSettings}
+                keyboardType="number-pad"
+                onChangeText={setNewStaffLoginPin}
+                placeholder="Temporary login PIN"
+                style={styles.input}
+                value={newStaffLoginPin}
+              />
+              <Text style={styles.subLabel}>Temporary access length</Text>
+              <View style={styles.optionRow}>
+                {bankAccessOptions.map((option) => (
+                  <TouchableOpacity
+                    accessibilityRole="button"
+                    disabled={!canEditWardSettings}
+                    key={option.hours}
+                    onPress={() => setNewStaffAccessHours(option.hours)}
+                    style={[
+                      styles.optionButton,
+                      newStaffAccessHours === option.hours && styles.optionButtonActive,
+                      !canEditWardSettings && styles.disabledControl
+                    ]}
+                  >
+                    <Text style={[styles.optionText, newStaffAccessHours === option.hours && styles.optionTextActive]}>
+                      {option.label}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </>
+          ) : null}
+          <View style={styles.optionRow}>
+            <TouchableOpacity
+              accessibilityRole="button"
+              disabled={!canEditWardSettings}
+              onPress={() => setNewStaffActive((active) => !active)}
+              style={[styles.statusButton, newStaffActive && styles.statusButtonActive, !canEditWardSettings && styles.disabledControl]}
+            >
+              <Text style={[styles.statusButtonText, newStaffActive && styles.optionTextActive]}>
+                {newStaffActive ? "Active" : "Inactive"}
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              accessibilityRole="button"
+              disabled={!canEditWardSettings || newStaffRole !== "doctor"}
+              onPress={() => setNewStaffCanPrescribe((canPrescribe) => !canPrescribe)}
+              style={[
+                styles.statusButton,
+                newStaffCanPrescribe && styles.statusButtonActive,
+                (!canEditWardSettings || newStaffRole !== "doctor") && styles.disabledControl
+              ]}
+            >
+              <Text style={[styles.statusButtonText, newStaffCanPrescribe && styles.optionTextActive]}>
+                {newStaffCanPrescribe ? "Can prescribe" : "No prescribing"}
+              </Text>
+            </TouchableOpacity>
+          </View>
+          <TouchableOpacity
+            accessibilityRole="button"
+            disabled={!canEditWardSettings || isSavingStaff}
+            onPress={saveWardStaff}
+            style={[styles.saveStaffButton, (!canEditWardSettings || isSavingStaff) && styles.disabledControl]}
+          >
+            <Text style={styles.saveStaffButtonText}>
+              {isSavingStaff ? "Saving..." : editingStaffId ? "Update staff member" : "Add staff member"}
+            </Text>
+          </TouchableOpacity>
+          {editingStaffId ? (
+            <TouchableOpacity accessibilityRole="button" onPress={clearStaffDraft} style={styles.clearStaffButton}>
+              <Text style={styles.clearStaffButtonText}>Clear selection</Text>
+            </TouchableOpacity>
+          ) : null}
+        </View>
+
+        <View style={styles.serviceSummary}>
+          <Text style={styles.settingLabel}>Service type</Text>
+          <Text style={styles.serviceSummaryText}>{selectedWard?.serviceType ?? "Not set"}</Text>
         </View>
 
         <Text style={styles.settingLabel}>Ward modules</Text>
@@ -469,6 +666,51 @@ function shiftTimeByMinutes(time: string, deltaMinutes: number) {
   return `${String(nextHours).padStart(2, "0")}:${String(nextMinutes).padStart(2, "0")}`;
 }
 
+function defaultDesignation(role: StaffMember["role"]) {
+  if (role === "hcf") return "HCF";
+  if (role === "nurse") return "Nurse";
+  if (role === "doctor") return "Doctor";
+  if (role === "security") return "Security";
+  return "Manager";
+}
+
+function buildAccessExpiry(hours: number) {
+  return new Date(Date.now() + hours * 60 * 60 * 1000).toISOString();
+}
+
+function hoursUntil(value: string | undefined) {
+  if (!value) return undefined;
+  const expiresAt = new Date(value).getTime();
+  if (Number.isNaN(expiresAt)) return undefined;
+  return Math.max(1, Math.ceil((expiresAt - Date.now()) / (60 * 60 * 1000)));
+}
+
+function accessStatus(member: StaffMember) {
+  if (member.employmentType !== "bank") {
+    return "active";
+  }
+
+  if (!member.accessExpiresAt) {
+    return "bank active";
+  }
+
+  const expiresAt = new Date(member.accessExpiresAt).getTime();
+  if (Number.isNaN(expiresAt)) {
+    return "bank active";
+  }
+
+  if (expiresAt <= Date.now()) {
+    return "expired";
+  }
+
+  return `expires ${new Date(member.accessExpiresAt).toLocaleDateString([], {
+    day: "2-digit",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit"
+  })}`;
+}
+
 const styles = StyleSheet.create({
   screen: { gap: 12 },
   header: {
@@ -509,6 +751,31 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     padding: 12
   },
+  staffList: { gap: 7 },
+  staffRow: {
+    alignItems: "center",
+    backgroundColor: "#ffffff",
+    borderColor: "#d8e0e3",
+    borderRadius: 7,
+    borderWidth: 1,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    padding: 9
+  },
+  staffRowActive: { backgroundColor: "#e8f2f5", borderColor: "#1f5262" },
+  staffRowText: { flex: 1, paddingRight: 8 },
+  staffName: { color: "#18262c", fontSize: 13, fontWeight: "900" },
+  staffMeta: { color: "#607078", fontSize: 11, fontWeight: "800", marginTop: 2 },
+  prescriberBadge: {
+    backgroundColor: "#dcead7",
+    borderRadius: 6,
+    color: "#253e2c",
+    fontSize: 12,
+    fontWeight: "900",
+    overflow: "hidden",
+    paddingHorizontal: 8,
+    paddingVertical: 5
+  },
   input: {
     backgroundColor: "#ffffff",
     borderColor: "#c7d2d6",
@@ -519,6 +786,18 @@ const styles = StyleSheet.create({
     minHeight: 44,
     paddingHorizontal: 10
   },
+  subLabel: { color: "#31454d", fontSize: 12, fontWeight: "900", marginTop: 2 },
+  statusButton: {
+    alignItems: "center",
+    borderColor: "#c7d2d6",
+    borderRadius: 6,
+    borderWidth: 1,
+    justifyContent: "center",
+    minHeight: 40,
+    paddingHorizontal: 12
+  },
+  statusButtonActive: { backgroundColor: "#1f5262", borderColor: "#1f5262" },
+  statusButtonText: { color: "#30434a", fontSize: 13, fontWeight: "900" },
   saveStaffButton: {
     alignItems: "center",
     backgroundColor: "#1f5262",
@@ -527,6 +806,23 @@ const styles = StyleSheet.create({
     minHeight: 44
   },
   saveStaffButtonText: { color: "#ffffff", fontSize: 14, fontWeight: "900" },
+  clearStaffButton: {
+    alignItems: "center",
+    borderColor: "#1f5262",
+    borderRadius: 6,
+    borderWidth: 1,
+    justifyContent: "center",
+    minHeight: 38
+  },
+  clearStaffButtonText: { color: "#1f5262", fontSize: 13, fontWeight: "900" },
+  serviceSummary: {
+    backgroundColor: "#f8fafb",
+    borderColor: "#d8e0e3",
+    borderRadius: 7,
+    borderWidth: 1,
+    padding: 10
+  },
+  serviceSummaryText: { color: "#18262c", fontSize: 14, fontWeight: "900" },
   settingLabel: { color: "#31454d", fontSize: 13, fontWeight: "900", marginBottom: 8, marginTop: 12 },
   optionRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   optionButton: {

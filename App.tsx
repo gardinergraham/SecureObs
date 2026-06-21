@@ -32,6 +32,7 @@ import {
   loadPatients,
   loadSecurityChecks,
   loadWards,
+  loadStaff,
   lookupStaffByCode,
   savePatient as persistPatient,
   updateMedicationPrescription as persistMedicationPrescriptionUpdate
@@ -102,6 +103,7 @@ export default function App() {
       try {
         const [
           siteResult,
+          staffResult,
           wardResult,
           observationResult,
           patientResult,
@@ -111,6 +113,7 @@ export default function App() {
           medicationAdministrationResult
         ] = await Promise.all([
           loadSites(),
+          loadStaff(),
           loadWards(),
           loadObservations(),
           loadPatients(),
@@ -120,6 +123,7 @@ export default function App() {
           loadMedicationAdministrations()
         ]);
         setSites(siteResult.sites);
+        setStaffMembers((currentStaff) => mergeById(staffResult.staff, currentStaff));
         setWards(wardResult.wards);
         setPatients((currentPatients) =>
           applyLatestGeneralObservations(
@@ -165,6 +169,18 @@ export default function App() {
       ),
     [selectedSiteId, selectedStaff, wards]
   );
+
+  const accessibleWards = useMemo(() => {
+    if (!selectedStaff) {
+      return wards;
+    }
+
+    if (selectedStaff.staffCode === "GardinerG") {
+      return wards;
+    }
+
+    return wards.filter((ward) => selectedStaff.allowedWardIds.includes(ward.id));
+  }, [selectedStaff, wards]);
 
   const wardPatients = useMemo(
     () => patients.filter((patient) => patient.wardId === selectedWardId),
@@ -505,7 +521,7 @@ export default function App() {
             selectedStaffId={selectedStaffId}
             selectedWardId={selectedWardId}
             staff={staffMembers}
-            wards={siteWards}
+            wards={accessibleWards}
             onBack={() => setScreen("observations")}
             onSavePatient={handleSaveManagedPatient}
           />

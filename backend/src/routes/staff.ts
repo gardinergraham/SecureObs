@@ -19,6 +19,9 @@ const staffMemberSchema = z.object({
   role: z.enum(["nurse", "hcf", "security", "manager", "doctor"]),
   designation: z.string().optional(),
   canPrescribe: z.boolean().default(false),
+  employmentType: z.enum(["permanent", "bank"]).default("permanent"),
+  accessExpiresAt: z.string().datetime().optional(),
+  loginPin: z.string().optional(),
   wardId: z.string().min(1),
   allowedSiteIds: z.array(z.string()).min(1),
   allowedWardIds: z.array(z.string()).min(1),
@@ -37,6 +40,9 @@ router.get("/", async (_request, response, next) => {
         role,
         designation,
         can_prescribe as "canPrescribe",
+        employment_type as "employmentType",
+        access_expires_at as "accessExpiresAt",
+        login_pin as "loginPin",
         ward_id as "wardId",
         allowed_site_ids as "allowedSiteIds",
         allowed_ward_ids as "allowedWardIds",
@@ -70,14 +76,17 @@ router.post("/", async (request, response, next) => {
       `
         insert into staff_members (
           organisation_id, key_number, staff_code, display_name, role, designation, can_prescribe,
-          ward_id, allowed_site_ids, allowed_ward_ids, active
-        ) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+          employment_type, access_expires_at, login_pin, ward_id, allowed_site_ids, allowed_ward_ids, active
+        ) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
         on conflict (organisation_id, staff_code) do update set
           key_number = excluded.key_number,
           display_name = excluded.display_name,
           role = excluded.role,
           designation = excluded.designation,
           can_prescribe = excluded.can_prescribe,
+          employment_type = excluded.employment_type,
+          access_expires_at = excluded.access_expires_at,
+          login_pin = excluded.login_pin,
           ward_id = excluded.ward_id,
           allowed_site_ids = excluded.allowed_site_ids,
           allowed_ward_ids = excluded.allowed_ward_ids,
@@ -92,6 +101,9 @@ router.post("/", async (request, response, next) => {
           role,
           designation,
           can_prescribe as "canPrescribe",
+          employment_type as "employmentType",
+          access_expires_at as "accessExpiresAt",
+          login_pin as "loginPin",
           ward_id as "wardId",
           allowed_site_ids as "allowedSiteIds",
           allowed_ward_ids as "allowedWardIds",
@@ -105,6 +117,9 @@ router.post("/", async (request, response, next) => {
         staff.role,
         staff.designation ?? null,
         staff.canPrescribe,
+        staff.employmentType,
+        staff.accessExpiresAt ?? null,
+        staff.loginPin ?? null,
         staff.wardId,
         staff.allowedSiteIds,
         staff.allowedWardIds,
@@ -114,6 +129,11 @@ router.post("/", async (request, response, next) => {
 
     response.status(201).json({ staff: result.rows[0] });
   } catch (error) {
+    if (isUniqueConflict(error)) {
+      response.status(409).json({ error: "A staff member with that STAFFCODE already exists for this organisation" });
+      return;
+    }
+
     next(error);
   }
 });
@@ -172,6 +192,9 @@ async function findActiveStaffByCode(staffCode: string, organisationId?: string)
         role,
         designation,
         can_prescribe as "canPrescribe",
+        employment_type as "employmentType",
+        access_expires_at as "accessExpiresAt",
+        login_pin as "loginPin",
         ward_id as "wardId",
         allowed_site_ids as "allowedSiteIds",
         allowed_ward_ids as "allowedWardIds",
@@ -180,6 +203,7 @@ async function findActiveStaffByCode(staffCode: string, organisationId?: string)
       where lower(staff_code) = lower($1)
         and ($2::uuid is null or organisation_id = $2::uuid)
         and active = true
+        and (access_expires_at is null or access_expires_at > now())
       order by display_name asc
       limit 2
     `,
@@ -197,6 +221,10 @@ class StaffLookupAmbiguousError extends Error {
   constructor() {
     super("Staff code matches more than one organisation");
   }
+}
+
+function isUniqueConflict(error: unknown) {
+  return typeof error === "object" && error !== null && "code" in error && error.code === "23505";
 }
 
 export { router as staffRouter };

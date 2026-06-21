@@ -84,6 +84,9 @@ export type StaffMember = {
   role: "nurse" | "hcf" | "security" | "manager" | "doctor";
   designation?: string;
   canPrescribe?: boolean;
+  employmentType?: "permanent" | "bank";
+  accessExpiresAt?: string;
+  loginPin?: string;
   wardId: string;
   allowedSiteIds: string[];
   allowedWardIds: string[];

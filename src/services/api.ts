@@ -28,10 +28,20 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   });
 
   if (!response.ok) {
-    throw new Error(`API request failed: ${response.status}`);
+    const message = await readErrorMessage(response);
+    throw new Error(message || `API request failed: ${response.status}`);
   }
 
   return response.json() as Promise<T>;
+}
+
+async function readErrorMessage(response: Response) {
+  try {
+    const body = (await response.json()) as { error?: string };
+    return body.error;
+  } catch {
+    return "";
+  }
 }
 
 export async function loadBootstrapData() {
@@ -72,6 +82,10 @@ export async function createStaffMember(staff: StaffMember) {
     method: "POST",
     body: JSON.stringify(staff)
   });
+}
+
+export async function loadStaff() {
+  return request<{ staff: StaffMember[] }>("/api/staff");
 }
 
 export async function loadPatients(organisationId?: string) {
