@@ -5,12 +5,6 @@ import type { StaffMember, Ward } from "../types/domain";
 
 const shiftCountOptions = [1, 2, 3, 4];
 const breakDurationOptions = [15, 30, 60];
-const bankAccessOptions = [
-  { label: "Today", hours: 12 },
-  { label: "24h", hours: 24 },
-  { label: "72h", hours: 72 },
-  { label: "7 days", hours: 168 }
-];
 const defaultRotaShifts = [
   { id: "shift-1", startsAt: "07:00", endsAt: "15:00" },
   { id: "shift-2", startsAt: "13:30", endsAt: "23:00" },
@@ -52,14 +46,29 @@ export function WardSettingsScreen({
   const [newStaffCanPrescribe, setNewStaffCanPrescribe] = useState(false);
   const [newStaffActive, setNewStaffActive] = useState(true);
   const [newStaffEmploymentType, setNewStaffEmploymentType] = useState<StaffMember["employmentType"]>("permanent");
-  const [newStaffAccessHours, setNewStaffAccessHours] = useState(12);
+  const [newStaffAccessStartDate, setNewStaffAccessStartDate] = useState(() => formatInputDate(new Date()));
+  const [newStaffAccessStartTime, setNewStaffAccessStartTime] = useState(() => formatInputTime(new Date()));
+  const [newStaffAccessEndDate, setNewStaffAccessEndDate] = useState(() => formatInputDate(addHours(new Date(), 12)));
+  const [newStaffAccessEndTime, setNewStaffAccessEndTime] = useState(() => formatInputTime(addHours(new Date(), 12)));
   const [newStaffLoginPin, setNewStaffLoginPin] = useState("");
   const [newStaffWardIds, setNewStaffWardIds] = useState<string[]>(selectedWardId ? [selectedWardId] : []);
   const [editingStaffId, setEditingStaffId] = useState("");
+  const [staffSearch, setStaffSearch] = useState("");
   const [isSavingStaff, setIsSavingStaff] = useState(false);
   const wardStaff = staff
     .filter((member) => member.allowedWardIds.includes(selectedWardId) || member.wardId === selectedWardId)
     .sort((left, right) => left.name.localeCompare(right.name));
+  const filteredWardStaff = wardStaff
+    .filter((member) => {
+      const query = staffSearch.trim().toLowerCase();
+      if (!query) return true;
+      return (
+        member.name.toLowerCase().includes(query) ||
+        member.staffCode.toLowerCase().includes(query) ||
+        member.role.toLowerCase().includes(query)
+      );
+    })
+    .slice(0, 20);
 
   const updateInterval = (minutes: number) => {
     if (!selectedWard || !canEditWardSettings) return;
@@ -119,7 +128,12 @@ export function WardSettingsScreen({
     setNewStaffActive(member.active !== false);
     setNewStaffEmploymentType(member.employmentType ?? "permanent");
     setNewStaffLoginPin(member.loginPin ?? "");
-    setNewStaffAccessHours(hoursUntil(member.accessExpiresAt) ?? 12);
+    const startDate = member.accessStartsAt ? new Date(member.accessStartsAt) : new Date();
+    const endDate = member.accessExpiresAt ? new Date(member.accessExpiresAt) : addHours(new Date(), 12);
+    setNewStaffAccessStartDate(formatInputDate(startDate));
+    setNewStaffAccessStartTime(formatInputTime(startDate));
+    setNewStaffAccessEndDate(formatInputDate(endDate));
+    setNewStaffAccessEndTime(formatInputTime(endDate));
     setNewStaffWardIds(member.allowedWardIds.length > 0 ? member.allowedWardIds : [member.wardId]);
   };
 
@@ -132,7 +146,10 @@ export function WardSettingsScreen({
     setNewStaffCanPrescribe(false);
     setNewStaffActive(true);
     setNewStaffEmploymentType("permanent");
-    setNewStaffAccessHours(12);
+    setNewStaffAccessStartDate(formatInputDate(new Date()));
+    setNewStaffAccessStartTime(formatInputTime(new Date()));
+    setNewStaffAccessEndDate(formatInputDate(addHours(new Date(), 12)));
+    setNewStaffAccessEndTime(formatInputTime(addHours(new Date(), 12)));
     setNewStaffLoginPin("");
     setNewStaffWardIds(selectedWardId ? [selectedWardId] : []);
   };
@@ -162,6 +179,22 @@ export function WardSettingsScreen({
       Alert.alert("PIN needed", "Enter a temporary login PIN for bank staff.");
       return;
     }
+    const accessStartsAt =
+      newStaffEmploymentType === "bank"
+        ? buildIsoFromDateAndTime(newStaffAccessStartDate, newStaffAccessStartTime)
+        : undefined;
+    const accessExpiresAt =
+      newStaffEmploymentType === "bank"
+        ? buildIsoFromDateAndTime(newStaffAccessEndDate, newStaffAccessEndTime)
+        : undefined;
+    if (newStaffEmploymentType === "bank" && (!accessStartsAt || !accessExpiresAt)) {
+      Alert.alert("Access dates needed", "Enter valid start and end date/time for bank staff access.");
+      return;
+    }
+    if (accessStartsAt && accessExpiresAt && new Date(accessExpiresAt).getTime() <= new Date(accessStartsAt).getTime()) {
+      Alert.alert("Access dates invalid", "The end date/time must be after the start date/time.");
+      return;
+    }
 
     const primaryWard = wards.find((ward) => ward.id === newStaffWardIds[0]) ?? selectedWard;
     const allowedSiteIds = Array.from(
@@ -182,7 +215,8 @@ export function WardSettingsScreen({
       designation: newStaffDesignation.trim() || defaultDesignation(newStaffRole),
       canPrescribe: newStaffRole === "doctor" && newStaffCanPrescribe,
       employmentType: newStaffEmploymentType,
-      accessExpiresAt: newStaffEmploymentType === "bank" ? buildAccessExpiry(newStaffAccessHours) : undefined,
+      accessStartsAt,
+      accessExpiresAt,
       loginPin: newStaffEmploymentType === "bank" ? newStaffLoginPin.trim() : undefined,
       wardId: primaryWard.id,
       allowedSiteIds,
@@ -220,8 +254,21 @@ export function WardSettingsScreen({
           <Text style={styles.meta}>
             Add, edit or deactivate staff for {selectedWard?.name ?? "this ward"}.
           </Text>
+          <View style={styles.staffPickerHeader}>
+            <TextInput
+              autoCapitalize="none"
+              editable={canEditWardSettings}
+              onChangeText={setStaffSearch}
+              placeholder="Search staff by name, STAFFCODE or role"
+              style={[styles.input, styles.staffSearchInput]}
+              value={staffSearch}
+            />
+            <TouchableOpacity accessibilityRole="button" onPress={clearStaffDraft} style={styles.addNewButton}>
+              <Text style={styles.addNewButtonText}>Add new</Text>
+            </TouchableOpacity>
+          </View>
           <View style={styles.staffList}>
-            {wardStaff.map((member) => (
+            {filteredWardStaff.map((member) => (
               <TouchableOpacity
                 accessibilityRole="button"
                 disabled={!canEditWardSettings}
@@ -239,6 +286,9 @@ export function WardSettingsScreen({
                 {member.canPrescribe ? <Text style={styles.prescriberBadge}>Rx</Text> : null}
               </TouchableOpacity>
             ))}
+            {wardStaff.length > filteredWardStaff.length ? (
+              <Text style={styles.staffMeta}>Showing first {filteredWardStaff.length} matches. Refine the search to narrow the list.</Text>
+            ) : null}
           </View>
           <TextInput
             editable={canEditWardSettings}
@@ -342,25 +392,36 @@ export function WardSettingsScreen({
                 style={styles.input}
                 value={newStaffLoginPin}
               />
-              <Text style={styles.subLabel}>Temporary access length</Text>
-              <View style={styles.optionRow}>
-                {bankAccessOptions.map((option) => (
-                  <TouchableOpacity
-                    accessibilityRole="button"
-                    disabled={!canEditWardSettings}
-                    key={option.hours}
-                    onPress={() => setNewStaffAccessHours(option.hours)}
-                    style={[
-                      styles.optionButton,
-                      newStaffAccessHours === option.hours && styles.optionButtonActive,
-                      !canEditWardSettings && styles.disabledControl
-                    ]}
-                  >
-                    <Text style={[styles.optionText, newStaffAccessHours === option.hours && styles.optionTextActive]}>
-                      {option.label}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
+              <Text style={styles.subLabel}>Temporary access window</Text>
+              <View style={styles.dateTimeGrid}>
+                <TextInput
+                  editable={canEditWardSettings}
+                  onChangeText={setNewStaffAccessStartDate}
+                  placeholder="Start date dd/mm/yyyy"
+                  style={[styles.input, styles.dateTimeInput]}
+                  value={newStaffAccessStartDate}
+                />
+                <TextInput
+                  editable={canEditWardSettings}
+                  onChangeText={setNewStaffAccessStartTime}
+                  placeholder="Start time hh:mm"
+                  style={[styles.input, styles.dateTimeInput]}
+                  value={newStaffAccessStartTime}
+                />
+                <TextInput
+                  editable={canEditWardSettings}
+                  onChangeText={setNewStaffAccessEndDate}
+                  placeholder="End date dd/mm/yyyy"
+                  style={[styles.input, styles.dateTimeInput]}
+                  value={newStaffAccessEndDate}
+                />
+                <TextInput
+                  editable={canEditWardSettings}
+                  onChangeText={setNewStaffAccessEndTime}
+                  placeholder="End time hh:mm"
+                  style={[styles.input, styles.dateTimeInput]}
+                  value={newStaffAccessEndTime}
+                />
               </View>
             </>
           ) : null}
@@ -674,20 +735,19 @@ function defaultDesignation(role: StaffMember["role"]) {
   return "Manager";
 }
 
-function buildAccessExpiry(hours: number) {
-  return new Date(Date.now() + hours * 60 * 60 * 1000).toISOString();
-}
-
-function hoursUntil(value: string | undefined) {
-  if (!value) return undefined;
-  const expiresAt = new Date(value).getTime();
-  if (Number.isNaN(expiresAt)) return undefined;
-  return Math.max(1, Math.ceil((expiresAt - Date.now()) / (60 * 60 * 1000)));
-}
-
 function accessStatus(member: StaffMember) {
   if (member.employmentType !== "bank") {
     return "active";
+  }
+
+  const startsAt = member.accessStartsAt ? new Date(member.accessStartsAt).getTime() : undefined;
+  if (startsAt && !Number.isNaN(startsAt) && startsAt > Date.now()) {
+    return `starts ${new Date(startsAt).toLocaleDateString([], {
+      day: "2-digit",
+      month: "short",
+      hour: "2-digit",
+      minute: "2-digit"
+    })}`;
   }
 
   if (!member.accessExpiresAt) {
@@ -709,6 +769,62 @@ function accessStatus(member: StaffMember) {
     hour: "2-digit",
     minute: "2-digit"
   })}`;
+}
+
+function addHours(value: Date, hours: number) {
+  return new Date(value.getTime() + hours * 60 * 60 * 1000);
+}
+
+function formatInputDate(value: Date) {
+  if (Number.isNaN(value.getTime())) return "";
+  return `${String(value.getDate()).padStart(2, "0")}/${String(value.getMonth() + 1).padStart(2, "0")}/${value.getFullYear()}`;
+}
+
+function formatInputTime(value: Date) {
+  if (Number.isNaN(value.getTime())) return "";
+  return `${String(value.getHours()).padStart(2, "0")}:${String(value.getMinutes()).padStart(2, "0")}`;
+}
+
+function buildIsoFromDateAndTime(dateText: string, timeText: string) {
+  const [dayText, monthText, yearText] = dateText.trim().split(/[/-]/);
+  const [hourText, minuteText = "0"] = timeText.trim().split(":");
+  const day = Number(dayText);
+  const month = Number(monthText);
+  const year = Number(yearText);
+  const hour = Number(hourText);
+  const minute = Number(minuteText);
+
+  if (
+    !Number.isInteger(day) ||
+    !Number.isInteger(month) ||
+    !Number.isInteger(year) ||
+    !Number.isInteger(hour) ||
+    !Number.isInteger(minute) ||
+    day < 1 ||
+    day > 31 ||
+    month < 1 ||
+    month > 12 ||
+    year < 2000 ||
+    hour < 0 ||
+    hour > 23 ||
+    minute < 0 ||
+    minute > 59
+  ) {
+    return undefined;
+  }
+
+  const value = new Date(year, month - 1, day, hour, minute, 0, 0);
+  if (
+    value.getFullYear() !== year ||
+    value.getMonth() !== month - 1 ||
+    value.getDate() !== day ||
+    value.getHours() !== hour ||
+    value.getMinutes() !== minute
+  ) {
+    return undefined;
+  }
+
+  return value.toISOString();
 }
 
 const styles = StyleSheet.create({
@@ -751,6 +867,17 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     padding: 12
   },
+  staffPickerHeader: { alignItems: "center", flexDirection: "row", gap: 8 },
+  staffSearchInput: { flex: 1 },
+  addNewButton: {
+    alignItems: "center",
+    backgroundColor: "#1f5262",
+    borderRadius: 6,
+    justifyContent: "center",
+    minHeight: 44,
+    paddingHorizontal: 12
+  },
+  addNewButtonText: { color: "#ffffff", fontSize: 13, fontWeight: "900" },
   staffList: { gap: 7 },
   staffRow: {
     alignItems: "center",
@@ -786,6 +913,8 @@ const styles = StyleSheet.create({
     minHeight: 44,
     paddingHorizontal: 10
   },
+  dateTimeGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  dateTimeInput: { flexBasis: "48%", flexGrow: 1 },
   subLabel: { color: "#31454d", fontSize: 12, fontWeight: "900", marginTop: 2 },
   statusButton: {
     alignItems: "center",

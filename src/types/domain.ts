@@ -85,6 +85,7 @@ export type StaffMember = {
   designation?: string;
   canPrescribe?: boolean;
   employmentType?: "permanent" | "bank";
+  accessStartsAt?: string;
   accessExpiresAt?: string;
   loginPin?: string;
   wardId: string;

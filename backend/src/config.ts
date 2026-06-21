@@ -5,7 +5,8 @@ const defaultPort = 3000;
 export const config = {
   port: Number(process.env.PORT ?? defaultPort),
   databaseUrl: process.env.DATABASE_URL,
-  corsOrigin: process.env.CORS_ORIGIN ?? "*"
+  corsOrigin: process.env.CORS_ORIGIN ?? "*",
+  dataProvider: process.env.DATA_PROVIDER ?? "postgres"
 };
 
 if (!config.databaseUrl) {
