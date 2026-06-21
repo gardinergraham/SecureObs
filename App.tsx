@@ -24,6 +24,11 @@ import {
   createSecurityCheck as persistSecurityCheck,
   createWard as persistWard,
   loadSites,
+  loadMedicationAdministrations,
+  loadMedicationPrescriptions,
+  loadNews2Readings,
+  loadObservations,
+  loadSecurityChecks,
   loadWards,
   lookupStaffByCode,
   updateMedicationPrescription as persistMedicationPrescriptionUpdate
@@ -91,11 +96,39 @@ export default function App() {
   useEffect(() => {
     const loadConfiguration = async () => {
       try {
-        const [siteResult, wardResult] = await Promise.all([loadSites(), loadWards()]);
+        const [
+          siteResult,
+          wardResult,
+          observationResult,
+          securityCheckResult,
+          news2Result,
+          medicationPrescriptionResult,
+          medicationAdministrationResult
+        ] = await Promise.all([
+          loadSites(),
+          loadWards(),
+          loadObservations(),
+          loadSecurityChecks(),
+          loadNews2Readings(),
+          loadMedicationPrescriptions(),
+          loadMedicationAdministrations()
+        ]);
         setSites(siteResult.sites);
         setWards(wardResult.wards);
+        setObservations((currentObservations) => mergeById(observationResult.observations, currentObservations));
+        setSecurityChecks((currentChecks) => mergeById(securityCheckResult.securityChecks, currentChecks));
+        setNews2Readings((currentReadings) => mergeById(news2Result.news2Readings, currentReadings));
+        setMedicationPrescriptions((currentPrescriptions) =>
+          mergeById(medicationPrescriptionResult.medicationPrescriptions, currentPrescriptions)
+        );
+        setMedicationAdministrations((currentAdministrations) =>
+          mergeById(medicationAdministrationResult.medicationAdministrations, currentAdministrations)
+        );
+        setPatients((currentPatients) =>
+          applyLatestGeneralObservations(currentPatients, observationResult.observations)
+        );
       } catch (error) {
-        console.warn("Unable to load site and ward configuration", error);
+        console.warn("Unable to load backend data", error);
       }
     };
 
@@ -630,6 +663,51 @@ function upsertWard(currentWards: Ward[], ward: Ward) {
   return currentWards.some((currentWard) => currentWard.id === ward.id)
     ? currentWards.map((currentWard) => (currentWard.id === ward.id ? ward : currentWard))
     : [...currentWards, ward];
+}
+
+function mergeById<T extends { id: string }>(incoming: T[], existing: T[]) {
+  const records = new Map<string, T>();
+  existing.forEach((record) => records.set(record.id, record));
+  incoming.forEach((record) => records.set(record.id, record));
+  return Array.from(records.values());
+}
+
+function applyLatestGeneralObservations(patients: Patient[], observations: Observation[]) {
+  const latestByPatientId = new Map<string, Observation>();
+
+  observations
+    .filter((observation) => observation.source === "General observations")
+    .forEach((observation) => {
+      const latest = latestByPatientId.get(observation.patientId);
+
+      if (!latest || observation.observedAt > latest.observedAt) {
+        latestByPatientId.set(observation.patientId, observation);
+      }
+    });
+
+  if (latestByPatientId.size === 0) {
+    return patients;
+  }
+
+  return patients.map((patient) => {
+    const latest = latestByPatientId.get(patient.id);
+
+    if (!latest) {
+      return patient;
+    }
+
+    const onOffWard: Patient["onOffWard"] =
+      latest.location === "Off ward" || latest.location === "LOA" ? "Off ward" : "On ward";
+
+    return {
+      ...patient,
+      latestObservationPlace: latest.location,
+      latestObservationTime: latest.observedAt,
+      latestObservedBy: latest.observerName,
+      latestPresentation: latest.presentation,
+      onOffWard
+    };
+  });
 }
 
 function scoreRespiration(value: number) {

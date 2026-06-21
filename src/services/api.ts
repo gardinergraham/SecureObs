@@ -80,11 +80,19 @@ export async function createSecurityCheck(check: OrganisationScoped<SecurityChec
   });
 }
 
+export async function loadSecurityChecks(organisationId?: string) {
+  return request<{ securityChecks: SecurityCheck[] }>(withOrganisationId("/api/security-checks", organisationId));
+}
+
 export async function createNews2Reading(reading: OrganisationScoped<News2Reading>) {
   return request<News2Reading>("/api/news2-readings", {
     method: "POST",
     body: JSON.stringify(reading)
   });
+}
+
+export async function loadNews2Readings(organisationId?: string) {
+  return request<{ news2Readings: News2Reading[] }>(withOrganisationId("/api/news2-readings", organisationId));
 }
 
 export async function createMedicationPrescription(prescription: OrganisationScoped<MedicationPrescription>) {
@@ -94,6 +102,12 @@ export async function createMedicationPrescription(prescription: OrganisationSco
   });
 }
 
+export async function loadMedicationPrescriptions(organisationId?: string) {
+  return request<{ medicationPrescriptions: MedicationPrescription[] }>(
+    withOrganisationId("/api/medication-prescriptions", organisationId)
+  );
+}
+
 export async function createMedicationAdministration(administration: OrganisationScoped<MedicationAdministration>) {
   return request<MedicationAdministration>("/api/medication-administrations", {
     method: "POST",
@@ -101,8 +115,18 @@ export async function createMedicationAdministration(administration: Organisatio
   });
 }
 
+export async function loadMedicationAdministrations(organisationId?: string) {
+  return request<{ medicationAdministrations: MedicationAdministration[] }>(
+    withOrganisationId("/api/medication-administrations", organisationId)
+  );
+}
+
 export async function updateMedicationPrescription(prescription: OrganisationScoped<MedicationPrescription>) {
   return createMedicationPrescription(prescription);
+}
+
+export async function loadObservations(organisationId?: string) {
+  return request<{ observations: Observation[] }>(withOrganisationId("/api/observations", organisationId));
 }
 
 export async function createSite(site: OrganisationScoped<Site>) {
@@ -125,4 +149,8 @@ export async function createWard(ward: Ward) {
 
 export async function loadWards() {
   return request<{ wards: Ward[] }>("/api/config/wards");
+}
+
+function withOrganisationId(path: string, organisationId?: string) {
+  return organisationId ? `${path}?organisationId=${encodeURIComponent(organisationId)}` : path;
 }

@@ -80,6 +80,34 @@ const medicationAdministrationSchema = z.object({
   notes: z.string().default("")
 });
 
+router.get("/observations", async (request, response, next) => {
+  try {
+    const organisationId = getOrganisationId(request.query.organisationId);
+    const result = await pool.query(
+      `
+        select
+          id,
+          patient_id as "patientId",
+          observer_name as "observerName",
+          source,
+          type,
+          location,
+          presentation,
+          comments,
+          observed_at as "observedAt"
+        from observations
+        where organisation_id = $1
+        order by observed_at desc
+      `,
+      [organisationId]
+    );
+
+    response.json({ observations: result.rows });
+  } catch (error) {
+    next(error);
+  }
+});
+
 router.post("/observations", async (request, response, next) => {
   try {
     const parsed = observationSchema.safeParse(request.body);
@@ -127,6 +155,32 @@ router.post("/observations", async (request, response, next) => {
   }
 });
 
+router.get("/security-checks", async (request, response, next) => {
+  try {
+    const organisationId = getOrganisationId(request.query.organisationId);
+    const result = await pool.query(
+      `
+        select
+          id,
+          area_id as "areaId",
+          check_name as "checkName",
+          checked_by as "checkedBy",
+          checked_at as "checkedAt",
+          notes,
+          counted_total as "countedTotal"
+        from security_checks
+        where organisation_id = $1
+        order by checked_at desc
+      `,
+      [organisationId]
+    );
+
+    response.json({ securityChecks: result.rows });
+  } catch (error) {
+    next(error);
+  }
+});
+
 router.post("/security-checks", async (request, response, next) => {
   try {
     const parsed = securityCheckSchema.safeParse(request.body);
@@ -166,6 +220,38 @@ router.post("/security-checks", async (request, response, next) => {
     );
 
     response.status(201).json(result.rows[0]);
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.get("/news2-readings", async (request, response, next) => {
+  try {
+    const organisationId = getOrganisationId(request.query.organisationId);
+    const result = await pool.query(
+      `
+        select
+          id,
+          patient_id as "patientId",
+          recorded_at as "recordedAt",
+          recorded_by as "recordedBy",
+          respiration_rate as "respirationRate",
+          spo2,
+          spo2_scale as "spo2Scale",
+          on_oxygen as "onOxygen",
+          systolic_bp as "systolicBp",
+          pulse,
+          consciousness,
+          temperature::float as temperature,
+          total_score as "totalScore"
+        from news2_readings
+        where organisation_id = $1
+        order by recorded_at desc
+      `,
+      [organisationId]
+    );
+
+    response.json({ news2Readings: result.rows });
   } catch (error) {
     next(error);
   }
@@ -221,6 +307,39 @@ router.post("/news2-readings", async (request, response, next) => {
     );
 
     response.status(201).json(result.rows[0] ?? reading);
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.get("/medication-prescriptions", async (request, response, next) => {
+  try {
+    const organisationId = getOrganisationId(request.query.organisationId);
+    const result = await pool.query(
+      `
+        select
+          id,
+          patient_id as "patientId",
+          drug_name as "drugName",
+          dose,
+          route,
+          administration_times as "administrationTimes",
+          start_date as "startDate",
+          stop_date as "stopDate",
+          additional_instructions as "additionalInstructions",
+          prescribed_by as "prescribedBy",
+          prescribed_at as "prescribedAt",
+          discontinued_by as "discontinuedBy",
+          discontinued_at as "discontinuedAt",
+          discontinue_reason as "discontinueReason"
+        from medication_prescriptions
+        where organisation_id = $1
+        order by prescribed_at desc
+      `,
+      [organisationId]
+    );
+
+    response.json({ medicationPrescriptions: result.rows });
   } catch (error) {
     next(error);
   }
@@ -288,6 +407,34 @@ router.post("/medication-prescriptions", async (request, response, next) => {
   }
 });
 
+router.get("/medication-administrations", async (request, response, next) => {
+  try {
+    const organisationId = getOrganisationId(request.query.organisationId);
+    const result = await pool.query(
+      `
+        select
+          id,
+          prescription_id as "prescriptionId",
+          patient_id as "patientId",
+          scheduled_at as "scheduledAt",
+          status,
+          omission_code as "omissionCode",
+          recorded_by as "recordedBy",
+          recorded_at as "recordedAt",
+          notes
+        from medication_administrations
+        where organisation_id = $1
+        order by recorded_at desc
+      `,
+      [organisationId]
+    );
+
+    response.json({ medicationAdministrations: result.rows });
+  } catch (error) {
+    next(error);
+  }
+});
+
 router.post("/medication-administrations", async (request, response, next) => {
   try {
     const parsed = medicationAdministrationSchema.safeParse(request.body);
@@ -334,5 +481,9 @@ router.post("/medication-administrations", async (request, response, next) => {
     next(error);
   }
 });
+
+function getOrganisationId(value: unknown) {
+  return typeof value === "string" && value.length > 0 ? value : fallbackOrganisationId;
+}
 
 export { router as activityRouter };
