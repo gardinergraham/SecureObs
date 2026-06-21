@@ -128,6 +128,7 @@ export type Patient = {
   onOffWard: "On ward" | "Off ward";
   seclusion: boolean;
   longTermSeclusion: boolean;
+  archived?: boolean;
   enhancedObservation?: EnhancedObservationPlan;
   tesoHistory?: TesoEpisode[];
 };

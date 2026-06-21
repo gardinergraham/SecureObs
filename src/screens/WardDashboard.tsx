@@ -45,6 +45,7 @@ type WardDashboardProps = {
   onOpenSecurityChecks: () => void;
   onOpenMedicationChart: () => void;
   onOpenStaffRota: () => void;
+  onOpenPatientManagement: () => void;
   onObservationSaved: (observation: Observation) => void;
   onSelectPatient: (patientId: string) => void;
 };
@@ -66,6 +67,7 @@ export function WardDashboard({
   onOpenSecurityChecks,
   onOpenMedicationChart,
   onOpenStaffRota,
+  onOpenPatientManagement,
   onObservationSaved,
   onSelectPatient
 }: WardDashboardProps) {
@@ -183,6 +185,9 @@ export function WardDashboard({
         ) : null}
         <TouchableOpacity accessibilityRole="button" onPress={onOpenPatientSettings} style={styles.modeButton}>
           <Text style={styles.modeButtonText}>Patient settings</Text>
+        </TouchableOpacity>
+        <TouchableOpacity accessibilityRole="button" onPress={onOpenPatientManagement} style={styles.modeButton}>
+          <Text style={styles.modeButtonText}>Patient management</Text>
         </TouchableOpacity>
         <TouchableOpacity accessibilityRole="button" onPress={onOpenPreviousObservations} style={styles.modeButton}>
           <Text style={styles.modeButtonText}>Previous obs</Text>

@@ -4,6 +4,7 @@ import type {
   MedicationPrescription,
   News2Reading,
   Observation,
+  Patient,
   SecurityCheck,
   Site,
   StaffMember,
@@ -70,6 +71,17 @@ export async function createStaffMember(staff: StaffMember) {
   return request<{ staff: StaffMember }>("/api/staff", {
     method: "POST",
     body: JSON.stringify(staff)
+  });
+}
+
+export async function loadPatients(organisationId?: string) {
+  return request<{ patients: Patient[] }>(withOrganisationId("/api/patients", organisationId));
+}
+
+export async function savePatient(patient: OrganisationScoped<Patient>) {
+  return request<{ patient: Patient }>("/api/patients", {
+    method: "POST",
+    body: JSON.stringify(patient)
   });
 }
 

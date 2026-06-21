@@ -1,0 +1,164 @@
+import { Router } from "express";
+import { z } from "zod";
+
+import { pool } from "../db/pool.js";
+
+const router = Router();
+const fallbackOrganisationId = "00000000-0000-0000-0000-000000000001";
+
+const patientSchema = z.object({
+  id: z.string().min(1).optional(),
+  organisationId: z.string().uuid().optional().default(fallbackOrganisationId),
+  patientNumber: z.number().int().nonnegative(),
+  hospitalNumber: z.string().min(1),
+  firstName: z.string().min(1),
+  surname: z.string().min(1),
+  wardId: z.string().min(1),
+  roomNumber: z.number().int().nonnegative(),
+  observationLevel: z.string().default("Intermittent"),
+  latestObservationPlace: z.string().default("Side room"),
+  latestObservationTime: z.string().datetime().optional(),
+  latestObservedBy: z.string().default(""),
+  latestPresentation: z.string().default("Awake"),
+  onOffWard: z.enum(["On ward", "Off ward"]).default("On ward"),
+  seclusion: z.boolean().default(false),
+  longTermSeclusion: z.boolean().default(false),
+  archived: z.boolean().default(false)
+});
+
+router.get("/", async (request, response, next) => {
+  try {
+    const organisationId = getOrganisationId(request.query.organisationId);
+    const includeArchived = request.query.includeArchived === "true";
+    const result = await pool.query(
+      `
+        select
+          id,
+          patient_number as "patientNumber",
+          hospital_number as "hospitalNumber",
+          first_name as "firstName",
+          surname,
+          ward_id as "wardId",
+          room_number as "roomNumber",
+          observation_level as "observationLevel",
+          latest_observation_place as "latestObservationPlace",
+          latest_observation_time as "latestObservationTime",
+          latest_observed_by as "latestObservedBy",
+          latest_presentation as "latestPresentation",
+          on_off_ward as "onOffWard",
+          seclusion,
+          long_term_seclusion as "longTermSeclusion",
+          archived
+        from patients
+        where organisation_id = $1
+          and ($2::boolean = true or archived = false)
+        order by ward_id asc, room_number asc, surname asc
+      `,
+      [organisationId, includeArchived]
+    );
+
+    response.json({ patients: result.rows });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post("/", async (request, response, next) => {
+  try {
+    const parsed = patientSchema.safeParse(request.body);
+
+    if (!parsed.success) {
+      response.status(400).json({ error: "Invalid patient", details: parsed.error.flatten() });
+      return;
+    }
+
+    const patient = {
+      ...parsed.data,
+      id: parsed.data.id ?? createPatientId(parsed.data.hospitalNumber, parsed.data.firstName, parsed.data.surname),
+      latestObservationTime: parsed.data.latestObservationTime ?? new Date().toISOString()
+    };
+
+    const result = await pool.query(
+      `
+        insert into patients (
+          id, organisation_id, patient_number, hospital_number, first_name, surname, ward_id, room_number,
+          observation_level, latest_observation_place, latest_observation_time, latest_observed_by,
+          latest_presentation, on_off_ward, seclusion, long_term_seclusion, archived
+        ) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)
+        on conflict (id) do update set
+          patient_number = excluded.patient_number,
+          hospital_number = excluded.hospital_number,
+          first_name = excluded.first_name,
+          surname = excluded.surname,
+          ward_id = excluded.ward_id,
+          room_number = excluded.room_number,
+          observation_level = excluded.observation_level,
+          latest_observation_place = excluded.latest_observation_place,
+          latest_observation_time = excluded.latest_observation_time,
+          latest_observed_by = excluded.latest_observed_by,
+          latest_presentation = excluded.latest_presentation,
+          on_off_ward = excluded.on_off_ward,
+          seclusion = excluded.seclusion,
+          long_term_seclusion = excluded.long_term_seclusion,
+          archived = excluded.archived,
+          updated_at = now()
+        returning
+          id,
+          patient_number as "patientNumber",
+          hospital_number as "hospitalNumber",
+          first_name as "firstName",
+          surname,
+          ward_id as "wardId",
+          room_number as "roomNumber",
+          observation_level as "observationLevel",
+          latest_observation_place as "latestObservationPlace",
+          latest_observation_time as "latestObservationTime",
+          latest_observed_by as "latestObservedBy",
+          latest_presentation as "latestPresentation",
+          on_off_ward as "onOffWard",
+          seclusion,
+          long_term_seclusion as "longTermSeclusion",
+          archived
+      `,
+      [
+        patient.id,
+        patient.organisationId,
+        patient.patientNumber,
+        patient.hospitalNumber,
+        patient.firstName,
+        patient.surname,
+        patient.wardId,
+        patient.roomNumber,
+        patient.observationLevel,
+        patient.latestObservationPlace,
+        patient.latestObservationTime,
+        patient.latestObservedBy,
+        patient.latestPresentation,
+        patient.onOffWard,
+        patient.seclusion,
+        patient.longTermSeclusion,
+        patient.archived
+      ]
+    );
+
+    response.status(201).json({ patient: result.rows[0] });
+  } catch (error) {
+    next(error);
+  }
+});
+
+function getOrganisationId(value: unknown) {
+  return typeof value === "string" && value.length > 0 ? value : fallbackOrganisationId;
+}
+
+function createPatientId(hospitalNumber: string, firstName: string, surname: string) {
+  const slug = `${hospitalNumber}-${firstName}-${surname}`
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/(^-|-$)/g, "")
+    .slice(0, 48);
+
+  return `patient-${slug || Date.now()}`;
+}
+
+export { router as patientRouter };

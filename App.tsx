@@ -7,6 +7,7 @@ import { EnhancedObservationScreen } from "./src/screens/EnhancedObservationScre
 import { HomeScreen } from "./src/screens/HomeScreen";
 import { MedicationChartScreen } from "./src/screens/MedicationChartScreen";
 import { News2Screen } from "./src/screens/News2Screen";
+import { PatientManagementScreen } from "./src/screens/PatientManagementScreen";
 import { PatientSettingsScreen } from "./src/screens/PatientSettingsScreen";
 import { PreviousObservationsScreen } from "./src/screens/PreviousObservationsScreen";
 import { SecurityChecks } from "./src/screens/SecurityChecks";
@@ -28,9 +29,11 @@ import {
   loadMedicationPrescriptions,
   loadNews2Readings,
   loadObservations,
+  loadPatients,
   loadSecurityChecks,
   loadWards,
   lookupStaffByCode,
+  savePatient as persistPatient,
   updateMedicationPrescription as persistMedicationPrescriptionUpdate
 } from "./src/services/api";
 import { parseStaffCardData } from "./src/utils/nfcStaffCard";
@@ -56,6 +59,7 @@ type AppScreen =
   | "adminSettings"
   | "observations"
   | "enhanced"
+  | "patientManagement"
   | "patientSettings"
   | "previousObservations"
   | "staffCover"
@@ -100,6 +104,7 @@ export default function App() {
           siteResult,
           wardResult,
           observationResult,
+          patientResult,
           securityCheckResult,
           news2Result,
           medicationPrescriptionResult,
@@ -108,6 +113,7 @@ export default function App() {
           loadSites(),
           loadWards(),
           loadObservations(),
+          loadPatients(),
           loadSecurityChecks(),
           loadNews2Readings(),
           loadMedicationPrescriptions(),
@@ -115,6 +121,12 @@ export default function App() {
         ]);
         setSites(siteResult.sites);
         setWards(wardResult.wards);
+        setPatients((currentPatients) =>
+          applyLatestGeneralObservations(
+            mergeById(patientResult.patients, currentPatients),
+            observationResult.observations
+          )
+        );
         setObservations((currentObservations) => mergeById(observationResult.observations, currentObservations));
         setSecurityChecks((currentChecks) => mergeById(securityCheckResult.securityChecks, currentChecks));
         setNews2Readings((currentReadings) => mergeById(news2Result.news2Readings, currentReadings));
@@ -123,9 +135,6 @@ export default function App() {
         );
         setMedicationAdministrations((currentAdministrations) =>
           mergeById(medicationAdministrationResult.medicationAdministrations, currentAdministrations)
-        );
-        setPatients((currentPatients) =>
-          applyLatestGeneralObservations(currentPatients, observationResult.observations)
         );
       } catch (error) {
         console.warn("Unable to load backend data", error);
@@ -326,6 +335,17 @@ export default function App() {
         )
       );
     }
+    persistPatient({ ...updatedPatient, organisationId: selectedStaff?.organisationId }).catch((error) => {
+      console.warn("Unable to persist patient update", error);
+    });
+  };
+
+  const handleSaveManagedPatient = async (patient: Patient) => {
+    const { patient: savedPatient } = await persistPatient({
+      ...patient,
+      organisationId: selectedStaff?.organisationId
+    });
+    setPatients((currentPatients) => upsertPatient(currentPatients, savedPatient));
   };
 
   const handleCreateRotaAssignment = (assignment: RotaAssignment) => {
@@ -464,6 +484,7 @@ export default function App() {
             onOpenPreviousObservations={() => setScreen("previousObservations")}
             onOpenSecurityChecks={() => setScreen("securityChecks")}
             onOpenMedicationChart={() => setScreen("medicationChart")}
+            onOpenPatientManagement={() => setScreen("patientManagement")}
             onOpenStaffRota={() => setScreen("staffRota")}
             onObservationSaved={handleObservationSaved}
             onSelectPatient={setSelectedPatientId}
@@ -477,6 +498,16 @@ export default function App() {
             onBack={() => setScreen("observations")}
             onObservationSaved={handleObservationSaved}
             onUpdatePatient={handleUpdatePatient}
+          />
+        ) : screen === "patientManagement" ? (
+          <PatientManagementScreen
+            patients={patients.filter((patient) => selectedStaff?.staffCode === "GardinerG" || selectedStaff?.allowedWardIds.includes(patient.wardId))}
+            selectedStaffId={selectedStaffId}
+            selectedWardId={selectedWardId}
+            staff={staffMembers}
+            wards={siteWards}
+            onBack={() => setScreen("observations")}
+            onSavePatient={handleSaveManagedPatient}
           />
         ) : screen === "previousObservations" ? (
           <PreviousObservationsScreen
@@ -663,6 +694,12 @@ function upsertWard(currentWards: Ward[], ward: Ward) {
   return currentWards.some((currentWard) => currentWard.id === ward.id)
     ? currentWards.map((currentWard) => (currentWard.id === ward.id ? ward : currentWard))
     : [...currentWards, ward];
+}
+
+function upsertPatient(currentPatients: Patient[], patient: Patient) {
+  return currentPatients.some((currentPatient) => currentPatient.id === patient.id)
+    ? currentPatients.map((currentPatient) => (currentPatient.id === patient.id ? patient : currentPatient))
+    : [...currentPatients, patient];
 }
 
 function mergeById<T extends { id: string }>(incoming: T[], existing: T[]) {
