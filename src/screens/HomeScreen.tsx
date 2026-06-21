@@ -1,17 +1,7 @@
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import { StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 
 import type { Site, StaffMember, Ward } from "../types/domain";
-
-const shiftCountOptions = [1, 2, 3, 4];
-const breakDurationOptions = [15, 30, 60];
-const defaultRotaShifts = [
-  { id: "shift-1", startsAt: "07:00", endsAt: "15:00" },
-  { id: "shift-2", startsAt: "13:30", endsAt: "23:00" },
-  { id: "shift-3", startsAt: "21:30", endsAt: "07:00" },
-  { id: "shift-4", startsAt: "07:00", endsAt: "13:00" }
-];
-const fallbackRotaShift = { id: "shift-fallback", startsAt: "07:00", endsAt: "15:00" };
 
 type HomeScreenProps = {
   sites: Site[];
@@ -49,149 +39,162 @@ export function HomeScreen({
   const [staffCardData, setStaffCardData] = useState("");
   const [staffCardMessage, setStaffCardMessage] = useState("");
   const [isScanningStaffCard, setIsScanningStaffCard] = useState(false);
-  const canStart = selectedStaffId.length > 0 && selectedSiteId.length > 0 && selectedWardId.length > 0;
   const selectedWard = wards.find((ward) => ward.id === selectedWardId);
   const selectedStaff = staff.find((member) => member.id === selectedStaffId);
+  const selectedSite = sites.find((site) => site.id === selectedSiteId);
+  const canStart = Boolean(selectedStaff && selectedSite && selectedWard);
   const canOpenAdminSettings = selectedStaff?.staffCode === "GardinerG";
   const canEditWardSettings = selectedStaff?.role === "manager";
+  const sessionMeta = useMemo(() => {
+    const staffLabel = selectedStaff ? `${selectedStaff.name} (${selectedStaff.staffCode})` : "No staff";
+    const siteLabel = selectedSite?.name ?? "No site";
+    const wardLabel = selectedWard?.name ?? "No ward";
+
+    return `${staffLabel} | ${siteLabel} | ${wardLabel}`;
+  }, [selectedSite, selectedStaff, selectedWard]);
+
+  const readPastedCard = async () => {
+    setIsScanningStaffCard(true);
+    try {
+      setStaffCardMessage(await onReadStaffCardData(staffCardData));
+    } catch (error) {
+      setStaffCardMessage(error instanceof Error ? error.message : "Unable to use that card data.");
+    } finally {
+      setIsScanningStaffCard(false);
+    }
+  };
+
+  const scanCard = async () => {
+    setIsScanningStaffCard(true);
+    setStaffCardMessage("Hold the staff card against the tablet.");
+
+    try {
+      setStaffCardMessage(await onScanStaffCard());
+    } catch (error) {
+      setStaffCardMessage(error instanceof Error ? error.message : "Unable to read that NFC card.");
+    } finally {
+      setIsScanningStaffCard(false);
+    }
+  };
 
   return (
     <View style={styles.screen}>
-      <View style={styles.panel}>
-        <Text style={styles.title}>Start ward observations</Text>
-        <Text style={styles.subtitle}>Select staff, site, and ward for this session.</Text>
+      <View style={styles.hero}>
+        <View style={styles.heroText}>
+          <Text style={styles.title}>SecureObs</Text>
+          <Text style={styles.subtitle}>Ward observation control centre</Text>
+        </View>
+        <View style={styles.sessionBadge}>
+          <Text style={styles.sessionBadgeText}>{selectedWard?.observationIntervalMinutes ?? 0}m</Text>
+        </View>
+      </View>
 
-        <SelectorRow
-          label="Staff"
-          options={staff.map((member) => ({
-            id: member.id,
-            label: `${member.name} (${member.staffCode})`
-          }))}
-          selectedId={selectedStaffId}
-          onSelect={onSelectStaff}
-        />
+      <View style={styles.sessionStrip}>
+        <Text style={styles.sessionLabel}>Current session</Text>
+        <Text style={styles.sessionText}>{sessionMeta}</Text>
+      </View>
 
-        <View style={styles.cardPanel}>
-          <Text style={styles.cardTitle}>NFC staff card demo</Text>
-          <View style={styles.cardActionRow}>
+      <View style={styles.layout}>
+        <View style={styles.column}>
+          <SectionHeader title="Staff access" meta={selectedStaff ? selectedStaff.role : "Select or scan staff"} />
+          <SelectorRow
+            label="Staff"
+            options={staff.map((member) => ({
+              id: member.id,
+              label: `${member.name} (${member.staffCode})`
+            }))}
+            selectedId={selectedStaffId}
+            onSelect={onSelectStaff}
+          />
+
+          <View style={styles.nfcPanel}>
+            <View style={styles.nfcHeader}>
+              <Text style={styles.nfcTitle}>NFC staff card</Text>
+              <TouchableOpacity
+                accessibilityRole="button"
+                disabled={isScanningStaffCard}
+                onPress={scanCard}
+                style={[styles.scanButton, isScanningStaffCard && styles.disabledButton]}
+              >
+                <Text style={styles.scanButtonText}>{isScanningStaffCard ? "Scanning" : "Scan card"}</Text>
+              </TouchableOpacity>
+            </View>
+            <TextInput
+              autoCapitalize="none"
+              onChangeText={setStaffCardData}
+              placeholder="totalmobile://formcapture?STAFFCODE=GardinerG"
+              style={styles.cardInput}
+              value={staffCardData}
+            />
             <TouchableOpacity
               accessibilityRole="button"
               disabled={isScanningStaffCard}
-              onPress={async () => {
-                setIsScanningStaffCard(true);
-                setStaffCardMessage("Hold the staff card against the tablet.");
-
-                try {
-                  setStaffCardMessage(await onScanStaffCard());
-                } catch (error) {
-                  setStaffCardMessage(error instanceof Error ? error.message : "Unable to read that NFC card.");
-                } finally {
-                  setIsScanningStaffCard(false);
-                }
-              }}
-              style={[styles.cardButton, isScanningStaffCard && styles.cardButtonDisabled]}
+              onPress={readPastedCard}
+              style={[styles.secondaryButton, isScanningStaffCard && styles.disabledOutline]}
             >
-              <Text style={styles.cardButtonText}>
-                {isScanningStaffCard ? "Scanning..." : "Scan NFC card"}
-              </Text>
+              <Text style={styles.secondaryButtonText}>Use pasted card data</Text>
             </TouchableOpacity>
+            {staffCardMessage ? <Text style={styles.cardMessage}>{staffCardMessage}</Text> : null}
           </View>
-          <TextInput
-            autoCapitalize="none"
-            onChangeText={setStaffCardData}
-            placeholder="totalmobile://formcapture?SCORE=1&CLINICIAN=GrahamGardiner&STAFFCODE=GardinerG"
-            style={styles.cardInput}
-            value={staffCardData}
+        </View>
+
+        <View style={styles.column}>
+          <SectionHeader title="Location" meta={selectedWard?.serviceType ?? "Select site and ward"} />
+          <SelectorRow
+            label="Site"
+            options={sites.map((site) => ({ id: site.id, label: site.name }))}
+            selectedId={selectedSiteId}
+            onSelect={onSelectSite}
           />
-          <TouchableOpacity
-            accessibilityRole="button"
-            onPress={async () => {
-              setIsScanningStaffCard(true);
-              try {
-                setStaffCardMessage(await onReadStaffCardData(staffCardData));
-              } catch (error) {
-                setStaffCardMessage(error instanceof Error ? error.message : "Unable to use that card data.");
-              } finally {
-                setIsScanningStaffCard(false);
-              }
-            }}
-            style={styles.cardSecondaryButton}
-          >
-            <Text style={styles.cardSecondaryButtonText}>Use pasted card data</Text>
-          </TouchableOpacity>
-          {staffCardMessage ? <Text style={styles.cardMessage}>{staffCardMessage}</Text> : null}
-        </View>
-
-        <SelectorRow
-          label="Site"
-          options={sites.map((site) => ({ id: site.id, label: site.name }))}
-          selectedId={selectedSiteId}
-          onSelect={onSelectSite}
-        />
-
-        <SelectorRow
-          label="Ward"
-          options={wards.map((ward) => ({
-            id: ward.id,
-            label: `${ward.name} (${ward.observationIntervalMinutes}m)`
-          }))}
-          selectedId={selectedWardId}
-          onSelect={onSelectWard}
-        />
-
-        <View style={styles.settingsPanel}>
-          <View style={styles.settingsHeader}>
-            <View>
-              <Text style={styles.settingsTitle}>Ward settings</Text>
-              <Text style={styles.settingsMeta}>
-                {selectedWard?.name ?? "Select a ward"} | {canEditWardSettings ? "Manager access" : "Manager locked"}
-              </Text>
-            </View>
-            <View style={styles.intervalBadge}>
-              <Text style={styles.intervalBadgeText}>{selectedWard?.observationIntervalMinutes ?? 0}m</Text>
-            </View>
-          </View>
-          <Text style={styles.rotaMeta}>
-            {selectedWard?.serviceType ?? "No service type"} | NEWS2 {selectedWard?.news2Enabled ? "on" : "off"} |{" "}
-            Enhanced {selectedWard?.enhancedObservationsEnabled ? "on" : "off"} | Security{" "}
-            {selectedWard?.securityChecksEnabled ? "on" : "off"} | Meds{" "}
-            {selectedWard?.medicationChartEnabled ? "on" : "off"}
-          </Text>
-          <Text style={styles.rotaMeta}>
-            {selectedWard?.staffRotaEnabled ? "Staff rota enabled" : "Staff rota hidden"} |{" "}
-            {selectedWard?.rotaShiftCount ?? 0} shifts | Breaks {selectedWard?.breakDurationMinutes ?? 0}m
-          </Text>
-          <TouchableOpacity
-            accessibilityRole="button"
-            disabled={!selectedWard || !canEditWardSettings}
-            onPress={onOpenWardSettings}
-            style={[styles.settingsButton, (!selectedWard || !canEditWardSettings) && styles.startButtonDisabled]}
-          >
-            <Text style={styles.settingsButtonText}>
-              {canEditWardSettings ? "Open ward settings" : "Manager access required"}
+          <SelectorRow
+            label="Ward"
+            options={wards.map((ward) => ({
+              id: ward.id,
+              label: `${ward.name} (${ward.observationIntervalMinutes}m)`
+            }))}
+            selectedId={selectedWardId}
+            onSelect={onSelectWard}
+          />
+          <View style={styles.wardSummary}>
+            <Text style={styles.summaryTitle}>{selectedWard?.name ?? "No ward selected"}</Text>
+            <Text style={styles.summaryMeta}>
+              NEWS2 {selectedWard?.news2Enabled ? "on" : "off"} | Enhanced{" "}
+              {selectedWard?.enhancedObservationsEnabled ? "on" : "off"} | Security{" "}
+              {selectedWard?.securityChecksEnabled ? "on" : "off"} | Meds{" "}
+              {selectedWard?.medicationChartEnabled ? "on" : "off"}
             </Text>
-          </TouchableOpacity>
+            <Text style={styles.summaryMeta}>
+              {selectedWard?.staffRotaEnabled ? "Staff rota enabled" : "Staff rota hidden"} |{" "}
+              {selectedWard?.rotaShiftCount ?? 0} shifts | Breaks {selectedWard?.breakDurationMinutes ?? 0}m
+            </Text>
+          </View>
         </View>
+      </View>
 
-        {canOpenAdminSettings ? (
-          <TouchableOpacity accessibilityRole="button" onPress={onOpenAdminSettings} style={styles.adminButton}>
-            <Text style={styles.adminButtonText}>Open SecureObs admin</Text>
-          </TouchableOpacity>
-        ) : null}
-
-        <TouchableOpacity
-          accessibilityRole="button"
+      <View style={styles.menu}>
+        <MenuTile
           disabled={!canStart}
+          meta={canStart ? "General, enhanced, NEWS2, medication and ward workflows" : "Select staff, site and ward"}
+          title="Open ward workspace"
+          tone="primary"
           onPress={onStart}
-          style={[styles.startButton, !canStart && styles.startButtonDisabled]}
-        >
-          <Text style={styles.startButtonText}>Open observations</Text>
-        </TouchableOpacity>
+        />
+        <MenuTile
+          disabled={!selectedWard || !canEditWardSettings}
+          meta={canEditWardSettings ? "Intervals, modules, rota and staff setup" : "Manager access required"}
+          title="Ward settings"
+          onPress={onOpenWardSettings}
+        />
+        <MenuTile
+          disabled={!canOpenAdminSettings}
+          meta={canOpenAdminSettings ? "Create sites, wards and ward managers" : "SecureObs admin access"}
+          title="SecureObs admin"
+          onPress={onOpenAdminSettings}
+        />
       </View>
     </View>
   );
 }
-
 
 type SelectorRowProps = {
   label: string;
@@ -222,41 +225,146 @@ function SelectorRow({ label, options, selectedId, onSelect }: SelectorRowProps)
   );
 }
 
+function SectionHeader({ title, meta }: { title: string; meta: string }) {
+  return (
+    <View style={styles.sectionHeader}>
+      <Text style={styles.sectionTitle}>{title}</Text>
+      <Text style={styles.sectionMeta}>{meta}</Text>
+    </View>
+  );
+}
+
+function MenuTile({
+  disabled,
+  meta,
+  title,
+  tone,
+  onPress
+}: {
+  disabled: boolean;
+  meta: string;
+  title: string;
+  tone?: "primary";
+  onPress: () => void;
+}) {
+  return (
+    <TouchableOpacity
+      accessibilityRole="button"
+      disabled={disabled}
+      onPress={onPress}
+      style={[
+        styles.menuTile,
+        tone === "primary" && styles.menuTilePrimary,
+        disabled && styles.menuTileDisabled
+      ]}
+    >
+      <Text style={[styles.menuTitle, tone === "primary" && styles.menuTitlePrimary]}>{title}</Text>
+      <Text style={[styles.menuMeta, tone === "primary" && styles.menuMetaPrimary]}>{meta}</Text>
+    </TouchableOpacity>
+  );
+}
+
 const styles = StyleSheet.create({
   screen: {
-    alignItems: "center",
-    justifyContent: "center",
-    minHeight: 560,
-    padding: 20
+    alignSelf: "center",
+    gap: 12,
+    maxWidth: 1120,
+    padding: 16,
+    width: "100%"
   },
-  panel: {
+  hero: {
+    alignItems: "center",
     backgroundColor: "#ffffff",
     borderColor: "#d8e0e3",
     borderRadius: 8,
     borderWidth: StyleSheet.hairlineWidth,
-    maxWidth: 760,
-    padding: 20,
-    width: "100%"
+    flexDirection: "row",
+    justifyContent: "space-between",
+    padding: 16
   },
+  heroText: { flex: 1, paddingRight: 12 },
   title: {
     color: "#18262c",
-    fontSize: 26,
+    fontSize: 28,
     fontWeight: "900"
   },
   subtitle: {
-    color: "#617078",
+    color: "#607078",
     fontSize: 14,
-    marginBottom: 18,
+    fontWeight: "800",
+    marginTop: 3
+  },
+  sessionBadge: {
+    alignItems: "center",
+    backgroundColor: "#dcead7",
+    borderRadius: 8,
+    justifyContent: "center",
+    minHeight: 48,
+    minWidth: 68,
+    paddingHorizontal: 10
+  },
+  sessionBadgeText: {
+    color: "#253e2c",
+    fontSize: 17,
+    fontWeight: "900"
+  },
+  sessionStrip: {
+    backgroundColor: "#1f5262",
+    borderRadius: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 12
+  },
+  sessionLabel: {
+    color: "#cbe5ec",
+    fontSize: 11,
+    fontWeight: "900",
+    textTransform: "uppercase"
+  },
+  sessionText: {
+    color: "#ffffff",
+    fontSize: 15,
+    fontWeight: "900",
     marginTop: 4
   },
+  layout: {
+    alignItems: "stretch",
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 12
+  },
+  column: {
+    backgroundColor: "#ffffff",
+    borderColor: "#d8e0e3",
+    borderRadius: 8,
+    borderWidth: StyleSheet.hairlineWidth,
+    flex: 1,
+    gap: 12,
+    minWidth: 320,
+    padding: 14
+  },
+  sectionHeader: {
+    borderBottomColor: "#d8e0e3",
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    paddingBottom: 10
+  },
+  sectionTitle: {
+    color: "#18262c",
+    fontSize: 18,
+    fontWeight: "900"
+  },
+  sectionMeta: {
+    color: "#607078",
+    fontSize: 12,
+    fontWeight: "800",
+    marginTop: 3
+  },
   selectorRow: {
-    marginBottom: 16
+    gap: 7
   },
   selectorLabel: {
     color: "#31454d",
-    fontSize: 13,
-    fontWeight: "800",
-    marginBottom: 7
+    fontSize: 12,
+    fontWeight: "900"
   },
   selectorOptions: {
     flexDirection: "row",
@@ -267,9 +375,10 @@ const styles = StyleSheet.create({
     borderColor: "#c7d2d6",
     borderRadius: 6,
     borderWidth: 1,
-    minHeight: 42,
-    paddingHorizontal: 12,
-    paddingVertical: 10
+    minHeight: 40,
+    justifyContent: "center",
+    paddingHorizontal: 11,
+    paddingVertical: 8
   },
   selectorButtonActive: {
     backgroundColor: "#1f5262",
@@ -277,25 +386,48 @@ const styles = StyleSheet.create({
   },
   selectorText: {
     color: "#30434a",
-    fontSize: 14,
-    fontWeight: "700"
+    fontSize: 13,
+    fontWeight: "800"
   },
   selectorTextActive: {
     color: "#ffffff"
   },
-  cardPanel: {
+  nfcPanel: {
     backgroundColor: "#f8fafb",
     borderColor: "#d8e0e3",
     borderRadius: 8,
-    borderWidth: StyleSheet.hairlineWidth,
-    gap: 8,
-    marginBottom: 16,
+    borderWidth: 1,
+    gap: 9,
     padding: 12
   },
-  cardTitle: {
+  nfcHeader: {
+    alignItems: "center",
+    flexDirection: "row",
+    justifyContent: "space-between",
+    gap: 8
+  },
+  nfcTitle: {
     color: "#31454d",
+    flex: 1,
     fontSize: 13,
     fontWeight: "900"
+  },
+  scanButton: {
+    alignItems: "center",
+    backgroundColor: "#1f5262",
+    borderRadius: 6,
+    justifyContent: "center",
+    minHeight: 38,
+    minWidth: 96,
+    paddingHorizontal: 12
+  },
+  scanButtonText: {
+    color: "#ffffff",
+    fontSize: 12,
+    fontWeight: "900"
+  },
+  disabledButton: {
+    backgroundColor: "#97a9b0"
   },
   cardInput: {
     backgroundColor: "#ffffff",
@@ -307,30 +439,7 @@ const styles = StyleSheet.create({
     minHeight: 42,
     paddingHorizontal: 10
   },
-  cardActionRow: {
-    alignItems: "center",
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 8
-  },
-  cardButton: {
-    alignItems: "center",
-    alignSelf: "flex-start",
-    backgroundColor: "#1f5262",
-    borderRadius: 6,
-    justifyContent: "center",
-    minHeight: 40,
-    paddingHorizontal: 14
-  },
-  cardButtonDisabled: {
-    backgroundColor: "#97a9b0"
-  },
-  cardButtonText: {
-    color: "#ffffff",
-    fontSize: 13,
-    fontWeight: "900"
-  },
-  cardSecondaryButton: {
+  secondaryButton: {
     alignItems: "center",
     alignSelf: "flex-start",
     borderColor: "#1f5262",
@@ -340,7 +449,10 @@ const styles = StyleSheet.create({
     minHeight: 36,
     paddingHorizontal: 12
   },
-  cardSecondaryButtonText: {
+  disabledOutline: {
+    opacity: 0.5
+  },
+  secondaryButtonText: {
     color: "#1f5262",
     fontSize: 12,
     fontWeight: "900"
@@ -350,252 +462,62 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "800"
   },
-  settingsPanel: {
+  wardSummary: {
     backgroundColor: "#f8fafb",
     borderColor: "#d8e0e3",
     borderRadius: 8,
-    borderWidth: StyleSheet.hairlineWidth,
-    marginBottom: 16,
-    padding: 14
+    borderWidth: 1,
+    padding: 12
   },
-  settingsHeader: {
-    alignItems: "center",
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginBottom: 12
-  },
-  settingsTitle: {
+  summaryTitle: {
     color: "#18262c",
-    fontSize: 17,
-    fontWeight: "900"
-  },
-  settingsMeta: {
-    color: "#607078",
-    fontSize: 13,
-    marginTop: 2
-  },
-  intervalBadge: {
-    alignItems: "center",
-    backgroundColor: "#ddebd6",
-    borderRadius: 6,
-    justifyContent: "center",
-    minHeight: 38,
-    minWidth: 56,
-    paddingHorizontal: 10
-  },
-  intervalBadgeText: {
-    color: "#243f2b",
     fontSize: 15,
     fontWeight: "900"
   },
-  settingLabel: {
-    color: "#31454d",
-    fontSize: 13,
+  summaryMeta: {
+    color: "#607078",
+    fontSize: 12,
     fontWeight: "800",
-    marginBottom: 8
+    marginTop: 4
   },
-  intervalRow: {
+  menu: {
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: 8
+    gap: 12
   },
-  intervalButton: {
-    alignItems: "center",
-    backgroundColor: "#ffffff",
-    borderColor: "#c7d2d6",
-    borderRadius: 6,
-    borderWidth: 1,
-    minHeight: 42,
-    minWidth: 86,
-    justifyContent: "center",
-    paddingHorizontal: 12
-  },
-  compactButton: {
-    minWidth: 46
-  },
-  intervalButtonActive: {
-    backgroundColor: "#1f5262",
-    borderColor: "#1f5262"
-  },
-  disabledControl: {
-    opacity: 0.45
-  },
-  intervalButtonText: {
-    color: "#30434a",
-    fontSize: 14,
-    fontWeight: "800"
-  },
-  intervalButtonTextActive: {
-    color: "#ffffff"
-  },
-  stepperRow: {
-    alignItems: "center",
-    flexDirection: "row",
-    gap: 10,
-    marginTop: 10
-  },
-  rotaSettingRow: {
-    alignItems: "center",
-    borderTopColor: "#d8e0e3",
-    borderTopWidth: StyleSheet.hairlineWidth,
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginTop: 14,
-    paddingTop: 12
-  },
-  rotaMeta: {
-    color: "#607078",
-    fontSize: 12,
-    marginTop: 2
-  },
-  rotaSettingsPanel: {
-    borderTopColor: "#d8e0e3",
-    borderTopWidth: StyleSheet.hairlineWidth,
-    marginTop: 12,
-    paddingTop: 12
-  },
-  shiftSettingsBlock: {
+  menuTile: {
     backgroundColor: "#ffffff",
     borderColor: "#d8e0e3",
-    borderRadius: 6,
-    borderWidth: 1,
-    marginTop: 10,
-    padding: 10
-  },
-  shiftTitle: {
-    color: "#18262c",
-    fontSize: 13,
-    fontWeight: "900",
-    marginBottom: 8
-  },
-  timeSettingRow: {
-    marginBottom: 8
-  },
-  timeSettingLabel: {
-    color: "#607078",
-    fontSize: 12,
-    fontWeight: "900",
-    marginBottom: 6
-  },
-  timeStepper: {
-    alignItems: "center",
-    flexDirection: "row",
-    gap: 8
-  },
-  timeStepButton: {
-    alignItems: "center",
-    backgroundColor: "#ffffff",
-    borderColor: "#c7d2d6",
-    borderRadius: 6,
-    borderWidth: 1,
+    borderRadius: 8,
+    borderWidth: StyleSheet.hairlineWidth,
+    flex: 1,
     justifyContent: "center",
-    height: 34,
-    width: 42
+    minHeight: 96,
+    minWidth: 220,
+    padding: 14
   },
-  timeStepButtonText: {
-    color: "#1f5262",
-    fontSize: 18,
-    fontWeight: "900",
-    lineHeight: 20
-  },
-  timeValueBox: {
-    alignItems: "center",
-    backgroundColor: "#1f5262",
-    borderRadius: 6,
-    justifyContent: "center",
-    minHeight: 34,
-    minWidth: 76,
-    paddingHorizontal: 10
-  },
-  timeValueText: {
-    color: "#ffffff",
-    fontSize: 13,
-    fontWeight: "900"
-  },
-  toggleButton: {
-    alignItems: "center",
-    backgroundColor: "#ffffff",
-    borderColor: "#c7d2d6",
-    borderRadius: 6,
-    borderWidth: 1,
-    justifyContent: "center",
-    minHeight: 38,
-    minWidth: 70
-  },
-  toggleButtonActive: {
+  menuTilePrimary: {
     backgroundColor: "#1f5262",
     borderColor: "#1f5262"
   },
-  toggleButtonText: {
-    color: "#30434a",
-    fontSize: 14,
-    fontWeight: "900"
+  menuTileDisabled: {
+    opacity: 0.5
   },
-  toggleButtonTextActive: {
-    color: "#ffffff"
-  },
-  settingsButton: {
-    alignItems: "center",
-    backgroundColor: "#1f5262",
-    borderRadius: 6,
-    justifyContent: "center",
-    marginTop: 12,
-    minHeight: 44
-  },
-  settingsButtonText: {
-    color: "#ffffff",
-    fontSize: 14,
-    fontWeight: "900"
-  },
-  adminButton: {
-    alignItems: "center",
-    backgroundColor: "#31454d",
-    borderRadius: 6,
-    marginBottom: 12,
-    minHeight: 44,
-    justifyContent: "center"
-  },
-  adminButtonText: {
-    color: "#ffffff",
-    fontSize: 14,
-    fontWeight: "900"
-  },
-  stepperButton: {
-    alignItems: "center",
-    backgroundColor: "#ffffff",
-    borderColor: "#c7d2d6",
-    borderRadius: 6,
-    borderWidth: 1,
-    height: 38,
-    justifyContent: "center",
-    width: 58
-  },
-  stepperText: {
-    color: "#1f5262",
-    fontSize: 15,
-    fontWeight: "900"
-  },
-  stepperValue: {
-    color: "#30434a",
-    fontSize: 14,
-    fontWeight: "800",
-    minWidth: 92,
-    textAlign: "center"
-  },
-  startButton: {
-    alignItems: "center",
-    backgroundColor: "#1f5262",
-    borderRadius: 6,
-    justifyContent: "center",
-    marginTop: 8,
-    minHeight: 52
-  },
-  startButtonDisabled: {
-    backgroundColor: "#97a9b0"
-  },
-  startButtonText: {
-    color: "#ffffff",
+  menuTitle: {
+    color: "#18262c",
     fontSize: 16,
     fontWeight: "900"
+  },
+  menuTitlePrimary: {
+    color: "#ffffff"
+  },
+  menuMeta: {
+    color: "#607078",
+    fontSize: 12,
+    fontWeight: "800",
+    marginTop: 6
+  },
+  menuMetaPrimary: {
+    color: "#d8edf2"
   }
 });
