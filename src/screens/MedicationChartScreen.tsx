@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 
 import type {
@@ -46,6 +46,7 @@ type MedicationChartScreenProps = {
   onCreatePrescription: (prescription: MedicationPrescription) => void;
   onDiscontinuePrescription: (prescription: MedicationPrescription) => void;
   onSelectPatient: (patientId: string) => void;
+  onUpdatePatient: (patient: Patient) => void;
 };
 
 type MedicationChartViewMode = "admin" | "chart" | "history";
@@ -62,7 +63,8 @@ export function MedicationChartScreen({
   onCreateAdministration,
   onCreatePrescription,
   onDiscontinuePrescription,
-  onSelectPatient
+  onSelectPatient,
+  onUpdatePatient
 }: MedicationChartScreenProps) {
   const selectedPatient = patients.find((patient) => patient.id === selectedPatientId) ?? patients[0];
   const selectedStaff = staff.find((member) => member.id === selectedStaffId);
@@ -82,6 +84,8 @@ export function MedicationChartScreen({
     0
   );
   const [viewMode, setViewMode] = useState<MedicationChartViewMode>(initialViewMode);
+  const [allergyText, setAllergyText] = useState(selectedPatient?.allergies ?? "");
+  const [adrText, setAdrText] = useState(selectedPatient?.adverseDrugReactions ?? "");
   const [form, setForm] = useState(() => ({
     drugName: "",
     dose: "",
@@ -97,6 +101,11 @@ export function MedicationChartScreen({
     stopTime: formatInputTime(new Date()),
     discontinueReason: ""
   }));
+
+  useEffect(() => {
+    setAllergyText(selectedPatient?.allergies ?? "");
+    setAdrText(selectedPatient?.adverseDrugReactions ?? "");
+  }, [selectedPatient?.adverseDrugReactions, selectedPatient?.allergies, selectedPatient?.id]);
 
   const createPrescription = () => {
     if (!selectedPatient || !selectedStaff || !canPrescribe || !form.drugName.trim() || !form.dose.trim()) {
@@ -191,6 +200,15 @@ export function MedicationChartScreen({
     }));
   };
 
+  const saveAllergies = () => {
+    if (!selectedPatient) return;
+    onUpdatePatient({
+      ...selectedPatient,
+      allergies: allergyText.trim(),
+      adverseDrugReactions: adrText.trim()
+    });
+  };
+
   return (
     <View style={styles.screen}>
       <View style={styles.header}>
@@ -254,7 +272,7 @@ export function MedicationChartScreen({
           ))}
         </View>
 
-        <ScrollView contentContainerStyle={styles.chartContent} style={styles.chartPane}>
+        <View style={styles.chartPane}>
           {selectedPatient ? (
             <View style={styles.patientHeader}>
               <View>
@@ -265,10 +283,26 @@ export function MedicationChartScreen({
               </View>
               <View style={styles.allergyBox}>
                 <Text style={styles.allergyTitle}>Allergies / ADRs</Text>
-                <Text style={styles.allergyText}>Not recorded in prototype</Text>
+                <TextInput
+                  onChangeText={setAllergyText}
+                  placeholder="Allergies"
+                  style={styles.allergyInput}
+                  value={allergyText}
+                />
+                <TextInput
+                  onChangeText={setAdrText}
+                  placeholder="Adverse drug reactions"
+                  style={styles.allergyInput}
+                  value={adrText}
+                />
+                <TouchableOpacity accessibilityRole="button" onPress={saveAllergies} style={styles.allergySaveButton}>
+                  <Text style={styles.allergySaveText}>Save allergies / ADRs</Text>
+                </TouchableOpacity>
               </View>
             </View>
           ) : null}
+
+          <ScrollView contentContainerStyle={styles.chartContent} nestedScrollEnabled showsVerticalScrollIndicator>
 
           {viewMode === "admin" ? (
             <>
@@ -440,7 +474,8 @@ export function MedicationChartScreen({
           )}
 
           <OmissionLegend />
-        </ScrollView>
+          </ScrollView>
+        </View>
       </View>
     </View>
   );
@@ -783,8 +818,10 @@ function DoseButton({ label, onPress }: { label: string; onPress: () => void }) 
 function OmissionLegend() {
   return (
     <View style={styles.omissionLegend}>
-      <Text style={styles.omissionTitle}>Omission codes</Text>
-      <Text style={styles.omissionText}>{omissionOptions.map((option) => `${option.code} = ${option.label}`).join("   ")}</Text>
+      <Text style={styles.omissionTitle}>Administration and omission codes</Text>
+      <Text style={styles.omissionText}>
+        {["G = Given", "Ref = Refused", ...omissionOptions.map((option) => `${option.code} = ${option.label}`)].join("   ")}
+      </Text>
     </View>
   );
 }
@@ -1021,6 +1058,28 @@ const styles = StyleSheet.create({
   },
   allergyTitle: { color: "#31454d", fontSize: 12, fontWeight: "900" },
   allergyText: { color: "#607078", fontSize: 12, fontWeight: "800", marginTop: 4 },
+  allergyInput: {
+    backgroundColor: "#ffffff",
+    borderColor: "#c7d2d6",
+    borderRadius: 6,
+    borderWidth: 1,
+    color: "#18262c",
+    fontSize: 12,
+    fontWeight: "800",
+    marginTop: 6,
+    minHeight: 34,
+    paddingHorizontal: 8
+  },
+  allergySaveButton: {
+    alignItems: "center",
+    borderColor: "#1f5262",
+    borderRadius: 6,
+    borderWidth: 1,
+    justifyContent: "center",
+    marginTop: 6,
+    minHeight: 32
+  },
+  allergySaveText: { color: "#1f5262", fontSize: 11, fontWeight: "900" },
   prescriberPanel: {
     backgroundColor: "#f8fafb",
     borderColor: "#d8e0e3",

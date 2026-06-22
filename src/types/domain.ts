@@ -74,6 +74,8 @@ export type StaffShiftAssignment = {
   shiftId: string;
   staffId: string;
   date: string;
+  nurseInCharge?: boolean;
+  medicationNurse?: boolean;
 };
 
 export type StaffMember = {
@@ -133,6 +135,8 @@ export type Patient = {
   onOffWard: "On ward" | "Off ward";
   seclusion: boolean;
   longTermSeclusion: boolean;
+  allergies?: string;
+  adverseDrugReactions?: string;
   archived?: boolean;
   enhancedObservation?: EnhancedObservationPlan;
   tesoHistory?: TesoEpisode[];

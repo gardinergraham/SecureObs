@@ -12,6 +12,7 @@ type StaffCoverScreenProps = {
   onAssignStaff: (assignment: StaffShiftAssignment) => void;
   onBack: () => void;
   onRemoveAssignment: (assignmentId: string) => void;
+  onUpdateAssignment: (assignment: StaffShiftAssignment) => void;
 };
 
 export function StaffCoverScreen({
@@ -22,7 +23,8 @@ export function StaffCoverScreen({
   wards,
   onAssignStaff,
   onBack,
-  onRemoveAssignment
+  onRemoveAssignment,
+  onUpdateAssignment
 }: StaffCoverScreenProps) {
   const [selectedDate, setSelectedDate] = useState(formatDateKey(new Date()));
   const [selectedShiftId, setSelectedShiftId] = useState("");
@@ -62,7 +64,16 @@ export function StaffCoverScreen({
       date: selectedDate,
       wardId: ward.id,
       shiftId: activeShift.id,
-      staffId
+      staffId,
+      nurseInCharge: false,
+      medicationNurse: false
+    });
+  };
+
+  const toggleShiftFlag = (assignment: StaffShiftAssignment, flag: "nurseInCharge" | "medicationNurse") => {
+    onUpdateAssignment({
+      ...assignment,
+      [flag]: !assignment[flag]
     });
   };
 
@@ -153,7 +164,31 @@ export function StaffCoverScreen({
                           <View key={assignment.id} style={styles.assignedRow}>
                             <View>
                               <Text style={styles.staffName}>{assignedStaff?.name ?? "Unknown staff"}</Text>
-                              <Text style={styles.staffMeta}>{assignedStaff?.role ?? "staff"}</Text>
+                              <Text style={styles.staffMeta}>
+                                {assignedStaff?.role ?? "staff"}
+                                {assignment.nurseInCharge ? " | Nurse in charge" : ""}
+                                {assignment.medicationNurse ? " | Medication nurse" : ""}
+                              </Text>
+                              <View style={styles.flagRow}>
+                                <TouchableOpacity
+                                  accessibilityRole="button"
+                                  onPress={() => toggleShiftFlag(assignment, "nurseInCharge")}
+                                  style={[styles.flagButton, assignment.nurseInCharge && styles.flagButtonActive]}
+                                >
+                                  <Text style={[styles.flagButtonText, assignment.nurseInCharge && styles.flagButtonTextActive]}>
+                                    NIC
+                                  </Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity
+                                  accessibilityRole="button"
+                                  onPress={() => toggleShiftFlag(assignment, "medicationNurse")}
+                                  style={[styles.flagButton, assignment.medicationNurse && styles.flagButtonActive]}
+                                >
+                                  <Text style={[styles.flagButtonText, assignment.medicationNurse && styles.flagButtonTextActive]}>
+                                    Meds
+                                  </Text>
+                                </TouchableOpacity>
+                              </View>
                             </View>
                             <TouchableOpacity
                               accessibilityRole="button"
@@ -461,6 +496,29 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     marginTop: 2,
     textTransform: "capitalize"
+  },
+  flagRow: {
+    flexDirection: "row",
+    gap: 6,
+    marginTop: 7
+  },
+  flagButton: {
+    borderColor: "#1f5262",
+    borderRadius: 6,
+    borderWidth: 1,
+    paddingHorizontal: 8,
+    paddingVertical: 5
+  },
+  flagButtonActive: {
+    backgroundColor: "#1f5262"
+  },
+  flagButtonText: {
+    color: "#1f5262",
+    fontSize: 11,
+    fontWeight: "900"
+  },
+  flagButtonTextActive: {
+    color: "#ffffff"
   },
   removeButton: {
     borderColor: "#b3261e",

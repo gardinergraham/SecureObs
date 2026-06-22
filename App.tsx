@@ -452,6 +452,12 @@ export default function App() {
     );
   };
 
+  const handleUpdateStaffShiftAssignment = (assignment: StaffShiftAssignment) => {
+    setStaffShiftAssignments((currentAssignments) =>
+      currentAssignments.map((item) => (item.id === assignment.id ? assignment : item))
+    );
+  };
+
   const handleCreateNews2Reading = (reading: News2Reading) => {
     setNews2Readings((currentReadings) => [...currentReadings, reading]);
     void persistOrQueue("NEWS2 reading", () =>
@@ -638,6 +644,7 @@ export default function App() {
             onAssignStaff={handleAssignStaffShift}
             onBack={() => setScreen("staffRota")}
             onRemoveAssignment={handleRemoveStaffShiftAssignment}
+            onUpdateAssignment={handleUpdateStaffShiftAssignment}
           />
         ) : screen === "news2" ? (
           <News2Screen
@@ -664,6 +671,7 @@ export default function App() {
             onCreatePrescription={handleCreateMedicationPrescription}
             onDiscontinuePrescription={handleDiscontinueMedicationPrescription}
             onSelectPatient={setSelectedPatientId}
+            onUpdatePatient={handleUpdatePatient}
           />
         ) : screen === "securityChecks" ? (
           <SecurityChecks

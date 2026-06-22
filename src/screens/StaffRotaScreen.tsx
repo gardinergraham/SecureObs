@@ -12,10 +12,13 @@ type TimeSlot = {
 type CoveredStaffOption = {
   member: StaffMember;
   shiftLabels: string[];
+  nurseInCharge: boolean;
+  medicationNurse: boolean;
 };
 
 const fallbackTimeSlot: TimeSlot = { startsAt: "07:00", endsAt: "15:00" };
 const observationSlotMinutes = 60;
+const medicationRoundTimes = ["08:00", "12:00", "18:00", "22:00"];
 
 type StaffRotaScreenProps = {
   assignments: RotaAssignment[];
@@ -176,6 +179,24 @@ export function StaffRotaScreen({
     setNotes(assignment.notes);
   };
 
+  const autoAssignSelectedSlot = () => {
+    if (!ward || coveredStaffOptions.length === 0) {
+      return;
+    }
+
+    const newAssignments = buildAutoAssignments({
+      availableRoles,
+      coveredStaffOptions,
+      enhancedPatients,
+      existingAssignments: wardAssignments,
+      patients,
+      selectedSlot,
+      wardId: ward.id
+    });
+
+    newAssignments.forEach(onCreateAssignment);
+  };
+
   return (
     <View style={styles.screen}>
       <View style={styles.header}>
@@ -233,7 +254,7 @@ export function StaffRotaScreen({
                           <Text style={styles.coveringStaffLabel}>Covering staff</Text>
                           <Text style={styles.coveringStaffText}>
                             {coveringStaff
-                              .map((option) => `${option.member.name} (${option.shiftLabels.join(", ")})`)
+                              .map((option) => `${option.member.name}${formatCoverFlags(option)} (${option.shiftLabels.join(", ")})`)
                               .join("  |  ")}
                           </Text>
                         </View>
@@ -289,6 +310,17 @@ export function StaffRotaScreen({
             style={styles.panelScroller}
           >
             <Text style={styles.panelTitle}>{editingAssignmentId ? "Change assignment" : "Assign role"}</Text>
+            <TouchableOpacity
+              accessibilityRole="button"
+              disabled={coveredStaffOptions.length === 0}
+              onPress={autoAssignSelectedSlot}
+              style={[styles.autoAssignButton, coveredStaffOptions.length === 0 && styles.saveButtonDisabled]}
+            >
+              <Text style={styles.autoAssignButtonText}>Auto assign selected time</Text>
+            </TouchableOpacity>
+            <Text style={styles.autoAssignMeta}>
+              Enhanced first, then general observations, then security. Medication nurses are protected during medicine rounds.
+            </Text>
 
             {ward?.enhancedObservationsEnabled ? (
               <>
@@ -500,13 +532,139 @@ function getCoveredStaffOptions(
         if (!existing.shiftLabels.includes(shiftLabel)) {
           existing.shiftLabels.push(shiftLabel);
         }
+        existing.nurseInCharge = existing.nurseInCharge || Boolean(assignment.nurseInCharge);
+        existing.medicationNurse = existing.medicationNurse || Boolean(assignment.medicationNurse);
         return;
       }
 
-      coveredByStaffId.set(member.id, { member, shiftLabels: [shiftLabel] });
+      coveredByStaffId.set(member.id, {
+        member,
+        shiftLabels: [shiftLabel],
+        nurseInCharge: Boolean(assignment.nurseInCharge),
+        medicationNurse: Boolean(assignment.medicationNurse)
+      });
     });
 
   return Array.from(coveredByStaffId.values()).sort((left, right) => left.member.name.localeCompare(right.member.name));
+}
+
+type BuildAutoAssignmentsInput = {
+  availableRoles: RotaRole[];
+  coveredStaffOptions: CoveredStaffOption[];
+  enhancedPatients: Patient[];
+  existingAssignments: RotaAssignment[];
+  patients: Patient[];
+  selectedSlot: TimeSlot;
+  wardId: string;
+};
+
+function buildAutoAssignments({
+  availableRoles,
+  coveredStaffOptions,
+  enhancedPatients,
+  existingAssignments,
+  patients,
+  selectedSlot,
+  wardId
+}: BuildAutoAssignmentsInput) {
+  const createdAssignments: RotaAssignment[] = [];
+  const assignedStaffIds = new Set(
+    getAssignmentsForSlot(existingAssignments, selectedSlot).map((assignment) => assignment.staffId)
+  );
+  const medicineRound = medicationRoundTimes.some((time) => timeFallsInSlot(time, selectedSlot));
+  const staffPool = [...coveredStaffOptions].sort((left, right) => {
+    if (left.nurseInCharge !== right.nurseInCharge) {
+      return Number(left.nurseInCharge) - Number(right.nurseInCharge);
+    }
+    return left.member.name.localeCompare(right.member.name);
+  });
+
+  const takeStaff = (protectMedicationNurse: boolean) => {
+    const option = staffPool.find(
+      (item) =>
+        !assignedStaffIds.has(item.member.id) &&
+        !(protectMedicationNurse && medicineRound && item.medicationNurse)
+    );
+
+    if (!option) return undefined;
+    assignedStaffIds.add(option.member.id);
+    return option.member;
+  };
+
+  if (availableRoles.includes("Enhanced/TESO")) {
+    enhancedPatients.forEach((patient) => {
+      const required = getRequiredStaffCount(patient);
+      const existingCount = getEnhancedAssignmentCount(existingAssignments, patient.id, selectedSlot);
+      const needed = Math.max(0, required - existingCount);
+
+      Array.from({ length: needed }).forEach(() => {
+        const member = takeStaff(true);
+        if (!member) return;
+        createdAssignments.push(createAutoAssignment(wardId, member.id, "Enhanced/TESO", selectedSlot, patient.id));
+      });
+    });
+  }
+
+  if (availableRoles.includes("General observations") && !roleCovered(existingAssignments, createdAssignments, "General observations", selectedSlot)) {
+    const member = takeStaff(true);
+    if (member) {
+      createdAssignments.push(createAutoAssignment(wardId, member.id, "General observations", selectedSlot));
+    }
+  }
+
+  if (availableRoles.includes("Security checks") && !roleCovered(existingAssignments, createdAssignments, "Security checks", selectedSlot)) {
+    const member = takeStaff(false);
+    if (member) {
+      createdAssignments.push(createAutoAssignment(wardId, member.id, "Security checks", selectedSlot));
+    }
+  }
+
+  return createdAssignments.map((assignment) => ({
+    ...assignment,
+    notes: `${assignment.notes}${formatAutoAssignNote(assignment, coveredStaffOptions, patients)}`
+  }));
+}
+
+function createAutoAssignment(
+  wardId: string,
+  staffId: string,
+  role: RotaRole,
+  slot: TimeSlot,
+  patientId?: string
+): RotaAssignment {
+  return {
+    id: `rota-auto-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+    wardId,
+    staffId,
+    role,
+    startsAt: slot.startsAt,
+    endsAt: slot.endsAt,
+    patientId,
+    notes: "Auto assigned"
+  };
+}
+
+function roleCovered(existingAssignments: RotaAssignment[], createdAssignments: RotaAssignment[], role: RotaRole, slot: TimeSlot) {
+  return [...existingAssignments, ...createdAssignments].some(
+    (assignment) => assignment.role === role && slotsOverlap({ startsAt: assignment.startsAt, endsAt: assignment.endsAt }, slot)
+  );
+}
+
+function formatCoverFlags(option: CoveredStaffOption) {
+  const flags = [option.nurseInCharge ? "NIC" : "", option.medicationNurse ? "Meds" : ""].filter(Boolean);
+  return flags.length > 0 ? ` [${flags.join(", ")}]` : "";
+}
+
+function formatAutoAssignNote(
+  assignment: RotaAssignment,
+  coveredStaffOptions: CoveredStaffOption[],
+  patients: Patient[]
+) {
+  const cover = coveredStaffOptions.find((option) => option.member.id === assignment.staffId);
+  const patient = assignment.patientId ? patients.find((item) => item.id === assignment.patientId) : undefined;
+  const flags = cover ? formatCoverFlags(cover) : "";
+  const patientText = patient ? ` | Room ${patient.roomNumber}` : "";
+  return `${flags}${patientText}`;
 }
 
 function formatRotaDate(date: Date) {
@@ -958,6 +1116,26 @@ const styles = StyleSheet.create({
     lineHeight: 18,
     marginTop: 12,
     padding: 10
+  },
+  autoAssignButton: {
+    alignItems: "center",
+    backgroundColor: "#1f5262",
+    borderRadius: 6,
+    justifyContent: "center",
+    marginTop: 10,
+    minHeight: 42
+  },
+  autoAssignButtonText: {
+    color: "#ffffff",
+    fontSize: 13,
+    fontWeight: "900"
+  },
+  autoAssignMeta: {
+    color: "#607078",
+    fontSize: 12,
+    fontWeight: "800",
+    lineHeight: 17,
+    marginTop: 6
   },
   saveButton: {
     alignItems: "center",

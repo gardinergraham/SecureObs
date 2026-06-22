@@ -23,6 +23,8 @@ const patientSchema = z.object({
   onOffWard: z.enum(["On ward", "Off ward"]).default("On ward"),
   seclusion: z.boolean().default(false),
   longTermSeclusion: z.boolean().default(false),
+  allergies: z.string().default(""),
+  adverseDrugReactions: z.string().default(""),
   archived: z.boolean().default(false)
 });
 
@@ -49,6 +51,8 @@ router.get("/", async (request, response, next) => {
           on_off_ward as "onOffWard",
           seclusion,
           long_term_seclusion as "longTermSeclusion",
+          allergies,
+          adverse_drug_reactions as "adverseDrugReactions",
           archived
         from patients
         where organisation_id = $1
@@ -88,8 +92,9 @@ router.post("/", async (request, response, next) => {
         insert into patients (
           id, organisation_id, patient_number, hospital_number, first_name, surname, ward_id, room_number,
           observation_level, latest_observation_place, latest_observation_time, latest_observed_by,
-          latest_presentation, on_off_ward, seclusion, long_term_seclusion, archived
-        ) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)
+          latest_presentation, on_off_ward, seclusion, long_term_seclusion, archived,
+          allergies, adverse_drug_reactions
+        ) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)
         on conflict (id) do update set
           patient_number = excluded.patient_number,
           hospital_number = excluded.hospital_number,
@@ -105,6 +110,8 @@ router.post("/", async (request, response, next) => {
           on_off_ward = excluded.on_off_ward,
           seclusion = excluded.seclusion,
           long_term_seclusion = excluded.long_term_seclusion,
+          allergies = excluded.allergies,
+          adverse_drug_reactions = excluded.adverse_drug_reactions,
           archived = excluded.archived,
           updated_at = now()
         returning
@@ -123,6 +130,8 @@ router.post("/", async (request, response, next) => {
           on_off_ward as "onOffWard",
           seclusion,
           long_term_seclusion as "longTermSeclusion",
+          allergies,
+          adverse_drug_reactions as "adverseDrugReactions",
           archived
       `,
       [
@@ -142,7 +151,9 @@ router.post("/", async (request, response, next) => {
         patient.onOffWard,
         patient.seclusion,
         patient.longTermSeclusion,
-        patient.archived
+        patient.archived,
+        patient.allergies,
+        patient.adverseDrugReactions
       ]
     );
 
