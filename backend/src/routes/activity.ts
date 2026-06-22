@@ -527,7 +527,13 @@ router.post("/medication-administrations", async (request, response, next) => {
           id, organisation_id, prescription_id, patient_id, scheduled_at, status, omission_code,
           recorded_by, recorded_at, notes
         ) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
-        on conflict (id) do nothing
+        on conflict (id) do update set
+          scheduled_at = excluded.scheduled_at,
+          status = excluded.status,
+          omission_code = excluded.omission_code,
+          recorded_by = excluded.recorded_by,
+          recorded_at = excluded.recorded_at,
+          notes = excluded.notes
         returning
           id,
           prescription_id as "prescriptionId",

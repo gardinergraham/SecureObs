@@ -1,11 +1,14 @@
 import React, { useMemo, useState } from "react";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 
-import type { Observation, ObservationSource, Patient, Ward } from "../types/domain";
+import type { MissedObservation, Observation, ObservationSource, Patient, Ward } from "../types/domain";
 
-const historyTypes: ObservationSource[] = ["General observations", "Enhanced/TESO"];
+type HistoryType = ObservationSource | "Missed observations";
+
+const historyTypes: HistoryType[] = ["General observations", "Enhanced/TESO", "Missed observations"];
 
 type PreviousObservationsScreenProps = {
+  missedObservations: MissedObservation[];
   observations: Observation[];
   patients: Patient[];
   selectedPatientId: string;
@@ -16,6 +19,7 @@ type PreviousObservationsScreenProps = {
 };
 
 export function PreviousObservationsScreen({
+  missedObservations,
   observations,
   patients,
   selectedPatientId,
@@ -30,40 +34,54 @@ export function PreviousObservationsScreen({
   );
   const selectedPatient = orderedPatients.find((patient) => patient.id === selectedPatientId) ?? orderedPatients[0];
   const selectedWard = wards.find((ward) => ward.id === selectedWardId);
-  const [selectedSource, setSelectedSource] = useState<ObservationSource>("General observations");
+  const [selectedSource, setSelectedSource] = useState<HistoryType>("General observations");
   const [selectedDateKey, setSelectedDateKey] = useState(() =>
-    getMostUsefulDateKey(observations, selectedPatient?.id, selectedSource)
+    getMostUsefulDateKey(observations, missedObservations, selectedPatient?.id, selectedSource)
   );
   const monthDays = useMemo(() => buildCalendarDays(selectedDateKey), [selectedDateKey]);
   const selectedPatientObservations = useMemo(
     () =>
       observations
-        .filter((observation) => observation.patientId === selectedPatient?.id && observation.source === selectedSource)
+        .filter(
+          (observation) =>
+            selectedSource !== "Missed observations" &&
+            observation.patientId === selectedPatient?.id &&
+            observation.source === selectedSource
+        )
         .sort((left, right) => right.observedAt.localeCompare(left.observedAt)),
     [observations, selectedPatient?.id, selectedSource]
   );
+  const selectedPatientMissedObservations = useMemo(
+    () =>
+      missedObservations
+        .filter((missedObservation) => missedObservation.patientId === selectedPatient?.id)
+        .sort((left, right) => right.dueAt.localeCompare(left.dueAt)),
+    [missedObservations, selectedPatient?.id]
+  );
+  const selectedHistoryItems =
+    selectedSource === "Missed observations" ? selectedPatientMissedObservations : selectedPatientObservations;
   const observationCountsByDate = useMemo(() => {
     const counts = new Map<string, number>();
 
-    selectedPatientObservations.forEach((observation) => {
-      const dateKey = formatDateKey(new Date(observation.observedAt));
+    selectedHistoryItems.forEach((item) => {
+      const dateKey = formatDateKey(new Date(getHistoryItemDate(item)));
       counts.set(dateKey, (counts.get(dateKey) ?? 0) + 1);
     });
 
     return counts;
-  }, [selectedPatientObservations]);
-  const selectedDateObservations = selectedPatientObservations.filter(
-    (observation) => formatDateKey(new Date(observation.observedAt)) === selectedDateKey
+  }, [selectedHistoryItems]);
+  const selectedDateItems = selectedHistoryItems.filter(
+    (item) => formatDateKey(new Date(getHistoryItemDate(item))) === selectedDateKey
   );
 
   const selectPatient = (patientId: string) => {
     onSelectPatient(patientId);
-    setSelectedDateKey(getMostUsefulDateKey(observations, patientId, selectedSource));
+    setSelectedDateKey(getMostUsefulDateKey(observations, missedObservations, patientId, selectedSource));
   };
 
-  const selectSource = (source: ObservationSource) => {
+  const selectSource = (source: HistoryType) => {
     setSelectedSource(source);
-    setSelectedDateKey(getMostUsefulDateKey(observations, selectedPatient?.id, source));
+    setSelectedDateKey(getMostUsefulDateKey(observations, missedObservations, selectedPatient?.id, source));
   };
 
   return (
@@ -117,7 +135,11 @@ export function PreviousObservationsScreen({
                       style={[styles.sourceButton, source === selectedSource && styles.sourceButtonActive]}
                     >
                       <Text style={[styles.sourceText, source === selectedSource && styles.sourceTextActive]}>
-                        {source === "General observations" ? "General" : "Enhanced"}
+                        {source === "General observations"
+                          ? "General"
+                          : source === "Enhanced/TESO"
+                            ? "Enhanced"
+                            : "Missed"}
                       </Text>
                     </TouchableOpacity>
                   ))}
@@ -126,7 +148,7 @@ export function PreviousObservationsScreen({
 
               <View style={styles.calendarHeader}>
                 <Text style={styles.calendarTitle}>{formatMonthTitle(selectedDateKey)}</Text>
-                <Text style={styles.calendarMeta}>{selectedDateObservations.length} entries selected</Text>
+                <Text style={styles.calendarMeta}>{selectedDateItems.length} entries selected</Text>
               </View>
               <View style={styles.weekHeader}>
                 {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((day) => (
@@ -164,27 +186,43 @@ export function PreviousObservationsScreen({
 
               <View style={styles.entriesPanel}>
                 <Text style={styles.entriesTitle}>
-                  {selectedSource === "General observations" ? "General obs" : "Enhanced obs"} on{" "}
-                  {formatFullDate(selectedDateKey)}
+                  {historyLabel(selectedSource)} on {formatFullDate(selectedDateKey)}
                 </Text>
-                {selectedDateObservations.length === 0 ? (
-                  <Text style={styles.empty}>No {selectedSource === "General observations" ? "general" : "enhanced"} observations saved for this patient on this day.</Text>
+                {selectedDateItems.length === 0 ? (
+                  <Text style={styles.empty}>
+                    No {historyLabel(selectedSource).toLowerCase()} saved for this patient on this day.
+                  </Text>
                 ) : (
-                  selectedDateObservations.map((observation) => (
-                    <View key={observation.id} style={styles.entryRow}>
-                      <View>
-                        <Text style={styles.entryTime}>{formatTime(observation.observedAt)}</Text>
-                        <Text style={styles.entryMeta}>
-                          {observation.location} | {observation.presentation} | {observation.type}
-                        </Text>
-                        {observation.comments ? <Text style={styles.entryComments}>{observation.comments}</Text> : null}
+                  selectedDateItems.map((item) =>
+                    "dueAt" in item ? (
+                      <View key={item.id} style={[styles.entryRow, styles.missedEntryRow]}>
+                        <View>
+                          <Text style={styles.entryTime}>Due {formatTime(item.dueAt)}</Text>
+                          <Text style={styles.entryMeta}>Recorded {formatTime(item.recordedAt)} | {item.reason}</Text>
+                          {item.details ? <Text style={styles.entryComments}>{item.details}</Text> : null}
+                          <Text style={styles.entryComments}>Allocated to {item.allocatedStaffName}</Text>
+                        </View>
+                        <View style={styles.entryStaffBlock}>
+                          <Text style={styles.entryStaffLabel}>Recorded by</Text>
+                          <Text style={styles.entryStaff}>{item.recordedByName}</Text>
+                        </View>
                       </View>
-                      <View style={styles.entryStaffBlock}>
-                        <Text style={styles.entryStaffLabel}>Observed by</Text>
-                        <Text style={styles.entryStaff}>{observation.observerName}</Text>
+                    ) : (
+                      <View key={item.id} style={styles.entryRow}>
+                        <View>
+                          <Text style={styles.entryTime}>{formatTime(item.observedAt)}</Text>
+                          <Text style={styles.entryMeta}>
+                            {item.location} | {item.presentation} | {item.type}
+                          </Text>
+                          {item.comments ? <Text style={styles.entryComments}>{item.comments}</Text> : null}
+                        </View>
+                        <View style={styles.entryStaffBlock}>
+                          <Text style={styles.entryStaffLabel}>Observed by</Text>
+                          <Text style={styles.entryStaff}>{item.observerName}</Text>
+                        </View>
                       </View>
-                    </View>
-                  ))
+                    )
+                  )
                 )}
               </View>
             </>
@@ -197,12 +235,32 @@ export function PreviousObservationsScreen({
   );
 }
 
-function getMostUsefulDateKey(observations: Observation[], patientId: string | undefined, source: ObservationSource) {
-  const latestObservation = observations
-    .filter((observation) => observation.patientId === patientId && observation.source === source)
-    .sort((left, right) => right.observedAt.localeCompare(left.observedAt))[0];
+function getMostUsefulDateKey(
+  observations: Observation[],
+  missedObservations: MissedObservation[],
+  patientId: string | undefined,
+  source: HistoryType
+) {
+  const latestObservation =
+    source === "Missed observations"
+      ? missedObservations
+          .filter((missedObservation) => missedObservation.patientId === patientId)
+          .sort((left, right) => right.dueAt.localeCompare(left.dueAt))[0]
+      : observations
+          .filter((observation) => observation.patientId === patientId && observation.source === source)
+          .sort((left, right) => right.observedAt.localeCompare(left.observedAt))[0];
 
-  return formatDateKey(latestObservation ? new Date(latestObservation.observedAt) : new Date());
+  return formatDateKey(latestObservation ? new Date(getHistoryItemDate(latestObservation)) : new Date());
+}
+
+function getHistoryItemDate(item: Observation | MissedObservation) {
+  return "dueAt" in item ? item.dueAt : item.observedAt;
+}
+
+function historyLabel(source: HistoryType) {
+  if (source === "General observations") return "General observations";
+  if (source === "Enhanced/TESO") return "Enhanced observations";
+  return "Missed observations";
 }
 
 function buildCalendarDays(selectedDateKey: string) {
@@ -487,6 +545,10 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     marginBottom: 8,
     padding: 10
+  },
+  missedEntryRow: {
+    backgroundColor: "#fff8e8",
+    borderColor: "#e4b75f"
   },
   entryTime: {
     color: "#18262c",

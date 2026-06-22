@@ -50,6 +50,13 @@ type MedicationChartScreenProps = {
 };
 
 type MedicationChartViewMode = "admin" | "chart" | "history";
+type PendingMedicationAction = {
+  prescription: MedicationPrescription;
+  scheduledAt: string;
+  status: MedicationAdministrationStatus;
+  omissionCode?: MedicationOmissionCode;
+  notes?: string;
+};
 
 export function MedicationChartScreen({
   administrations,
@@ -86,6 +93,8 @@ export function MedicationChartScreen({
   const [viewMode, setViewMode] = useState<MedicationChartViewMode>(initialViewMode);
   const [allergyText, setAllergyText] = useState(selectedPatient?.allergies ?? "");
   const [adrText, setAdrText] = useState(selectedPatient?.adverseDrugReactions ?? "");
+  const [allergySaveMessage, setAllergySaveMessage] = useState("");
+  const [pendingMedicationAction, setPendingMedicationAction] = useState<PendingMedicationAction | null>(null);
   const [form, setForm] = useState(() => ({
     drugName: "",
     dose: "",
@@ -105,6 +114,7 @@ export function MedicationChartScreen({
   useEffect(() => {
     setAllergyText(selectedPatient?.allergies ?? "");
     setAdrText(selectedPatient?.adverseDrugReactions ?? "");
+    setAllergySaveMessage("");
   }, [selectedPatient?.adverseDrugReactions, selectedPatient?.allergies, selectedPatient?.id]);
 
   const createPrescription = () => {
@@ -166,7 +176,7 @@ export function MedicationChartScreen({
     }
 
     onCreateAdministration({
-      id: `med-admin-${Date.now()}-${status}-${omissionCode ?? ""}`,
+      id: createAdministrationId(prescription, scheduledAt),
       prescriptionId: prescription.id,
       patientId: selectedPatient.id,
       scheduledAt,
@@ -176,6 +186,31 @@ export function MedicationChartScreen({
       recordedAt: new Date().toISOString(),
       notes: notes ?? (omissionCode ? omissionLabel(omissionCode) : "")
     });
+  };
+
+  const requestDoseRecord = (
+    prescription: MedicationPrescription,
+    scheduledAt: string,
+    status: MedicationAdministrationStatus,
+    omissionCode?: MedicationOmissionCode,
+    notes?: string
+  ) => {
+    setPendingMedicationAction({ prescription, scheduledAt, status, omissionCode, notes });
+  };
+
+  const confirmDoseRecord = () => {
+    if (!pendingMedicationAction) {
+      return;
+    }
+
+    recordDose(
+      pendingMedicationAction.prescription,
+      pendingMedicationAction.scheduledAt,
+      pendingMedicationAction.status,
+      pendingMedicationAction.omissionCode,
+      pendingMedicationAction.notes
+    );
+    setPendingMedicationAction(null);
   };
 
   const discontinuePrescription = (prescription: MedicationPrescription) => {
@@ -207,6 +242,7 @@ export function MedicationChartScreen({
       allergies: allergyText.trim(),
       adverseDrugReactions: adrText.trim()
     });
+    setAllergySaveMessage("Saved locally and queued for sync.");
   };
 
   return (
@@ -297,6 +333,28 @@ export function MedicationChartScreen({
                 />
                 <TouchableOpacity accessibilityRole="button" onPress={saveAllergies} style={styles.allergySaveButton}>
                   <Text style={styles.allergySaveText}>Save allergies / ADRs</Text>
+                </TouchableOpacity>
+                {allergySaveMessage ? <Text style={styles.allergySavedText}>{allergySaveMessage}</Text> : null}
+              </View>
+            </View>
+          ) : null}
+
+          {pendingMedicationAction ? (
+            <View style={styles.confirmPanel}>
+              <View>
+                <Text style={styles.confirmTitle}>Confirm medication record</Text>
+                <Text style={styles.confirmMeta}>
+                  {pendingMedicationAction.prescription.drugName} | {pendingMedicationAction.status}
+                  {pendingMedicationAction.omissionCode ? ` ${pendingMedicationAction.omissionCode}` : ""} |{" "}
+                  {formatDateTime(pendingMedicationAction.scheduledAt)}
+                </Text>
+              </View>
+              <View style={styles.confirmActions}>
+                <TouchableOpacity accessibilityRole="button" onPress={() => setPendingMedicationAction(null)} style={styles.cancelConfirmButton}>
+                  <Text style={styles.cancelConfirmText}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity accessibilityRole="button" onPress={confirmDoseRecord} style={styles.confirmButton}>
+                  <Text style={styles.confirmButtonText}>Confirm</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -467,7 +525,7 @@ export function MedicationChartScreen({
                 viewMode={viewMode}
                 onDiscontinue={() => discontinuePrescription(prescription)}
                 onRecordDose={(scheduledAt, status, omissionCode, notes) =>
-                  recordDose(prescription, scheduledAt, status, omissionCode, notes)
+                  requestDoseRecord(prescription, scheduledAt, status, omissionCode, notes)
                 }
               />
             ))
@@ -652,8 +710,22 @@ function PrescriptionCard({
                 return (
                   <View key={`${prescription.id}-${scheduledAt}`} style={styles.gridCell}>
                     {record ? (
-                      <View style={[styles.statusBadge, statusStyle(record.status)]}>
-                        <Text style={styles.statusText}>{record.status === "Omitted" ? record.omissionCode ?? "O" : "G"}</Text>
+                      <View style={styles.recordedDoseCell}>
+                        <View style={[styles.statusBadge, statusStyle(record.status)]}>
+                          <Text style={styles.statusText}>{statusCodeLabel(record)}</Text>
+                        </View>
+                        <Text style={styles.changeDoseLabel}>Change</Text>
+                        <View style={styles.recordButtons}>
+                          <DoseButton label="G" onPress={() => onRecordDose(scheduledAt, "Given")} />
+                          <DoseButton label="Ref" onPress={() => onRecordDose(scheduledAt, "Refused", undefined, "Patient refused")} />
+                          {omissionOptions.map((option) => (
+                            <DoseButton
+                              key={option.code}
+                              label={option.code}
+                              onPress={() => onRecordDose(scheduledAt, "Omitted", option.code)}
+                            />
+                          ))}
+                        </View>
                       </View>
                     ) : prescription.discontinuedAt ? (
                       <Text style={styles.blankCell}>-</Text>
@@ -854,6 +926,11 @@ function buildScheduledAt(date: Date, time: string) {
   return scheduled.toISOString();
 }
 
+function createAdministrationId(prescription: MedicationPrescription, scheduledAt: string) {
+  const suffix = scheduledAt.replace(/[^0-9a-z]/gi, "");
+  return `med-admin-${prescription.id}-${suffix}`;
+}
+
 function buildIsoFromDateAndTime(dateText: string, timeText: string) {
   const dateParts = dateText.split(/[\/\-]/).map((part) => Number(part));
   const [hours = 0, minutes = 0] = timeText.split(":").map((part) => Number(part));
@@ -889,6 +966,12 @@ function statusStyle(status: MedicationAdministrationStatus) {
   if (status === "Given") return styles.givenBadge;
   if (status === "Omitted") return styles.omittedBadge;
   return styles.refusedBadge;
+}
+
+function statusCodeLabel(administration: MedicationAdministration) {
+  if (administration.status === "Given") return "G";
+  if (administration.status === "Refused") return "Ref";
+  return administration.omissionCode ?? "O";
 }
 
 function omissionLabel(code: MedicationOmissionCode) {
@@ -1008,8 +1091,8 @@ const styles = StyleSheet.create({
   viewToggleButtonActive: { backgroundColor: "#1f5262", borderColor: "#1f5262" },
   viewToggleText: { color: "#30434a", fontSize: 13, fontWeight: "900" },
   viewToggleTextActive: { color: "#ffffff" },
-  split: { alignItems: "stretch", flexDirection: "row", gap: 12 },
-  chartOnlySplit: { alignItems: "stretch", flexDirection: "row", gap: 12 },
+  split: { alignItems: "stretch", flexDirection: "row", gap: 12, height: 680 },
+  chartOnlySplit: { alignItems: "stretch", flexDirection: "row", gap: 12, height: 680 },
   patientList: {
     backgroundColor: "#ffffff",
     borderColor: "#d8e0e3",
@@ -1036,16 +1119,18 @@ const styles = StyleSheet.create({
     borderColor: "#d8e0e3",
     borderRadius: 8,
     borderWidth: StyleSheet.hairlineWidth,
-    flex: 1
+    flex: 1,
+    overflow: "hidden"
   },
   chartContent: { gap: 12, padding: 12, paddingBottom: 80 },
   patientHeader: {
     alignItems: "center",
+    backgroundColor: "#ffffff",
     borderBottomColor: "#d8e0e3",
     borderBottomWidth: StyleSheet.hairlineWidth,
     flexDirection: "row",
     justifyContent: "space-between",
-    paddingBottom: 12
+    padding: 12
   },
   patientTitle: { color: "#18262c", fontSize: 22, fontWeight: "900" },
   allergyBox: {
@@ -1080,6 +1165,39 @@ const styles = StyleSheet.create({
     minHeight: 32
   },
   allergySaveText: { color: "#1f5262", fontSize: 11, fontWeight: "900" },
+  allergySavedText: { color: "#315748", fontSize: 11, fontWeight: "900", marginTop: 5 },
+  confirmPanel: {
+    alignItems: "center",
+    backgroundColor: "#fff8e8",
+    borderBottomColor: "#e4b75f",
+    borderBottomWidth: 1,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    gap: 10,
+    padding: 10
+  },
+  confirmTitle: { color: "#62430f", fontSize: 14, fontWeight: "900" },
+  confirmMeta: { color: "#7b5a1a", fontSize: 12, fontWeight: "800", marginTop: 3 },
+  confirmActions: { flexDirection: "row", gap: 8 },
+  cancelConfirmButton: {
+    alignItems: "center",
+    borderColor: "#9a5c00",
+    borderRadius: 6,
+    borderWidth: 1,
+    justifyContent: "center",
+    minHeight: 36,
+    paddingHorizontal: 12
+  },
+  cancelConfirmText: { color: "#9a5c00", fontSize: 12, fontWeight: "900" },
+  confirmButton: {
+    alignItems: "center",
+    backgroundColor: "#1f5262",
+    borderRadius: 6,
+    justifyContent: "center",
+    minHeight: 36,
+    paddingHorizontal: 12
+  },
+  confirmButtonText: { color: "#ffffff", fontSize: 12, fontWeight: "900" },
   prescriberPanel: {
     backgroundColor: "#f8fafb",
     borderColor: "#d8e0e3",
@@ -1258,6 +1376,16 @@ const styles = StyleSheet.create({
   blankCell: { color: "#607078", fontSize: 14, fontWeight: "900" },
   futureCell: { color: "#607078", fontSize: 12, fontWeight: "900" },
   recordButtons: { flexDirection: "row", flexWrap: "wrap", gap: 3, justifyContent: "center", paddingHorizontal: 3 },
+  recordedDoseCell: {
+    alignItems: "center",
+    gap: 3,
+    paddingVertical: 3
+  },
+  changeDoseLabel: {
+    color: "#607078",
+    fontSize: 9,
+    fontWeight: "900"
+  },
   doseButton: {
     alignItems: "center",
     borderColor: "#c7d2d6",

@@ -480,7 +480,7 @@ export default function App() {
   };
 
   const handleCreateMedicationAdministration = (administration: MedicationAdministration) => {
-    setMedicationAdministrations((currentAdministrations) => [administration, ...currentAdministrations]);
+    setMedicationAdministrations((currentAdministrations) => upsertById(currentAdministrations, administration));
     void persistOrQueue("medication administration", () =>
       persistMedicationAdministration({ ...administration, organisationId: selectedStaff?.organisationId })
     );
@@ -526,6 +526,7 @@ export default function App() {
         contentContainerStyle={screen === "home" ? styles.homeContent : styles.content}
         horizontal={false}
         keyboardShouldPersistTaps="handled"
+        scrollEnabled={screen !== "medicationChart"}
       >
         {screen === "home" ? (
           <HomeScreen
@@ -612,6 +613,7 @@ export default function App() {
           />
         ) : screen === "previousObservations" ? (
           <PreviousObservationsScreen
+            missedObservations={missedObservations}
             observations={observations}
             patients={wardPatients}
             selectedPatientId={selectedPatientId}
@@ -803,6 +805,12 @@ function upsertPatient(currentPatients: Patient[], patient: Patient) {
   return currentPatients.some((currentPatient) => currentPatient.id === patient.id)
     ? currentPatients.map((currentPatient) => (currentPatient.id === patient.id ? patient : currentPatient))
     : [...currentPatients, patient];
+}
+
+function upsertById<T extends { id: string }>(items: T[], item: T) {
+  return items.some((currentItem) => currentItem.id === item.id)
+    ? items.map((currentItem) => (currentItem.id === item.id ? item : currentItem))
+    : [item, ...items];
 }
 
 function mergeById<T extends { id: string }>(incoming: T[], existing: T[]) {
