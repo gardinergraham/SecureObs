@@ -27,6 +27,7 @@ export type Spo2Scale = "Scale 1" | "Scale 2";
 export type ServiceType = "High secure hospital" | "Medium secure hospital" | "Care home";
 export type MedicationAdministrationStatus = "Given" | "Omitted" | "Refused";
 export type MedicationOmissionCode = "R" | "N" | "X" | "F" | "S" | "O" | "U";
+export type MedicationPrescriptionType = "regular" | "prn" | "depot" | "rapid";
 
 export type Site = {
   id: string;
@@ -186,6 +187,9 @@ export type MedicationPrescription = {
   drugName: string;
   dose: string;
   route: string;
+  prescriptionType?: MedicationPrescriptionType;
+  prnIndication?: string;
+  depotIntervalDays?: number;
   administrationTimes: string[];
   startDate: string;
   stopDate?: string;

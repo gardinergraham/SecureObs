@@ -12,6 +12,17 @@ import type {
 
 const routeOptions = ["Oral", "IM", "Depot", "S/L", "Topical"];
 const timeOptions = ["06:00", "08:00", "12:00", "14:00", "16:00", "18:00", "20:00", "22:00"];
+const prescriptionTypeOptions = [
+  { id: "regular", label: "Regular" },
+  { id: "prn", label: "PRN" },
+  { id: "depot", label: "Depot" },
+  { id: "rapid", label: "Rapid tranquilisation" }
+] as const;
+const depotIntervalOptions = [
+  { label: "Weekly", days: 7 },
+  { label: "Fortnightly", days: 14 },
+  { label: "Monthly", days: 28 }
+];
 const omissionOptions: Array<{ code: MedicationOmissionCode; label: string }> = [
   { code: "R", label: "Patient refused" },
   { code: "N", label: "Route not available" },
@@ -37,7 +48,7 @@ type MedicationChartScreenProps = {
   onSelectPatient: (patientId: string) => void;
 };
 
-type MedicationChartViewMode = "admin" | "chart";
+type MedicationChartViewMode = "admin" | "chart" | "history";
 
 export function MedicationChartScreen({
   administrations,
@@ -63,9 +74,11 @@ export function MedicationChartScreen({
   const dueCount = activePrescriptions.reduce(
     (total, prescription) =>
       total +
-      prescription.administrationTimes.filter((time) =>
-        isDoseDueSoon(prescription, administrations, today, time)
-      ).length,
+      (prescription.prescriptionType === "prn" || prescription.prescriptionType === "rapid"
+        ? 0
+        : prescription.administrationTimes.filter((time) =>
+            isDoseDueSoon(prescription, administrations, today, time)
+          ).length),
     0
   );
   const [viewMode, setViewMode] = useState<MedicationChartViewMode>(initialViewMode);
@@ -73,6 +86,9 @@ export function MedicationChartScreen({
     drugName: "",
     dose: "",
     route: "Oral",
+    prescriptionType: "regular" as MedicationPrescription["prescriptionType"],
+    prnIndication: "",
+    depotIntervalDays: 14,
     administrationTimes: ["08:00"],
     startDate: formatInputDate(new Date()),
     timePrescribed: formatInputTime(new Date()),
@@ -95,7 +111,15 @@ export function MedicationChartScreen({
       drugName: form.drugName.trim(),
       dose: form.dose.trim(),
       route: form.route,
-      administrationTimes: [...form.administrationTimes].sort(),
+      prescriptionType: form.prescriptionType,
+      prnIndication: form.prescriptionType === "prn" || form.prescriptionType === "rapid" ? form.prnIndication.trim() : undefined,
+      depotIntervalDays: form.prescriptionType === "depot" ? form.depotIntervalDays : undefined,
+      administrationTimes:
+        form.prescriptionType === "prn" || form.prescriptionType === "rapid"
+          ? []
+          : form.prescriptionType === "depot"
+            ? [form.timePrescribed]
+            : [...form.administrationTimes].sort(),
       startDate: prescribedAt,
       additionalInstructions: form.additionalInstructions.trim(),
       prescribedBy: selectedStaff.name,
@@ -107,6 +131,9 @@ export function MedicationChartScreen({
       drugName: "",
       dose: "",
       route: "Oral",
+      prescriptionType: "regular",
+      prnIndication: "",
+      depotIntervalDays: 14,
       administrationTimes: ["08:00"],
       startDate: formatInputDate(new Date()),
       timePrescribed: formatInputTime(new Date()),
@@ -118,7 +145,8 @@ export function MedicationChartScreen({
     prescription: MedicationPrescription,
     scheduledAt: string,
     status: MedicationAdministrationStatus,
-    omissionCode?: MedicationOmissionCode
+    omissionCode?: MedicationOmissionCode,
+    notes?: string
   ) => {
     if (!selectedPatient || !selectedStaff || prescription.discontinuedAt) {
       return;
@@ -137,7 +165,7 @@ export function MedicationChartScreen({
       omissionCode,
       recordedBy: selectedStaff.name,
       recordedAt: new Date().toISOString(),
-      notes: omissionCode ? omissionLabel(omissionCode) : ""
+      notes: notes ?? (omissionCode ? omissionLabel(omissionCode) : "")
     });
   };
 
@@ -199,6 +227,13 @@ export function MedicationChartScreen({
         >
           <Text style={[styles.viewToggleText, viewMode === "chart" && styles.viewToggleTextActive]}>Full chart</Text>
         </TouchableOpacity>
+        <TouchableOpacity
+          accessibilityRole="button"
+          onPress={() => setViewMode("history")}
+          style={[styles.viewToggleButton, viewMode === "history" && styles.viewToggleButtonActive]}
+        >
+          <Text style={[styles.viewToggleText, viewMode === "history" && styles.viewToggleTextActive]}>History</Text>
+        </TouchableOpacity>
       </View>
 
       <View style={viewMode === "chart" ? styles.chartOnlySplit : styles.split}>
@@ -238,7 +273,7 @@ export function MedicationChartScreen({
           {viewMode === "admin" ? (
             <>
               <View style={[styles.prescriberPanel, !canPrescribe && styles.lockedPanel]}>
-                <Text style={styles.panelTitle}>Regular dose prescription</Text>
+                <Text style={styles.panelTitle}>Medication prescription</Text>
                 <Text style={styles.meta}>
                   {canPrescribe
                     ? "Add medicine details, start date, time prescribed, route and administration times."
@@ -276,20 +311,60 @@ export function MedicationChartScreen({
                     />
                   </View>
                   <OptionGroup title="Route" disabled={!canPrescribe} options={routeOptions} selected={form.route} onSelect={(route) => setForm({ ...form, route })} />
-                  <MultiOptionGroup
-                    title="Administration times"
+                  <OptionGroup
+                    title="Type"
                     disabled={!canPrescribe}
-                    options={timeOptions}
-                    selected={form.administrationTimes}
-                    onToggle={(time) =>
-                      setForm((current) => ({
-                        ...current,
-                        administrationTimes: current.administrationTimes.includes(time)
-                          ? current.administrationTimes.filter((item) => item !== time)
-                          : [...current.administrationTimes, time]
-                      }))
+                    options={prescriptionTypeOptions.map((option) => option.id)}
+                    labels={Object.fromEntries(prescriptionTypeOptions.map((option) => [option.id, option.label]))}
+                    selected={form.prescriptionType ?? "regular"}
+                    onSelect={(prescriptionType) =>
+                      setForm({
+                        ...form,
+                        prescriptionType: prescriptionType as MedicationPrescription["prescriptionType"]
+                      })
                     }
                   />
+                  {form.prescriptionType === "prn" || form.prescriptionType === "rapid" ? (
+                    <TextInput
+                      editable={canPrescribe}
+                      multiline
+                      onChangeText={(value) => setForm({ ...form, prnIndication: value })}
+                      placeholder={
+                        form.prescriptionType === "rapid"
+                          ? "Rapid tranquillisation indication and protocol notes"
+                          : "PRN indication, e.g. anxiety, agitation, pain"
+                      }
+                      style={[styles.input, styles.instructionsInput]}
+                      value={form.prnIndication}
+                    />
+                  ) : form.prescriptionType === "depot" ? (
+                    <>
+                      <OptionGroup
+                        title="Depot interval"
+                        disabled={!canPrescribe}
+                        options={depotIntervalOptions.map((option) => String(option.days))}
+                        labels={Object.fromEntries(depotIntervalOptions.map((option) => [String(option.days), option.label]))}
+                        selected={String(form.depotIntervalDays)}
+                        onSelect={(days) => setForm({ ...form, depotIntervalDays: Number(days) })}
+                      />
+                      <Text style={styles.meta}>Start date and time is the first due administration.</Text>
+                    </>
+                  ) : (
+                    <MultiOptionGroup
+                      title="Administration times"
+                      disabled={!canPrescribe}
+                      options={timeOptions}
+                      selected={form.administrationTimes}
+                      onToggle={(time) =>
+                        setForm((current) => ({
+                          ...current,
+                          administrationTimes: current.administrationTimes.includes(time)
+                            ? current.administrationTimes.filter((item) => item !== time)
+                            : [...current.administrationTimes, time]
+                        }))
+                      }
+                    />
+                  )}
                   <TextInput
                     editable={canPrescribe}
                     multiline
@@ -341,7 +416,9 @@ export function MedicationChartScreen({
             </>
           ) : null}
 
-          {patientPrescriptions.length === 0 ? (
+          {viewMode === "history" ? (
+            <MedicationHistory prescriptions={patientPrescriptions} administrations={administrations} />
+          ) : patientPrescriptions.length === 0 ? (
             <View style={styles.emptyPanel}>
               <Text style={styles.emptyText}>No medication prescriptions recorded for this patient.</Text>
             </View>
@@ -355,7 +432,9 @@ export function MedicationChartScreen({
                 visibleDates={visibleDates}
                 viewMode={viewMode}
                 onDiscontinue={() => discontinuePrescription(prescription)}
-                onRecordDose={(scheduledAt, status, omissionCode) => recordDose(prescription, scheduledAt, status, omissionCode)}
+                onRecordDose={(scheduledAt, status, omissionCode, notes) =>
+                  recordDose(prescription, scheduledAt, status, omissionCode, notes)
+                }
               />
             ))
           )}
@@ -372,12 +451,13 @@ type PrescriptionCardProps = {
   canPrescribe: boolean;
   prescription: MedicationPrescription;
   visibleDates: Date[];
-  viewMode: "admin" | "chart";
+  viewMode: MedicationChartViewMode;
   onDiscontinue: () => void;
   onRecordDose: (
     scheduledAt: string,
     status: MedicationAdministrationStatus,
-    omissionCode?: MedicationOmissionCode
+    omissionCode?: MedicationOmissionCode,
+    notes?: string
   ) => void;
 };
 
@@ -390,12 +470,28 @@ function PrescriptionCard({
   onDiscontinue,
   onRecordDose
 }: PrescriptionCardProps) {
+  const [prnReason, setPrnReason] = useState(prescription.prnIndication ?? "");
+  const isPrn = (prescription.prescriptionType ?? "regular") === "prn";
+  const isRapid = prescription.prescriptionType === "rapid";
+  const isDepot = prescription.prescriptionType === "depot";
+  const latestAdministration = administrations
+    .filter((administration) => administration.prescriptionId === prescription.id)
+    .sort((left, right) => right.recordedAt.localeCompare(left.recordedAt))[0];
+  const depotDueAt = isDepot ? getDepotDueAt(prescription, latestAdministration) : undefined;
+  const depotOverdue = depotDueAt ? new Date(depotDueAt).getTime() <= Date.now() : false;
+  const prnAdministrations = administrations
+    .filter((administration) => administration.prescriptionId === prescription.id)
+    .sort((left, right) => right.recordedAt.localeCompare(left.recordedAt))
+    .slice(0, 4);
+
   return (
     <View style={[styles.prescriptionCard, prescription.discontinuedAt && styles.discontinuedCard]}>
       <View style={styles.prescriptionHeader}>
         <View style={styles.prescriptionInfo}>
           <Text style={styles.drugName}>{prescription.drugName}</Text>
-          <Text style={styles.meta}>{prescription.dose} | {prescription.route}</Text>
+          <Text style={styles.meta}>
+            {prescription.dose} | {prescription.route} | {formatPrescriptionType(prescription)}
+          </Text>
           <Text style={styles.meta}>Start {formatDateTime(prescription.startDate)} | Prescribed {formatTime(prescription.prescribedAt)}</Text>
           <Text style={styles.meta}>By {prescription.prescribedBy}</Text>
         </View>
@@ -413,7 +509,87 @@ function PrescriptionCard({
       </View>
       {prescription.additionalInstructions ? <Text style={styles.instructionsText}>{prescription.additionalInstructions}</Text> : null}
 
-      <ScrollView horizontal showsHorizontalScrollIndicator>
+      {isPrn || isRapid ? (
+        <View style={[styles.prnPanel, isRapid && styles.rapidPanel]}>
+          <Text style={styles.prnTitle}>{isRapid ? "Rapid tranquillisation" : "PRN / as required"}</Text>
+          <Text style={styles.meta}>
+            Indication/protocol: {prescription.prnIndication || prescription.additionalInstructions || "Not specified"}
+          </Text>
+          {!prescription.discontinuedAt ? (
+            <>
+              <TextInput
+                multiline
+                onChangeText={setPrnReason}
+                placeholder={isRapid ? "Reason, authorisation and monitoring notes" : "Reason for giving now, e.g. anxious, pain, agitation"}
+                style={[styles.input, styles.prnReasonInput]}
+                value={prnReason}
+              />
+              <TouchableOpacity
+                accessibilityRole="button"
+                disabled={!prnReason.trim()}
+                onPress={() => {
+                  onRecordDose(
+                    new Date().toISOString(),
+                    "Given",
+                    undefined,
+                    `${isRapid ? "Rapid tranquillisation" : "PRN"}: ${prnReason.trim()}`
+                  );
+                  setPrnReason(prescription.prnIndication ?? "");
+                }}
+                style={[styles.primaryButton, !prnReason.trim() && styles.disabledButton]}
+              >
+                <Text style={styles.primaryButtonText}>{isRapid ? "Record rapid tranquillisation" : "Give PRN now"}</Text>
+              </TouchableOpacity>
+            </>
+          ) : null}
+          {prnAdministrations.length > 0 ? (
+            <View style={styles.prnHistory}>
+              <Text style={styles.groupLabel}>Recent PRN administrations</Text>
+              {prnAdministrations.map((administration) => (
+                <Text key={administration.id} style={styles.prnHistoryText}>
+                  {formatDateTime(administration.recordedAt)} | {administration.recordedBy} |{" "}
+                  {administration.notes || "No reason recorded"}
+                </Text>
+              ))}
+            </View>
+          ) : null}
+        </View>
+      ) : isDepot ? (
+        <View style={styles.depotPanel}>
+          <Text style={styles.prnTitle}>Depot administration</Text>
+          <Text style={styles.meta}>
+            Interval {prescription.depotIntervalDays ?? 14} days | Next due{" "}
+            {depotDueAt ? formatDateTime(depotDueAt) : "not calculated"}
+          </Text>
+          {latestAdministration ? (
+            <Text style={styles.meta}>
+              Last {latestAdministration.status.toLowerCase()} {formatDateTime(latestAdministration.recordedAt)} by{" "}
+              {latestAdministration.recordedBy}
+            </Text>
+          ) : null}
+          {!prescription.discontinuedAt ? (
+            <View style={styles.depotActionRow}>
+              <TouchableOpacity
+                accessibilityRole="button"
+                disabled={!depotOverdue}
+                onPress={() => onRecordDose(depotDueAt ?? new Date().toISOString(), "Given", undefined, "Depot administered")}
+                style={[styles.primaryButton, styles.depotActionButton, !depotOverdue && styles.disabledButton]}
+              >
+                <Text style={styles.primaryButtonText}>Record depot given</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                accessibilityRole="button"
+                disabled={!depotOverdue}
+                onPress={() => onRecordDose(depotDueAt ?? new Date().toISOString(), "Refused", undefined, "Depot refused")}
+                style={[styles.refusedButton, !depotOverdue && styles.disabledButton]}
+              >
+                <Text style={styles.refusedButtonText}>Record refused</Text>
+              </TouchableOpacity>
+            </View>
+          ) : null}
+        </View>
+      ) : (
+        <ScrollView horizontal showsHorizontalScrollIndicator>
         <View>
           <View style={styles.gridRow}>
             <View style={[styles.gridCell, styles.timeHeaderCell]}>
@@ -450,7 +626,8 @@ function PrescriptionCard({
                       <Text style={styles.futureCell}>Due</Text>
                     ) : (
                       <View style={styles.recordButtons}>
-                        <DoseButton label="G" onPress={() => onRecordDose(scheduledAt, "Given")} />
+                          <DoseButton label="G" onPress={() => onRecordDose(scheduledAt, "Given")} />
+                          <DoseButton label="Ref" onPress={() => onRecordDose(scheduledAt, "Refused", undefined, "Patient refused")} />
                         {omissionOptions.map((option) => (
                           <DoseButton
                             key={option.code}
@@ -466,7 +643,58 @@ function PrescriptionCard({
             </View>
           ))}
         </View>
-      </ScrollView>
+        </ScrollView>
+      )}
+    </View>
+  );
+}
+
+function MedicationHistory({
+  administrations,
+  prescriptions
+}: {
+  administrations: MedicationAdministration[];
+  prescriptions: MedicationPrescription[];
+}) {
+  const prescriptionById = new Map(prescriptions.map((prescription) => [prescription.id, prescription]));
+  const patientAdministrations = administrations
+    .filter((administration) => prescriptionById.has(administration.prescriptionId))
+    .sort((left, right) => right.recordedAt.localeCompare(left.recordedAt));
+
+  if (patientAdministrations.length === 0) {
+    return (
+      <View style={styles.emptyPanel}>
+        <Text style={styles.emptyText}>No medication administration history recorded for this patient.</Text>
+      </View>
+    );
+  }
+
+  return (
+    <View style={styles.historyPanel}>
+      <Text style={styles.panelTitle}>Medication history</Text>
+      {patientAdministrations.map((administration) => {
+        const prescription = prescriptionById.get(administration.prescriptionId);
+        return (
+          <View key={administration.id} style={styles.historyRow}>
+            <View style={[styles.historyStatusDot, statusStyle(administration.status)]}>
+              <Text style={styles.statusText}>
+                {administration.status === "Omitted" ? administration.omissionCode ?? "O" : administration.status === "Refused" ? "R" : "G"}
+              </Text>
+            </View>
+            <View style={styles.historyTextBlock}>
+              <Text style={styles.historyTitle}>
+                {prescription?.drugName ?? "Unknown medicine"} | {administration.status}
+              </Text>
+              <Text style={styles.historyMeta}>
+                {formatDateTime(administration.recordedAt)} | {administration.recordedBy}
+              </Text>
+              <Text style={styles.historyMeta}>
+                {formatPrescriptionType(prescription)} {administration.notes ? `| ${administration.notes}` : ""}
+              </Text>
+            </View>
+          </View>
+        );
+      })}
     </View>
   );
 }
@@ -474,12 +702,14 @@ function PrescriptionCard({
 function OptionGroup({
   disabled,
   options,
+  labels,
   selected,
   title,
   onSelect
 }: {
   disabled: boolean;
   options: string[];
+  labels?: Record<string, string>;
   selected: string;
   title: string;
   onSelect: (option: string) => void;
@@ -496,7 +726,9 @@ function OptionGroup({
             onPress={() => onSelect(option)}
             style={[styles.optionButton, selected === option && styles.optionButtonActive, disabled && styles.disabledButton]}
           >
-            <Text style={[styles.optionText, selected === option && styles.optionTextActive]}>{option}</Text>
+            <Text style={[styles.optionText, selected === option && styles.optionTextActive]}>
+              {labels?.[option] ?? option}
+            </Text>
           </TouchableOpacity>
         ))}
       </View>
@@ -614,6 +846,23 @@ function statusStyle(status: MedicationAdministrationStatus) {
 
 function omissionLabel(code: MedicationOmissionCode) {
   return omissionOptions.find((option) => option.code === code)?.label ?? "Omitted";
+}
+
+function formatPrescriptionType(prescription?: MedicationPrescription) {
+  if (!prescription) return "";
+  if (prescription.prescriptionType === "prn") return "PRN";
+  if (prescription.prescriptionType === "depot") return "Depot";
+  if (prescription.prescriptionType === "rapid") return "Rapid tranquillisation";
+  return "Regular";
+}
+
+function getDepotDueAt(prescription: MedicationPrescription, latestAdministration?: MedicationAdministration) {
+  const baseDate = latestAdministration?.recordedAt ?? prescription.startDate;
+  const baseTime = new Date(baseDate).getTime();
+  if (Number.isNaN(baseTime)) return undefined;
+  if (!latestAdministration) return prescription.startDate;
+  const intervalDays = prescription.depotIntervalDays ?? 14;
+  return new Date(baseTime + intervalDays * 24 * 60 * 60 * 1000).toISOString();
 }
 
 function formatDateHeader(date: Date) {
@@ -829,6 +1078,74 @@ const styles = StyleSheet.create({
   prescriptionInfo: { flex: 1, paddingRight: 8 },
   drugName: { color: "#18262c", fontSize: 18, fontWeight: "900" },
   instructionsText: { color: "#31454d", fontSize: 13, fontWeight: "800", padding: 10 },
+  prnPanel: {
+    backgroundColor: "#f8fafb",
+    borderTopColor: "#d8e0e3",
+    borderTopWidth: StyleSheet.hairlineWidth,
+    gap: 8,
+    padding: 10
+  },
+  prnTitle: { color: "#1f5262", fontSize: 14, fontWeight: "900" },
+  prnReasonInput: { minHeight: 68, textAlignVertical: "top" },
+  prnHistory: {
+    backgroundColor: "#ffffff",
+    borderColor: "#d8e0e3",
+    borderRadius: 6,
+    borderWidth: 1,
+    gap: 4,
+    padding: 8
+  },
+  prnHistoryText: { color: "#52656e", fontSize: 12, fontWeight: "800" },
+  rapidPanel: {
+    backgroundColor: "#fff4ee",
+    borderTopColor: "#d8905c"
+  },
+  depotPanel: {
+    backgroundColor: "#eef6f4",
+    borderTopColor: "#d8e0e3",
+    borderTopWidth: StyleSheet.hairlineWidth,
+    gap: 8,
+    padding: 10
+  },
+  depotActionRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  depotActionButton: { minWidth: 170, paddingHorizontal: 12 },
+  refusedButton: {
+    alignItems: "center",
+    borderColor: "#a33b3b",
+    borderRadius: 6,
+    borderWidth: 1,
+    justifyContent: "center",
+    minHeight: 46,
+    minWidth: 150,
+    paddingHorizontal: 12
+  },
+  refusedButtonText: { color: "#a33b3b", fontSize: 14, fontWeight: "900" },
+  historyPanel: {
+    borderColor: "#d8e0e3",
+    borderRadius: 8,
+    borderWidth: 1,
+    gap: 8,
+    padding: 12
+  },
+  historyRow: {
+    alignItems: "center",
+    borderColor: "#e1e7e9",
+    borderRadius: 6,
+    borderWidth: 1,
+    flexDirection: "row",
+    gap: 10,
+    padding: 10
+  },
+  historyStatusDot: {
+    alignItems: "center",
+    borderRadius: 18,
+    height: 36,
+    justifyContent: "center",
+    width: 36
+  },
+  historyTextBlock: { flex: 1 },
+  historyTitle: { color: "#18262c", fontSize: 14, fontWeight: "900" },
+  historyMeta: { color: "#52656e", fontSize: 12, fontWeight: "800", marginTop: 3 },
   stopButton: {
     alignItems: "center",
     borderColor: "#a33b3b",

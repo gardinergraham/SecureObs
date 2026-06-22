@@ -5,7 +5,16 @@ export type StaffCardData = {
 };
 
 export function parseStaffCardData(rawValue: string): StaffCardData | null {
-  const queryText = rawValue.includes("?") ? rawValue.slice(rawValue.indexOf("?") + 1) : rawValue;
+  const trimmedValue = rawValue.trim();
+  if (/^[a-z0-9_-]+$/i.test(trimmedValue)) {
+    return {
+      clinician: "",
+      score: "",
+      staffCode: trimmedValue
+    };
+  }
+
+  const queryText = trimmedValue.includes("?") ? trimmedValue.slice(trimmedValue.indexOf("?") + 1) : trimmedValue;
   const values = new Map<string, string>();
 
   queryText.split("&").forEach((part) => {

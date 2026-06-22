@@ -149,7 +149,7 @@ export function HomeScreen({
             <TextInput
               autoCapitalize="none"
               onChangeText={setStaffCardData}
-              placeholder="totalmobile://formcapture?STAFFCODE=GardinerG"
+              placeholder="GardinerG"
               style={styles.cardInput}
               value={staffCardData}
             />
@@ -159,7 +159,7 @@ export function HomeScreen({
               onPress={readPastedCard}
               style={[styles.secondaryButton, isScanningStaffCard && styles.disabledOutline]}
             >
-              <Text style={styles.secondaryButtonText}>Use pasted card data</Text>
+              <Text style={styles.secondaryButtonText}>Use STAFFCODE</Text>
             </TouchableOpacity>
             {staffCardMessage ? <Text style={styles.cardMessage}>{staffCardMessage}</Text> : null}
           </View>

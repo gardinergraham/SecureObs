@@ -55,6 +55,9 @@ const medicationPrescriptionSchema = z.object({
   drugName: z.string().min(1),
   dose: z.string().min(1),
   route: z.string().min(1),
+  prescriptionType: z.enum(["regular", "prn", "depot", "rapid"]).default("regular"),
+  prnIndication: z.string().optional(),
+  depotIntervalDays: z.number().int().positive().optional(),
   administrationTimes: z.array(z.string()).default([]),
   startDate: z.string().datetime(),
   stopDate: z.string().datetime().optional(),
@@ -374,6 +377,9 @@ router.get("/medication-prescriptions", async (request, response, next) => {
           drug_name as "drugName",
           dose,
           route,
+          prescription_type as "prescriptionType",
+          prn_indication as "prnIndication",
+          depot_interval_days as "depotIntervalDays",
           administration_times as "administrationTimes",
           start_date as "startDate",
           stop_date as "stopDate",
@@ -410,9 +416,10 @@ router.post("/medication-prescriptions", async (request, response, next) => {
     const result = await pool.query(
       `
         insert into medication_prescriptions (
-          id, organisation_id, patient_id, drug_name, dose, route, administration_times, start_date, stop_date,
+          id, organisation_id, patient_id, drug_name, dose, route, prescription_type, prn_indication, depot_interval_days,
+          administration_times, start_date, stop_date,
           additional_instructions, prescribed_by, prescribed_at, discontinued_by, discontinued_at, discontinue_reason
-        ) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
+        ) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)
         on conflict (id) do update set
           stop_date = excluded.stop_date,
           discontinued_by = excluded.discontinued_by,
@@ -425,6 +432,9 @@ router.post("/medication-prescriptions", async (request, response, next) => {
           drug_name as "drugName",
           dose,
           route,
+          prescription_type as "prescriptionType",
+          prn_indication as "prnIndication",
+          depot_interval_days as "depotIntervalDays",
           administration_times as "administrationTimes",
           start_date as "startDate",
           stop_date as "stopDate",
@@ -442,6 +452,9 @@ router.post("/medication-prescriptions", async (request, response, next) => {
         prescription.drugName,
         prescription.dose,
         prescription.route,
+        prescription.prescriptionType,
+        prescription.prnIndication ?? null,
+        prescription.depotIntervalDays ?? null,
         prescription.administrationTimes,
         prescription.startDate,
         prescription.stopDate ?? null,
