@@ -2,13 +2,13 @@ import { Router } from "express";
 import { z } from "zod";
 
 import { pool } from "../db/pool.js";
+import { optionalOrganisationIdSchema, requireOrganisationId } from "./organisation.js";
 
 const router = Router();
-const fallbackOrganisationId = "00000000-0000-0000-0000-000000000001";
 
 const patientSchema = z.object({
   id: z.string().min(1).optional(),
-  organisationId: z.string().uuid().optional().default(fallbackOrganisationId),
+  organisationId: optionalOrganisationIdSchema,
   patientNumber: z.number().int().nonnegative(),
   hospitalNumber: z.string().min(1),
   firstName: z.string().min(1),
@@ -28,7 +28,8 @@ const patientSchema = z.object({
 
 router.get("/", async (request, response, next) => {
   try {
-    const organisationId = getOrganisationId(request.query.organisationId);
+    const organisationId = requireOrganisationId(request, response);
+    if (!organisationId) return;
     const includeArchived = request.query.includeArchived === "true";
     const result = await pool.query(
       `
@@ -72,8 +73,12 @@ router.post("/", async (request, response, next) => {
       return;
     }
 
+    const organisationId = requireOrganisationId(request, response);
+    if (!organisationId) return;
+
     const patient = {
       ...parsed.data,
+      organisationId,
       id: parsed.data.id ?? createPatientId(parsed.data.hospitalNumber, parsed.data.firstName, parsed.data.surname),
       latestObservationTime: parsed.data.latestObservationTime ?? new Date().toISOString()
     };
@@ -146,10 +151,6 @@ router.post("/", async (request, response, next) => {
     next(error);
   }
 });
-
-function getOrganisationId(value: unknown) {
-  return typeof value === "string" && value.length > 0 ? value : fallbackOrganisationId;
-}
 
 function createPatientId(hospitalNumber: string, firstName: string, surname: string) {
   const slug = `${hospitalNumber}-${firstName}-${surname}`

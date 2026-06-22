@@ -2,15 +2,13 @@ import { Router } from "express";
 import { z } from "zod";
 
 import { pool } from "../db/pool.js";
+import { optionalOrganisationIdSchema, requireOrganisationId } from "./organisation.js";
 
 const router = Router();
 
-const fallbackOrganisationId = "00000000-0000-0000-0000-000000000001";
-const organisationIdSchema = z.string().uuid().optional().default(fallbackOrganisationId);
-
 const observationSchema = z.object({
   id: z.string().min(1).optional(),
-  organisationId: organisationIdSchema,
+  organisationId: optionalOrganisationIdSchema,
   patientId: z.string().min(1),
   observerName: z.string().min(1),
   source: z.string().min(1),
@@ -23,7 +21,7 @@ const observationSchema = z.object({
 
 const securityCheckSchema = z.object({
   id: z.string().min(1).optional(),
-  organisationId: organisationIdSchema,
+  organisationId: optionalOrganisationIdSchema,
   areaId: z.string().min(1),
   checkName: z.string().min(1),
   checkedBy: z.string().min(1),
@@ -34,7 +32,7 @@ const securityCheckSchema = z.object({
 
 const news2ReadingSchema = z.object({
   id: z.string().min(1).optional(),
-  organisationId: organisationIdSchema,
+  organisationId: optionalOrganisationIdSchema,
   patientId: z.string().min(1),
   recordedAt: z.string().datetime(),
   recordedBy: z.string().min(1),
@@ -51,7 +49,7 @@ const news2ReadingSchema = z.object({
 
 const medicationPrescriptionSchema = z.object({
   id: z.string().min(1).optional(),
-  organisationId: organisationIdSchema,
+  organisationId: optionalOrganisationIdSchema,
   patientId: z.string().min(1),
   drugName: z.string().min(1),
   dose: z.string().min(1),
@@ -69,7 +67,7 @@ const medicationPrescriptionSchema = z.object({
 
 const medicationAdministrationSchema = z.object({
   id: z.string().min(1).optional(),
-  organisationId: organisationIdSchema,
+  organisationId: optionalOrganisationIdSchema,
   prescriptionId: z.string().min(1),
   patientId: z.string().min(1),
   scheduledAt: z.string().datetime(),
@@ -82,7 +80,8 @@ const medicationAdministrationSchema = z.object({
 
 router.get("/observations", async (request, response, next) => {
   try {
-    const organisationId = getOrganisationId(request.query.organisationId);
+    const organisationId = requireOrganisationId(request, response);
+    if (!organisationId) return;
     const result = await pool.query(
       `
         select
@@ -116,7 +115,9 @@ router.post("/observations", async (request, response, next) => {
       return;
     }
 
-    const observation = { ...parsed.data, id: parsed.data.id ?? `observation-${Date.now()}` };
+    const organisationId = requireOrganisationId(request, response);
+    if (!organisationId) return;
+    const observation = { ...parsed.data, organisationId, id: parsed.data.id ?? `observation-${Date.now()}` };
     const result = await pool.query(
       `
         insert into observations (
@@ -157,7 +158,8 @@ router.post("/observations", async (request, response, next) => {
 
 router.get("/security-checks", async (request, response, next) => {
   try {
-    const organisationId = getOrganisationId(request.query.organisationId);
+    const organisationId = requireOrganisationId(request, response);
+    if (!organisationId) return;
     const result = await pool.query(
       `
         select
@@ -189,7 +191,9 @@ router.post("/security-checks", async (request, response, next) => {
       return;
     }
 
-    const check = { ...parsed.data, id: parsed.data.id ?? `security-${Date.now()}` };
+    const organisationId = requireOrganisationId(request, response);
+    if (!organisationId) return;
+    const check = { ...parsed.data, organisationId, id: parsed.data.id ?? `security-${Date.now()}` };
     const result = await pool.query(
       `
         insert into security_checks (
@@ -227,7 +231,8 @@ router.post("/security-checks", async (request, response, next) => {
 
 router.get("/news2-readings", async (request, response, next) => {
   try {
-    const organisationId = getOrganisationId(request.query.organisationId);
+    const organisationId = requireOrganisationId(request, response);
+    if (!organisationId) return;
     const result = await pool.query(
       `
         select
@@ -265,7 +270,9 @@ router.post("/news2-readings", async (request, response, next) => {
       return;
     }
 
-    const reading = { ...parsed.data, id: parsed.data.id ?? `news2-${Date.now()}` };
+    const organisationId = requireOrganisationId(request, response);
+    if (!organisationId) return;
+    const reading = { ...parsed.data, organisationId, id: parsed.data.id ?? `news2-${Date.now()}` };
     const result = await pool.query(
       `
         insert into news2_readings (
@@ -314,7 +321,8 @@ router.post("/news2-readings", async (request, response, next) => {
 
 router.get("/medication-prescriptions", async (request, response, next) => {
   try {
-    const organisationId = getOrganisationId(request.query.organisationId);
+    const organisationId = requireOrganisationId(request, response);
+    if (!organisationId) return;
     const result = await pool.query(
       `
         select
@@ -353,7 +361,9 @@ router.post("/medication-prescriptions", async (request, response, next) => {
       return;
     }
 
-    const prescription = { ...parsed.data, id: parsed.data.id ?? `med-prescription-${Date.now()}` };
+    const organisationId = requireOrganisationId(request, response);
+    if (!organisationId) return;
+    const prescription = { ...parsed.data, organisationId, id: parsed.data.id ?? `med-prescription-${Date.now()}` };
     const result = await pool.query(
       `
         insert into medication_prescriptions (
@@ -409,7 +419,8 @@ router.post("/medication-prescriptions", async (request, response, next) => {
 
 router.get("/medication-administrations", async (request, response, next) => {
   try {
-    const organisationId = getOrganisationId(request.query.organisationId);
+    const organisationId = requireOrganisationId(request, response);
+    if (!organisationId) return;
     const result = await pool.query(
       `
         select
@@ -443,7 +454,9 @@ router.post("/medication-administrations", async (request, response, next) => {
       return;
     }
 
-    const administration = { ...parsed.data, id: parsed.data.id ?? `med-admin-${Date.now()}` };
+    const organisationId = requireOrganisationId(request, response);
+    if (!organisationId) return;
+    const administration = { ...parsed.data, organisationId, id: parsed.data.id ?? `med-admin-${Date.now()}` };
     const result = await pool.query(
       `
         insert into medication_administrations (
@@ -481,9 +494,5 @@ router.post("/medication-administrations", async (request, response, next) => {
     next(error);
   }
 });
-
-function getOrganisationId(value: unknown) {
-  return typeof value === "string" && value.length > 0 ? value : fallbackOrganisationId;
-}
 
 export { router as activityRouter };

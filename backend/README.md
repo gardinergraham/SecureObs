@@ -38,6 +38,9 @@ Planned provider:
 
 When SQL Server support is added, the tablet app should remain unchanged. Only backend environment variables and the data-provider implementation should change.
 
+SQL Server table creation scripts are in `sqlserver-migrations/`. They are not run by the Railway Postgres service;
+they are the migration source for the future `DATA_PROVIDER=sqlserver` adapter.
+
 ## First endpoints
 
 - `GET /health`

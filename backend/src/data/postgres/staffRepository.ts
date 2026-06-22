@@ -7,8 +7,10 @@ import {
 } from "../types.js";
 
 export const postgresStaffRepository: StaffRepository = {
-  async list() {
-    const result = await pool.query(staffSelectSql("order by display_name asc"));
+  async list(organisationId) {
+    const result = await pool.query(staffSelectSql("where organisation_id = $1 order by display_name asc"), [
+      organisationId
+    ]);
     return result.rows;
   },
 

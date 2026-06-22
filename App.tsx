@@ -37,6 +37,12 @@ import {
   savePatient as persistPatient,
   updateMedicationPrescription as persistMedicationPrescriptionUpdate
 } from "./src/services/api";
+import {
+  enqueueFailedSave,
+  flushSyncQueue,
+  subscribeToSyncQueue,
+  type SyncQueueState
+} from "./src/services/syncQueue";
 import { parseStaffCardData } from "./src/utils/nfcStaffCard";
 import { readNfcTextPayload } from "./src/utils/nfcReader";
 import type {
@@ -97,9 +103,26 @@ export default function App() {
   const [selectedSiteId, setSelectedSiteId] = useState(firstAllowedSiteId);
   const [selectedWardId, setSelectedWardId] = useState(firstAllowedWardId);
   const [selectedPatientId, setSelectedPatientId] = useState(seedData.patients[0]?.id ?? "");
+  const [syncQueueState, setSyncQueueState] = useState<SyncQueueState>({
+    pendingCount: 0,
+    isSyncing: false
+  });
+
+  useEffect(() => {
+    const unsubscribe = subscribeToSyncQueue(setSyncQueueState);
+    const retryTimer = setInterval(() => {
+      void flushSyncQueue();
+    }, 15000);
+
+    return () => {
+      clearInterval(retryTimer);
+      unsubscribe();
+    };
+  }, []);
 
   useEffect(() => {
     const loadConfiguration = async () => {
+      const organisationId = selectedStaff?.organisationId;
       try {
         const [
           siteResult,
@@ -112,15 +135,15 @@ export default function App() {
           medicationPrescriptionResult,
           medicationAdministrationResult
         ] = await Promise.all([
-          loadSites(),
-          loadStaff(),
-          loadWards(),
-          loadObservations(),
-          loadPatients(),
-          loadSecurityChecks(),
-          loadNews2Readings(),
-          loadMedicationPrescriptions(),
-          loadMedicationAdministrations()
+          loadSites(organisationId),
+          loadStaff(organisationId),
+          loadWards(organisationId),
+          loadObservations(organisationId),
+          loadPatients(organisationId),
+          loadSecurityChecks(organisationId),
+          loadNews2Readings(organisationId),
+          loadMedicationPrescriptions(organisationId),
+          loadMedicationAdministrations(organisationId)
         ]);
         setSites(siteResult.sites);
         setStaffMembers((currentStaff) => mergeById(staffResult.staff, currentStaff));
@@ -146,7 +169,18 @@ export default function App() {
     };
 
     void loadConfiguration();
-  }, []);
+  }, [selectedStaff?.organisationId]);
+
+  const persistOrQueue = async <T,>(label: string, run: () => Promise<T>) => {
+    try {
+      const result = await run();
+      await flushSyncQueue();
+      return result;
+    } catch (error) {
+      enqueueFailedSave(label, run, error);
+      return undefined;
+    }
+  };
 
   const accessibleSites = useMemo(() => {
     if (!selectedStaff) {
@@ -310,27 +344,33 @@ export default function App() {
   };
 
   const handleCreateSite = async (site: Site) => {
-    const savedSite = await persistSite({ ...site, organisationId: selectedStaff?.organisationId });
-    setSites((currentSites) => upsertSite(currentSites, savedSite));
+    const savedSite = await persistOrQueue("site", () =>
+      persistSite({ ...site, organisationId: selectedStaff?.organisationId })
+    );
+    setSites((currentSites) => upsertSite(currentSites, savedSite ?? site));
     if (selectedStaff?.staffCode === "GardinerG") {
-      setSelectedSiteId(savedSite.id);
+      setSelectedSiteId((savedSite ?? site).id);
     }
   };
 
   const handleCreateWard = async (ward: Ward) => {
-    const savedWard = await persistWard(ward);
-    setWards((currentWards) => upsertWard(currentWards, savedWard));
+    const savedWard = await persistOrQueue("ward", () =>
+      persistWard({ ...ward, organisationId: selectedStaff?.organisationId })
+    );
+    setWards((currentWards) => upsertWard(currentWards, savedWard ?? ward));
     if (selectedStaff?.staffCode === "GardinerG") {
-      setSelectedWardId(savedWard.id);
+      setSelectedWardId((savedWard ?? ward).id);
     }
   };
 
   const handleCreateStaffMember = async (staff: StaffMember) => {
-    const { staff: savedStaff } = await persistStaffMember({
-      ...staff,
-      organisationId: staff.organisationId ?? selectedStaff?.organisationId
-    });
-    setStaffMembers((currentStaff) => upsertStaffByCode(currentStaff, savedStaff));
+    const result = await persistOrQueue("staff member", () =>
+      persistStaffMember({
+        ...staff,
+        organisationId: staff.organisationId ?? selectedStaff?.organisationId
+      })
+    );
+    setStaffMembers((currentStaff) => upsertStaffByCode(currentStaff, result?.staff ?? staff));
   };
 
   const handleUpdatePatient = (updatedPatient: Patient) => {
@@ -351,17 +391,19 @@ export default function App() {
         )
       );
     }
-    persistPatient({ ...updatedPatient, organisationId: selectedStaff?.organisationId }).catch((error) => {
-      console.warn("Unable to persist patient update", error);
-    });
+    void persistOrQueue("patient update", () =>
+      persistPatient({ ...updatedPatient, organisationId: selectedStaff?.organisationId })
+    );
   };
 
   const handleSaveManagedPatient = async (patient: Patient) => {
-    const { patient: savedPatient } = await persistPatient({
-      ...patient,
-      organisationId: selectedStaff?.organisationId
-    });
-    setPatients((currentPatients) => upsertPatient(currentPatients, savedPatient));
+    const result = await persistOrQueue("patient", () =>
+      persistPatient({
+        ...patient,
+        organisationId: selectedStaff?.organisationId
+      })
+    );
+    setPatients((currentPatients) => upsertPatient(currentPatients, result?.patient ?? patient));
   };
 
   const handleCreateRotaAssignment = (assignment: RotaAssignment) => {
@@ -390,30 +432,30 @@ export default function App() {
 
   const handleCreateNews2Reading = (reading: News2Reading) => {
     setNews2Readings((currentReadings) => [...currentReadings, reading]);
-    persistNews2Reading({ ...reading, organisationId: selectedStaff?.organisationId }).catch((error) => {
-      console.warn("Unable to persist NEWS2 reading", error);
-    });
+    void persistOrQueue("NEWS2 reading", () =>
+      persistNews2Reading({ ...reading, organisationId: selectedStaff?.organisationId })
+    );
   };
 
   const handleCreateSecurityCheck = (check: SecurityCheck) => {
     setSecurityChecks((currentChecks) => [check, ...currentChecks]);
-    persistSecurityCheck({ ...check, organisationId: selectedStaff?.organisationId }).catch((error) => {
-      console.warn("Unable to persist security check", error);
-    });
+    void persistOrQueue("security check", () =>
+      persistSecurityCheck({ ...check, organisationId: selectedStaff?.organisationId })
+    );
   };
 
   const handleCreateMedicationPrescription = (prescription: MedicationPrescription) => {
     setMedicationPrescriptions((currentPrescriptions) => [prescription, ...currentPrescriptions]);
-    persistMedicationPrescription({ ...prescription, organisationId: selectedStaff?.organisationId }).catch((error) => {
-      console.warn("Unable to persist medication prescription", error);
-    });
+    void persistOrQueue("medication prescription", () =>
+      persistMedicationPrescription({ ...prescription, organisationId: selectedStaff?.organisationId })
+    );
   };
 
   const handleCreateMedicationAdministration = (administration: MedicationAdministration) => {
     setMedicationAdministrations((currentAdministrations) => [administration, ...currentAdministrations]);
-    persistMedicationAdministration({ ...administration, organisationId: selectedStaff?.organisationId }).catch((error) => {
-      console.warn("Unable to persist medication administration", error);
-    });
+    void persistOrQueue("medication administration", () =>
+      persistMedicationAdministration({ ...administration, organisationId: selectedStaff?.organisationId })
+    );
   };
 
   const handleDiscontinueMedicationPrescription = (updatedPrescription: MedicationPrescription) => {
@@ -422,9 +464,9 @@ export default function App() {
         prescription.id === updatedPrescription.id ? updatedPrescription : prescription
       )
     );
-    persistMedicationPrescriptionUpdate({ ...updatedPrescription, organisationId: selectedStaff?.organisationId }).catch((error) => {
-      console.warn("Unable to persist medication prescription update", error);
-    });
+    void persistOrQueue("medication prescription update", () =>
+      persistMedicationPrescriptionUpdate({ ...updatedPrescription, organisationId: selectedStaff?.organisationId })
+    );
   };
 
   return (
@@ -436,7 +478,7 @@ export default function App() {
           <Text style={styles.subtitle}>High secure ward observation workflow</Text>
         </View>
         <View style={styles.badge}>
-          <Text style={styles.badgeText}>Prototype</Text>
+          <Text style={styles.badgeText}>{syncStatusLabel(syncQueueState)}</Text>
         </View>
       </View>
 
@@ -795,6 +837,18 @@ function scoreTemperature(value: number) {
   if (value <= 35 || value >= 39.1) return 3;
   if (value >= 38.1 || value <= 36) return 1;
   return 0;
+}
+
+function syncStatusLabel(state: SyncQueueState) {
+  if (state.isSyncing && state.pendingCount > 0) {
+    return `Syncing ${state.pendingCount}`;
+  }
+
+  if (state.pendingCount > 0) {
+    return `${state.pendingCount} pending sync`;
+  }
+
+  return state.lastSyncedAt ? "Synced" : "Prototype";
 }
 
 const styles = StyleSheet.create({

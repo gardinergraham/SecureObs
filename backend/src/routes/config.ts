@@ -2,13 +2,13 @@ import { Router } from "express";
 import { z } from "zod";
 
 import { pool } from "../db/pool.js";
+import { optionalOrganisationIdSchema, requireOrganisationId } from "./organisation.js";
 
 const router = Router();
-const fallbackOrganisationId = "00000000-0000-0000-0000-000000000001";
 
 const siteSchema = z.object({
   id: z.string().min(1).optional(),
-  organisationId: z.string().uuid().optional().default(fallbackOrganisationId),
+  organisationId: optionalOrganisationIdSchema,
   name: z.string().min(1)
 });
 
@@ -25,9 +25,13 @@ const wardSchema = z.object({
   staffRotaEnabled: z.boolean().default(true)
 });
 
-router.get("/sites", async (_request, response, next) => {
+router.get("/sites", async (request, response, next) => {
   try {
-    const result = await pool.query("select id, name from sites order by name asc");
+    const organisationId = requireOrganisationId(request, response);
+    if (!organisationId) return;
+    const result = await pool.query("select id, name from sites where organisation_id = $1 order by name asc", [
+      organisationId
+    ]);
     response.json({ sites: result.rows });
   } catch (error) {
     next(error);
@@ -41,9 +45,12 @@ router.post("/sites", async (request, response, next) => {
       response.status(400).json({ error: "Invalid site", details: parsed.error.flatten() });
       return;
     }
+    const organisationId = requireOrganisationId(request, response);
+    if (!organisationId) return;
 
     const site = {
       ...parsed.data,
+      organisationId,
       id: parsed.data.id ?? createId("site", parsed.data.name)
     };
 
@@ -63,23 +70,30 @@ router.post("/sites", async (request, response, next) => {
   }
 });
 
-router.get("/wards", async (_request, response, next) => {
+router.get("/wards", async (request, response, next) => {
   try {
-    const result = await pool.query(`
+    const organisationId = requireOrganisationId(request, response);
+    if (!organisationId) return;
+    const result = await pool.query(
+      `
       select
-        id,
-        site_id as "siteId",
-        name,
-        service_type as "serviceType",
-        observation_interval_minutes as "observationIntervalMinutes",
-        news2_enabled as "news2Enabled",
-        enhanced_observations_enabled as "enhancedObservationsEnabled",
-        security_checks_enabled as "securityChecksEnabled",
-        medication_chart_enabled as "medicationChartEnabled",
-        staff_rota_enabled as "staffRotaEnabled"
+        wards.id,
+        wards.site_id as "siteId",
+        wards.name,
+        wards.service_type as "serviceType",
+        wards.observation_interval_minutes as "observationIntervalMinutes",
+        wards.news2_enabled as "news2Enabled",
+        wards.enhanced_observations_enabled as "enhancedObservationsEnabled",
+        wards.security_checks_enabled as "securityChecksEnabled",
+        wards.medication_chart_enabled as "medicationChartEnabled",
+        wards.staff_rota_enabled as "staffRotaEnabled"
       from wards
-      order by name asc
-    `);
+      inner join sites on sites.id = wards.site_id
+      where sites.organisation_id = $1
+      order by wards.name asc
+    `,
+      [organisationId]
+    );
 
     response.json({ wards: result.rows.map(toAppWard) });
   } catch (error) {
@@ -94,11 +108,22 @@ router.post("/wards", async (request, response, next) => {
       response.status(400).json({ error: "Invalid ward", details: parsed.error.flatten() });
       return;
     }
+    const organisationId = requireOrganisationId(request, response);
+    if (!organisationId) return;
 
     const ward = {
       ...parsed.data,
       id: parsed.data.id ?? createId("ward", parsed.data.name)
     };
+
+    const siteResult = await pool.query("select id from sites where id = $1 and organisation_id = $2", [
+      ward.siteId,
+      organisationId
+    ]);
+    if (!siteResult.rowCount) {
+      response.status(404).json({ error: "Site not found for organisation" });
+      return;
+    }
 
     const result = await pool.query(
       `

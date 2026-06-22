@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import { dataProvider } from "../data/provider.js";
 import { DuplicateStaffCodeError, StaffLookupAmbiguousError } from "../data/types.js";
+import { optionalOrganisationIdSchema, requireOrganisationId } from "./organisation.js";
 
 const router = Router();
 
@@ -13,7 +14,7 @@ const staffLookupSchema = z.object({
 
 const staffMemberSchema = z.object({
   id: z.string().optional(),
-  organisationId: z.string().uuid().optional().default("00000000-0000-0000-0000-000000000001"),
+  organisationId: optionalOrganisationIdSchema,
   keyNumber: z.number().int().optional(),
   staffCode: z.string().min(1),
   name: z.string().min(1),
@@ -30,9 +31,11 @@ const staffMemberSchema = z.object({
   active: z.boolean().default(true)
 });
 
-router.get("/", async (_request, response, next) => {
+router.get("/", async (request, response, next) => {
   try {
-    response.json({ staff: await dataProvider.staff.list() });
+    const organisationId = requireOrganisationId(request, response);
+    if (!organisationId) return;
+    response.json({ staff: await dataProvider.staff.list(organisationId) });
   } catch (error) {
     next(error);
   }
@@ -47,7 +50,9 @@ router.post("/", async (request, response, next) => {
       return;
     }
 
-    const staff = await dataProvider.staff.upsert(parsed.data);
+    const organisationId = requireOrganisationId(request, response);
+    if (!organisationId) return;
+    const staff = await dataProvider.staff.upsert({ ...parsed.data, organisationId });
     response.status(201).json({ staff });
   } catch (error) {
     if (error instanceof DuplicateStaffCodeError) {

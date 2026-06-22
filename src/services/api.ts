@@ -1,4 +1,5 @@
 import { seedData } from "../data/seedData";
+import { enqueueFailedSave, flushSyncQueue } from "./syncQueue";
 import type {
   MedicationAdministration,
   MedicationPrescription,
@@ -64,6 +65,40 @@ export async function createObservation(observation: OrganisationScoped<Omit<Obs
     };
   }
 
+  const localObservation = {
+    ...observation,
+    id: `local-${Date.now()}`
+  };
+  const run = () =>
+    request<Observation>("/api/observations", {
+      method: "POST",
+      body: JSON.stringify(localObservation)
+    });
+
+  try {
+    const savedObservation = await run();
+    await flushSyncQueue();
+    return savedObservation;
+  } catch (error) {
+    enqueueFailedSave("observation", run, error);
+    return localObservation;
+  }
+}
+
+export async function saveQueuedRequest<T>(label: string, path: string, init?: RequestInit) {
+  const run = () => request<T>(path, init);
+
+  try {
+    const result = await run();
+    await flushSyncQueue();
+    return result;
+  } catch (error) {
+    enqueueFailedSave(label, run, error);
+    throw error;
+  }
+}
+
+export async function createObservationDirect(observation: OrganisationScoped<Omit<Observation, "id">>) {
   return request<Observation>("/api/observations", {
     method: "POST",
     body: JSON.stringify(observation)
@@ -84,8 +119,8 @@ export async function createStaffMember(staff: StaffMember) {
   });
 }
 
-export async function loadStaff() {
-  return request<{ staff: StaffMember[] }>("/api/staff");
+export async function loadStaff(organisationId?: string) {
+  return request<{ staff: StaffMember[] }>(withOrganisationId("/api/staff", organisationId));
 }
 
 export async function loadPatients(organisationId?: string) {
@@ -162,19 +197,19 @@ export async function createSite(site: OrganisationScoped<Site>) {
   });
 }
 
-export async function loadSites() {
-  return request<{ sites: Site[] }>("/api/config/sites");
+export async function loadSites(organisationId?: string) {
+  return request<{ sites: Site[] }>(withOrganisationId("/api/config/sites", organisationId));
 }
 
-export async function createWard(ward: Ward) {
+export async function createWard(ward: OrganisationScoped<Ward>) {
   return request<Ward>("/api/config/wards", {
     method: "POST",
     body: JSON.stringify(ward)
   });
 }
 
-export async function loadWards() {
-  return request<{ wards: Ward[] }>("/api/config/wards");
+export async function loadWards(organisationId?: string) {
+  return request<{ wards: Ward[] }>(withOrganisationId("/api/config/wards", organisationId));
 }
 
 function withOrganisationId(path: string, organisationId?: string) {
