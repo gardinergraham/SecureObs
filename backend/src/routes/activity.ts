@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { z } from "zod";
 
+import { auditActorFromBody, recordAuditEvent } from "../audit.js";
 import { pool } from "../db/pool.js";
 import { optionalOrganisationIdSchema, requireOrganisationId } from "./organisation.js";
 
@@ -78,6 +79,24 @@ const medicationAdministrationSchema = z.object({
   notes: z.string().default("")
 });
 
+const missedObservationSchema = z.object({
+  id: z.string().min(1).optional(),
+  organisationId: optionalOrganisationIdSchema,
+  patientId: z.string().min(1),
+  patientName: z.string().min(1),
+  wardId: z.string().min(1),
+  dueAt: z.string().datetime(),
+  recordedAt: z.string().datetime(),
+  allocatedStaffId: z.string().optional(),
+  allocatedStaffName: z.string().min(1),
+  recordedByStaffId: z.string().optional(),
+  recordedByName: z.string().min(1),
+  reason: z.string().min(1),
+  details: z.string().default(""),
+  actorStaffId: z.string().optional(),
+  actorStaffCode: z.string().optional()
+});
+
 router.get("/observations", async (request, response, next) => {
   try {
     const organisationId = requireOrganisationId(request, response);
@@ -150,6 +169,14 @@ router.post("/observations", async (request, response, next) => {
       ]
     );
 
+    await recordAuditEvent({
+      organisationId: observation.organisationId,
+      ...auditActorFromBody(request.body),
+      eventType: "observation.save",
+      entityType: "observation",
+      entityId: observation.id,
+      details: { patientId: observation.patientId, source: observation.source }
+    });
     response.status(201).json(result.rows[0]);
   } catch (error) {
     next(error);
@@ -223,6 +250,14 @@ router.post("/security-checks", async (request, response, next) => {
       ]
     );
 
+    await recordAuditEvent({
+      organisationId: check.organisationId,
+      ...auditActorFromBody(request.body),
+      eventType: "security_check.save",
+      entityType: "security_check",
+      entityId: check.id,
+      details: { areaId: check.areaId, checkName: check.checkName }
+    });
     response.status(201).json(result.rows[0]);
   } catch (error) {
     next(error);
@@ -313,6 +348,14 @@ router.post("/news2-readings", async (request, response, next) => {
       ]
     );
 
+    await recordAuditEvent({
+      organisationId: reading.organisationId,
+      ...auditActorFromBody(request.body),
+      eventType: "news2.save",
+      entityType: "news2_reading",
+      entityId: reading.id,
+      details: { patientId: reading.patientId, totalScore: reading.totalScore }
+    });
     response.status(201).json(result.rows[0] ?? reading);
   } catch (error) {
     next(error);
@@ -411,6 +454,14 @@ router.post("/medication-prescriptions", async (request, response, next) => {
       ]
     );
 
+    await recordAuditEvent({
+      organisationId: prescription.organisationId,
+      ...auditActorFromBody(request.body),
+      eventType: prescription.discontinuedAt ? "medication.discontinue" : "medication.prescribe",
+      entityType: "medication_prescription",
+      entityId: prescription.id,
+      details: { patientId: prescription.patientId, drugName: prescription.drugName }
+    });
     response.status(201).json(result.rows[0]);
   } catch (error) {
     next(error);
@@ -489,7 +540,154 @@ router.post("/medication-administrations", async (request, response, next) => {
       ]
     );
 
+    await recordAuditEvent({
+      organisationId: administration.organisationId,
+      ...auditActorFromBody(request.body),
+      eventType: "medication.administration",
+      entityType: "medication_administration",
+      entityId: administration.id,
+      details: { patientId: administration.patientId, status: administration.status }
+    });
     response.status(201).json(result.rows[0] ?? administration);
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.get("/missed-observations", async (request, response, next) => {
+  try {
+    const organisationId = requireOrganisationId(request, response);
+    if (!organisationId) return;
+    const wardId = typeof request.query.wardId === "string" ? request.query.wardId : undefined;
+    const result = await pool.query(
+      `
+        select
+          id,
+          patient_id as "patientId",
+          patient_name as "patientName",
+          ward_id as "wardId",
+          due_at as "dueAt",
+          recorded_at as "recordedAt",
+          allocated_staff_id as "allocatedStaffId",
+          allocated_staff_name as "allocatedStaffName",
+          recorded_by_staff_id as "recordedByStaffId",
+          recorded_by_name as "recordedByName",
+          reason,
+          details
+        from missed_observations
+        where organisation_id = $1
+          and ($2::text is null or ward_id = $2::text)
+        order by due_at desc
+        limit 100
+      `,
+      [organisationId, wardId ?? null]
+    );
+
+    response.json({ missedObservations: result.rows });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post("/missed-observations", async (request, response, next) => {
+  try {
+    const parsed = missedObservationSchema.safeParse(request.body);
+    if (!parsed.success) {
+      response.status(400).json({ error: "Invalid missed observation", details: parsed.error.flatten() });
+      return;
+    }
+
+    const organisationId = requireOrganisationId(request, response);
+    if (!organisationId) return;
+    const missedObservation = {
+      ...parsed.data,
+      organisationId,
+      id: parsed.data.id ?? `missed-observation-${Date.now()}`
+    };
+
+    const result = await pool.query(
+      `
+        insert into missed_observations (
+          id, organisation_id, patient_id, patient_name, ward_id, due_at, recorded_at,
+          allocated_staff_id, allocated_staff_name, recorded_by_staff_id, recorded_by_name, reason, details
+        ) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
+        on conflict (id) do nothing
+        returning
+          id,
+          patient_id as "patientId",
+          patient_name as "patientName",
+          ward_id as "wardId",
+          due_at as "dueAt",
+          recorded_at as "recordedAt",
+          allocated_staff_id as "allocatedStaffId",
+          allocated_staff_name as "allocatedStaffName",
+          recorded_by_staff_id as "recordedByStaffId",
+          recorded_by_name as "recordedByName",
+          reason,
+          details
+      `,
+      [
+        missedObservation.id,
+        missedObservation.organisationId,
+        missedObservation.patientId,
+        missedObservation.patientName,
+        missedObservation.wardId,
+        missedObservation.dueAt,
+        missedObservation.recordedAt,
+        missedObservation.allocatedStaffId ?? null,
+        missedObservation.allocatedStaffName,
+        missedObservation.recordedByStaffId ?? null,
+        missedObservation.recordedByName,
+        missedObservation.reason,
+        missedObservation.details
+      ]
+    );
+
+    await recordAuditEvent({
+      organisationId: missedObservation.organisationId,
+      actorStaffId: missedObservation.actorStaffId ?? missedObservation.recordedByStaffId,
+      actorStaffCode: missedObservation.actorStaffCode,
+      eventType: "observation.missed",
+      entityType: "missed_observation",
+      entityId: missedObservation.id,
+      details: {
+        patientId: missedObservation.patientId,
+        patientName: missedObservation.patientName,
+        reason: missedObservation.reason
+      }
+    });
+    response.status(201).json(result.rows[0] ?? missedObservation);
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.get("/audit-events", async (request, response, next) => {
+  try {
+    const organisationId = requireOrganisationId(request, response);
+    if (!organisationId) return;
+    const limit = Math.min(Number(request.query.limit ?? 100), 250);
+    const result = await pool.query(
+      `
+        select
+          id,
+          actor_staff_id as "actorStaffId",
+          actor_staff_code as "actorStaffCode",
+          event_type as "eventType",
+          entity_type as "entityType",
+          entity_id as "entityId",
+          outcome,
+          details,
+          occurred_at as "occurredAt"
+        from audit_events
+        where organisation_id = $1
+        order by occurred_at desc
+        limit $2
+      `,
+      [organisationId, limit]
+    );
+
+    response.json({ auditEvents: result.rows });
   } catch (error) {
     next(error);
   }

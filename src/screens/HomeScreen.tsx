@@ -14,6 +14,7 @@ type HomeScreenProps = {
   onSelectSite: (siteId: string) => void;
   onSelectWard: (wardId: string) => void;
   onReadStaffCardData: (cardData: string) => Promise<string>;
+  onBankStaffPinLogin: (staffCode: string, loginPin: string) => Promise<string>;
   onScanStaffCard: () => Promise<string>;
   onOpenAdminSettings: () => void;
   onOpenWardSettings: () => void;
@@ -31,6 +32,7 @@ export function HomeScreen({
   onSelectSite,
   onSelectWard,
   onReadStaffCardData,
+  onBankStaffPinLogin,
   onScanStaffCard,
   onOpenAdminSettings,
   onOpenWardSettings,
@@ -38,6 +40,10 @@ export function HomeScreen({
 }: HomeScreenProps) {
   const [staffCardData, setStaffCardData] = useState("");
   const [staffCardMessage, setStaffCardMessage] = useState("");
+  const [bankStaffCode, setBankStaffCode] = useState("");
+  const [bankStaffPin, setBankStaffPin] = useState("");
+  const [bankStaffMessage, setBankStaffMessage] = useState("");
+  const [isBankStaffSigningIn, setIsBankStaffSigningIn] = useState(false);
   const [isScanningStaffCard, setIsScanningStaffCard] = useState(false);
   const selectedWard = wards.find((ward) => ward.id === selectedWardId);
   const selectedStaff = staff.find((member) => member.id === selectedStaffId);
@@ -77,6 +83,23 @@ export function HomeScreen({
     }
   };
 
+  const signInBankStaff = async () => {
+    if (!bankStaffCode.trim() || !bankStaffPin.trim()) {
+      setBankStaffMessage("Enter STAFFCODE and PIN.");
+      return;
+    }
+
+    setIsBankStaffSigningIn(true);
+    try {
+      setBankStaffMessage(await onBankStaffPinLogin(bankStaffCode.trim(), bankStaffPin.trim()));
+      setBankStaffPin("");
+    } catch (error) {
+      setBankStaffMessage(error instanceof Error ? error.message : "Bank staff sign-in failed.");
+    } finally {
+      setIsBankStaffSigningIn(false);
+    }
+  };
+
   return (
     <View style={styles.screen}>
       <View style={styles.hero}>
@@ -97,15 +120,19 @@ export function HomeScreen({
       <View style={styles.layout}>
         <View style={styles.column}>
           <SectionHeader title="Staff access" meta={selectedStaff ? selectedStaff.role : "Select or scan staff"} />
-          <SelectorRow
-            label="Staff"
-            options={staff.map((member) => ({
-              id: member.id,
-              label: `${member.name} (${member.staffCode})`
-            }))}
-            selectedId={selectedStaffId}
-            onSelect={onSelectStaff}
-          />
+          {selectedStaff ? (
+            <View style={styles.signedInPanel}>
+              <Text style={styles.signedInName}>{selectedStaff.name}</Text>
+              <Text style={styles.signedInMeta}>
+                {selectedStaff.staffCode} | {selectedStaff.role} | {selectedStaff.employmentType === "bank" ? "Bank/temp" : "Permanent"}
+              </Text>
+              <TouchableOpacity accessibilityRole="button" onPress={() => onSelectStaff("")} style={styles.secondaryButton}>
+                <Text style={styles.secondaryButtonText}>Sign out staff</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <Text style={styles.noticeText}>No staff session is active. Use NFC or bank/temp PIN sign-in.</Text>
+          )}
 
           <View style={styles.nfcPanel}>
             <View style={styles.nfcHeader}>
@@ -135,6 +162,39 @@ export function HomeScreen({
               <Text style={styles.secondaryButtonText}>Use pasted card data</Text>
             </TouchableOpacity>
             {staffCardMessage ? <Text style={styles.cardMessage}>{staffCardMessage}</Text> : null}
+          </View>
+
+          <View style={styles.nfcPanel}>
+            <View style={styles.nfcHeader}>
+              <Text style={styles.nfcTitle}>Bank/temp staff PIN</Text>
+            </View>
+            <TextInput
+              autoCapitalize="none"
+              onChangeText={setBankStaffCode}
+              placeholder="STAFFCODE"
+              style={styles.cardInput}
+              value={bankStaffCode}
+            />
+            <TextInput
+              autoCapitalize="none"
+              keyboardType="number-pad"
+              onChangeText={setBankStaffPin}
+              placeholder="PIN"
+              secureTextEntry
+              style={styles.cardInput}
+              value={bankStaffPin}
+            />
+            <TouchableOpacity
+              accessibilityRole="button"
+              disabled={isBankStaffSigningIn}
+              onPress={signInBankStaff}
+              style={[styles.secondaryButton, isBankStaffSigningIn && styles.disabledOutline]}
+            >
+              <Text style={styles.secondaryButtonText}>
+                {isBankStaffSigningIn ? "Checking" : "Sign in bank/temp staff"}
+              </Text>
+            </TouchableOpacity>
+            {bankStaffMessage ? <Text style={styles.cardMessage}>{bankStaffMessage}</Text> : null}
           </View>
         </View>
 
@@ -391,6 +451,29 @@ const styles = StyleSheet.create({
   },
   selectorTextActive: {
     color: "#ffffff"
+  },
+  noticeText: {
+    color: "#607078",
+    fontSize: 13,
+    fontWeight: "800"
+  },
+  signedInPanel: {
+    backgroundColor: "#f8fafb",
+    borderColor: "#d8e0e3",
+    borderRadius: 8,
+    borderWidth: 1,
+    gap: 6,
+    padding: 12
+  },
+  signedInName: {
+    color: "#18262c",
+    fontSize: 16,
+    fontWeight: "900"
+  },
+  signedInMeta: {
+    color: "#607078",
+    fontSize: 12,
+    fontWeight: "800"
   },
   nfcPanel: {
     backgroundColor: "#f8fafb",

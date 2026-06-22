@@ -4,6 +4,7 @@ import { Alert, StyleSheet, Text, TextInput, TouchableOpacity, View } from "reac
 import { createObservation } from "../services/api";
 import type {
   News2Reading,
+  MissedObservation,
   Observation,
   Patient,
   PatientLocation,
@@ -25,6 +26,7 @@ const locations: PatientLocation[] = [
 
 const presentations: PatientPresentation[] = ["Awake", "Asleep"];
 const patientSortModes = ["Rooms", "Ending soonest", "On Enhanced observations"] as const;
+const missedObservationReasons = ["Attending another incident", "Staff shortage", "Patient unavailable", "Clinical emergency", "Other"];
 
 type PatientSortMode = (typeof patientSortModes)[number];
 
@@ -32,6 +34,7 @@ type WardDashboardProps = {
   wards: Ward[];
   patients: Patient[];
   news2Readings: News2Reading[];
+  missedObservations: MissedObservation[];
   observations: Observation[];
   staff: StaffMember[];
   selectedStaffId: string;
@@ -47,6 +50,7 @@ type WardDashboardProps = {
   onOpenStaffRota: () => void;
   onOpenPatientManagement: () => void;
   onObservationSaved: (observation: Observation) => void;
+  onMissedObservationSaved: (missedObservation: MissedObservation) => void;
   onSelectPatient: (patientId: string) => void;
 };
 
@@ -54,6 +58,7 @@ export function WardDashboard({
   wards,
   patients,
   news2Readings,
+  missedObservations,
   observations,
   staff,
   selectedStaffId,
@@ -69,6 +74,7 @@ export function WardDashboard({
   onOpenStaffRota,
   onOpenPatientManagement,
   onObservationSaved,
+  onMissedObservationSaved,
   onSelectPatient
 }: WardDashboardProps) {
   const selectedWard = wards.find((ward) => ward.id === selectedWardId);
@@ -78,7 +84,18 @@ export function WardDashboard({
   const [location, setLocation] = useState<PatientLocation>("Side room");
   const [presentation, setPresentation] = useState<PatientPresentation>("Awake");
   const [comments, setComments] = useState("");
+  const [missedReason, setMissedReason] = useState(missedObservationReasons[0] ?? "Other");
+  const [missedDetails, setMissedDetails] = useState("");
   const [patientSortMode, setPatientSortMode] = useState<PatientSortMode>("Rooms");
+  const selectedPatientTiming = selectedPatient
+    ? getObservationTiming(selectedPatient, selectedWard?.observationIntervalMinutes ?? 15, now)
+    : undefined;
+  const selectedPatientDueAt = selectedPatient
+    ? getDueAt(selectedPatient, selectedWard?.observationIntervalMinutes ?? 15)
+    : undefined;
+  const selectedPatientMissedObservations = missedObservations
+    .filter((missedObservation) => missedObservation.patientId === selectedPatient?.id)
+    .slice(0, 3);
 
   const orderedPatients = useMemo(() => {
     const wardIntervalMinutes = selectedWard?.observationIntervalMinutes ?? 15;
@@ -142,7 +159,9 @@ export function WardDashboard({
       presentation,
       comments,
       observedAt,
-      organisationId: selectedStaff?.organisationId
+      organisationId: selectedStaff?.organisationId,
+      actorStaffId: selectedStaff?.id,
+      actorStaffCode: selectedStaff?.staffCode
     });
 
     onObservationSaved(observation);
@@ -150,6 +169,31 @@ export function WardDashboard({
     Alert.alert("Observation saved", `${selectedPatient.firstName} ${selectedPatient.surname} checked.`);
     setComments("");
     onSelectPatient("");
+  };
+
+  const saveMissedObservation = () => {
+    if (!selectedPatient || !selectedWard || !selectedStaff || !selectedPatientDueAt) {
+      return;
+    }
+
+    const missedObservation: MissedObservation = {
+      id: `missed-observation-${Date.now()}`,
+      patientId: selectedPatient.id,
+      patientName: `${selectedPatient.firstName} ${selectedPatient.surname}`,
+      wardId: selectedWard.id,
+      dueAt: selectedPatientDueAt,
+      recordedAt: new Date().toISOString(),
+      allocatedStaffId: selectedStaff.id,
+      allocatedStaffName: selectedStaff.name,
+      recordedByStaffId: selectedStaff.id,
+      recordedByName: selectedStaff.name,
+      reason: missedReason,
+      details: missedDetails
+    };
+
+    onMissedObservationSaved(missedObservation);
+    setMissedDetails("");
+    Alert.alert("Missed observation recorded", `${missedObservation.patientName} was recorded as missed.`);
   };
 
   return (
@@ -297,6 +341,40 @@ export function WardDashboard({
                 <TouchableOpacity accessibilityRole="button" onPress={saveObservation} style={styles.saveButton}>
                   <Text style={styles.saveButtonText}>Save check</Text>
                 </TouchableOpacity>
+
+                {selectedPatientTiming?.status === "overdue" ? (
+                  <View style={styles.missedPanel}>
+                    <Text style={styles.missedTitle}>Record missed observation</Text>
+                    <Text style={styles.missedMeta}>
+                      Due {selectedPatientDueAt ? formatObservationTime(selectedPatientDueAt) : "--:--"} | Allocated to{" "}
+                      {selectedStaff?.name ?? "current staff"}
+                    </Text>
+                    <OptionGrid options={missedObservationReasons} selected={missedReason} onSelect={setMissedReason} />
+                    <TextInput
+                      multiline
+                      numberOfLines={3}
+                      onChangeText={setMissedDetails}
+                      placeholder="Add detail, incident reference or staffing context"
+                      style={styles.notes}
+                      value={missedDetails}
+                    />
+                    <TouchableOpacity accessibilityRole="button" onPress={saveMissedObservation} style={styles.missedButton}>
+                      <Text style={styles.missedButtonText}>Record missed observation</Text>
+                    </TouchableOpacity>
+                  </View>
+                ) : null}
+
+                {selectedPatientMissedObservations.length > 0 ? (
+                  <View style={styles.missedHistory}>
+                    <Text style={styles.missedTitle}>Recent missed observations</Text>
+                    {selectedPatientMissedObservations.map((missedObservation) => (
+                      <Text key={missedObservation.id} style={styles.missedHistoryText}>
+                        {formatObservationDate(missedObservation.dueAt)} {formatObservationTime(missedObservation.dueAt)} |{" "}
+                        {missedObservation.reason} | {missedObservation.recordedByName}
+                      </Text>
+                    ))}
+                  </View>
+                ) : null}
               </View>
             </>
           </View>
@@ -458,6 +536,12 @@ function getMinutesUntilDue(patient: Patient, wardIntervalMinutes: number, now: 
 
   const due = last + wardIntervalMinutes * 60 * 1000;
   return Math.round((due - now) / 60000);
+}
+
+function getDueAt(patient: Patient, wardIntervalMinutes: number) {
+  const last = new Date(patient.latestObservationTime).getTime();
+  if (Number.isNaN(last)) return undefined;
+  return new Date(last + wardIntervalMinutes * 60 * 1000).toISOString();
 }
 
 function observationLevelStyle(level: Patient["observationLevel"]) {
@@ -977,6 +1061,51 @@ const styles = StyleSheet.create({
     color: "#ffffff",
     fontSize: 16,
     fontWeight: "900"
+  },
+  missedPanel: {
+    backgroundColor: "#fff8e8",
+    borderColor: "#e4b75f",
+    borderRadius: 8,
+    borderWidth: 1,
+    gap: 10,
+    marginTop: 14,
+    padding: 12
+  },
+  missedTitle: {
+    color: "#62430f",
+    fontSize: 14,
+    fontWeight: "900"
+  },
+  missedMeta: {
+    color: "#7b5a1a",
+    fontSize: 12,
+    fontWeight: "800"
+  },
+  missedButton: {
+    alignItems: "center",
+    backgroundColor: "#9a5c00",
+    borderRadius: 6,
+    justifyContent: "center",
+    minHeight: 44
+  },
+  missedButtonText: {
+    color: "#ffffff",
+    fontSize: 14,
+    fontWeight: "900"
+  },
+  missedHistory: {
+    backgroundColor: "#f8fafb",
+    borderColor: "#d8e0e3",
+    borderRadius: 8,
+    borderWidth: 1,
+    gap: 6,
+    marginTop: 12,
+    padding: 12
+  },
+  missedHistoryText: {
+    color: "#52656e",
+    fontSize: 12,
+    fontWeight: "800"
   },
   empty: {
     color: "#607078",

@@ -17,6 +17,7 @@ import { WardDashboard } from "./src/screens/WardDashboard";
 import { WardSettingsScreen } from "./src/screens/WardSettingsScreen";
 import { seedData } from "./src/data/seedData";
 import {
+  createMissedObservation as persistMissedObservation,
   createMedicationAdministration as persistMedicationAdministration,
   createMedicationPrescription as persistMedicationPrescription,
   createNews2Reading as persistNews2Reading,
@@ -27,12 +28,14 @@ import {
   loadSites,
   loadMedicationAdministrations,
   loadMedicationPrescriptions,
+  loadMissedObservations,
   loadNews2Readings,
   loadObservations,
   loadPatients,
   loadSecurityChecks,
   loadWards,
   loadStaff,
+  loginBankStaffByPin,
   lookupStaffByCode,
   savePatient as persistPatient,
   updateMedicationPrescription as persistMedicationPrescriptionUpdate
@@ -47,6 +50,7 @@ import { parseStaffCardData } from "./src/utils/nfcStaffCard";
 import { readNfcTextPayload } from "./src/utils/nfcReader";
 import type {
   MedicationAdministration,
+  MissedObservation,
   MedicationPrescription,
   News2Reading,
   Observation,
@@ -60,6 +64,8 @@ import type {
   StaffShiftAssignment,
   Ward
 } from "./src/types/domain";
+
+const defaultOrganisationId = "00000000-0000-0000-0000-000000000001";
 
 type AppScreen =
   | "home"
@@ -92,16 +98,16 @@ export default function App() {
   const [medicationAdministrations, setMedicationAdministrations] = useState<MedicationAdministration[]>(
     seedData.medicationAdministrations
   );
+  const [missedObservations, setMissedObservations] = useState<MissedObservation[]>([]);
   const [wards, setWards] = useState<Ward[]>(seedData.wards);
   const [sites, setSites] = useState<Site[]>(seedData.sites);
   const [staffMembers, setStaffMembers] = useState<StaffMember[]>(seedData.staff);
-  const [selectedStaffId, setSelectedStaffId] = useState(seedData.staff[0]?.id ?? "");
-  const selectedStaff = staffMembers.find((staff) => staff.id === selectedStaffId) ?? staffMembers[0];
-  const selectedStaffCanPrescribe = Boolean(selectedStaff?.canPrescribe || selectedStaff?.role === "doctor");
-  const firstAllowedSiteId = selectedStaff?.allowedSiteIds[0] ?? seedData.sites[0]?.id ?? "";
-  const firstAllowedWardId = selectedStaff?.allowedWardIds[0] ?? wards[0]?.id ?? "";
-  const [selectedSiteId, setSelectedSiteId] = useState(firstAllowedSiteId);
-  const [selectedWardId, setSelectedWardId] = useState(firstAllowedWardId);
+  const [selectedStaffId, setSelectedStaffId] = useState("");
+  const selectedStaff = staffMembers.find((staff) => staff.id === selectedStaffId);
+  const activeStaff = selectedStaff;
+  const selectedStaffCanPrescribe = Boolean(activeStaff?.canPrescribe || activeStaff?.role === "doctor");
+  const [selectedSiteId, setSelectedSiteId] = useState("");
+  const [selectedWardId, setSelectedWardId] = useState("");
   const [selectedPatientId, setSelectedPatientId] = useState(seedData.patients[0]?.id ?? "");
   const [syncQueueState, setSyncQueueState] = useState<SyncQueueState>({
     pendingCount: 0,
@@ -122,7 +128,7 @@ export default function App() {
 
   useEffect(() => {
     const loadConfiguration = async () => {
-      const organisationId = selectedStaff?.organisationId;
+      const organisationId = selectedStaff?.organisationId ?? defaultOrganisationId;
       try {
         const [
           siteResult,
@@ -133,7 +139,8 @@ export default function App() {
           securityCheckResult,
           news2Result,
           medicationPrescriptionResult,
-          medicationAdministrationResult
+          medicationAdministrationResult,
+          missedObservationResult
         ] = await Promise.all([
           loadSites(organisationId),
           loadStaff(organisationId),
@@ -143,7 +150,8 @@ export default function App() {
           loadSecurityChecks(organisationId),
           loadNews2Readings(organisationId),
           loadMedicationPrescriptions(organisationId),
-          loadMedicationAdministrations(organisationId)
+          loadMedicationAdministrations(organisationId),
+          loadMissedObservations(organisationId, selectedWardId || undefined)
         ]);
         setSites(siteResult.sites);
         setStaffMembers((currentStaff) => mergeById(staffResult.staff, currentStaff));
@@ -163,13 +171,16 @@ export default function App() {
         setMedicationAdministrations((currentAdministrations) =>
           mergeById(medicationAdministrationResult.medicationAdministrations, currentAdministrations)
         );
+        setMissedObservations((currentMissedObservations) =>
+          mergeById(missedObservationResult.missedObservations, currentMissedObservations)
+        );
       } catch (error) {
         console.warn("Unable to load backend data", error);
       }
     };
 
     void loadConfiguration();
-  }, [selectedStaff?.organisationId]);
+  }, [selectedStaff?.organisationId, selectedWardId]);
 
   const persistOrQueue = async <T,>(label: string, run: () => Promise<T>) => {
     try {
@@ -247,7 +258,7 @@ export default function App() {
     }
 
     try {
-      const { staff } = await lookupStaffByCode(parsedCard.staffCode);
+      const { staff } = await lookupStaffByCode(parsedCard.staffCode, selectedStaff?.organisationId ?? defaultOrganisationId);
       setStaffMembers((currentStaff) => upsertStaffByCode(currentStaff, staff));
       selectStaffSession(staff);
       return `Selected ${staff.name} from Postgres STAFFCODE ${parsedCard.staffCode}.`;
@@ -263,6 +274,17 @@ export default function App() {
       selectStaffSession(matchedStaff);
       return `Selected ${matchedStaff.name} from local STAFFCODE ${parsedCard.staffCode}.`;
     }
+  };
+
+  const handleBankStaffPinLogin = async (staffCode: string, loginPin: string) => {
+    const { staff } = await loginBankStaffByPin(
+      staffCode,
+      loginPin,
+      selectedStaff?.organisationId ?? defaultOrganisationId
+    );
+    setStaffMembers((currentStaff) => upsertStaffByCode(currentStaff, staff));
+    selectStaffSession(staff);
+    return `Selected ${staff.name} for bank/temp access.`;
   };
 
   const handleScanStaffCard = async () => {
@@ -458,6 +480,18 @@ export default function App() {
     );
   };
 
+  const handleCreateMissedObservation = (missedObservation: MissedObservation) => {
+    setMissedObservations((currentMissedObservations) => [missedObservation, ...currentMissedObservations]);
+    void persistOrQueue("missed observation", () =>
+      persistMissedObservation({
+        ...missedObservation,
+        organisationId: selectedStaff?.organisationId,
+        actorStaffId: selectedStaff?.id,
+        actorStaffCode: selectedStaff?.staffCode
+      })
+    );
+  };
+
   const handleDiscontinueMedicationPrescription = (updatedPrescription: MedicationPrescription) => {
     setMedicationPrescriptions((currentPrescriptions) =>
       currentPrescriptions.map((prescription) =>
@@ -499,6 +533,7 @@ export default function App() {
             onSelectSite={handleSelectSite}
             onSelectWard={handleSelectWard}
             onReadStaffCardData={handleReadStaffCardData}
+            onBankStaffPinLogin={handleBankStaffPinLogin}
             onScanStaffCard={handleScanStaffCard}
             onOpenAdminSettings={() => setScreen("adminSettings")}
             onOpenWardSettings={() => setScreen("wardSettings")}
@@ -528,6 +563,7 @@ export default function App() {
         ) : screen === "observations" ? (
           <WardDashboard
             news2Readings={news2Readings}
+            missedObservations={missedObservations}
             observations={observations}
             patients={wardPatients}
             selectedPatientId={selectedPatientId}
@@ -544,6 +580,7 @@ export default function App() {
             onOpenMedicationChart={() => setScreen("medicationChart")}
             onOpenPatientManagement={() => setScreen("patientManagement")}
             onOpenStaffRota={() => setScreen("staffRota")}
+            onMissedObservationSaved={handleCreateMissedObservation}
             onObservationSaved={handleObservationSaved}
             onSelectPatient={setSelectedPatientId}
           />

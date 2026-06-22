@@ -149,6 +149,21 @@ export type Observation = {
   observedAt: string;
 };
 
+export type MissedObservation = {
+  id: string;
+  patientId: string;
+  patientName: string;
+  wardId: string;
+  dueAt: string;
+  recordedAt: string;
+  allocatedStaffId?: string;
+  allocatedStaffName: string;
+  recordedByStaffId?: string;
+  recordedByName: string;
+  reason: string;
+  details: string;
+};
+
 export type News2Reading = {
   id: string;
   patientId: string;

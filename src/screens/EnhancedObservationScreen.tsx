@@ -99,7 +99,9 @@ export function EnhancedObservationScreen({
       presentation,
       comments,
       observedAt,
-      organisationId: selectedStaff?.organisationId
+      organisationId: selectedStaff?.organisationId,
+      actorStaffId: selectedStaff?.id,
+      actorStaffCode: selectedStaff?.staffCode
     });
 
     onObservationSaved(observation);

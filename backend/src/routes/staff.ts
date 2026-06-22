@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { z } from "zod";
 
+import { recordAuditEvent } from "../audit.js";
 import { dataProvider } from "../data/provider.js";
 import { DuplicateStaffCodeError, StaffLookupAmbiguousError } from "../data/types.js";
 import { optionalOrganisationIdSchema, requireOrganisationId } from "./organisation.js";
@@ -10,6 +11,12 @@ const router = Router();
 const staffLookupSchema = z.object({
   staffCode: z.string().min(1),
   organisationId: z.string().uuid().optional()
+});
+
+const bankStaffPinLookupSchema = z.object({
+  staffCode: z.string().min(1),
+  loginPin: z.string().min(1),
+  organisationId: z.string().uuid()
 });
 
 const staffMemberSchema = z.object({
@@ -53,6 +60,15 @@ router.post("/", async (request, response, next) => {
     const organisationId = requireOrganisationId(request, response);
     if (!organisationId) return;
     const staff = await dataProvider.staff.upsert({ ...parsed.data, organisationId });
+    await recordAuditEvent({
+      organisationId,
+      actorStaffId: staff.id,
+      actorStaffCode: staff.staffCode,
+      eventType: "staff.upsert",
+      entityType: "staff_member",
+      entityId: staff.id,
+      details: { staffCode: staff.staffCode, role: staff.role, employmentType: staff.employmentType }
+    });
     response.status(201).json({ staff });
   } catch (error) {
     if (error instanceof DuplicateStaffCodeError) {
@@ -96,10 +112,72 @@ router.post("/lookup", async (request, response, next) => {
     const staff = await dataProvider.staff.findActiveByCode(parsed.data.staffCode, parsed.data.organisationId);
 
     if (!staff) {
+      if (parsed.data.organisationId) {
+        await recordAuditEvent({
+          organisationId: parsed.data.organisationId,
+          eventType: "staff.lookup",
+          entityType: "staff_member",
+          entityId: null,
+          outcome: "failure",
+          details: { staffCode: parsed.data.staffCode, reason: "not_found" }
+        });
+      }
       response.status(404).json({ error: "Staff member not found" });
       return;
     }
 
+    await recordAuditEvent({
+      organisationId: staff.organisationId,
+      actorStaffId: staff.id,
+      actorStaffCode: staff.staffCode,
+      eventType: "staff.lookup",
+      entityType: "staff_member",
+      entityId: staff.id,
+      details: { staffCode: staff.staffCode, employmentType: staff.employmentType }
+    });
+    response.json({ staff });
+  } catch (error) {
+    if (error instanceof StaffLookupAmbiguousError) {
+      response.status(409).json({ error: error.message });
+      return;
+    }
+
+    next(error);
+  }
+});
+
+router.post("/bank-pin-login", async (request, response, next) => {
+  try {
+    const parsed = bankStaffPinLookupSchema.safeParse(request.body);
+
+    if (!parsed.success) {
+      response.status(400).json({ error: "STAFFCODE, PIN and organisationId are required" });
+      return;
+    }
+
+    const staff = await dataProvider.staff.findActiveByCode(parsed.data.staffCode, parsed.data.organisationId);
+    if (!staff || staff.employmentType !== "bank" || staff.loginPin !== parsed.data.loginPin) {
+      await recordAuditEvent({
+        organisationId: parsed.data.organisationId,
+        eventType: "staff.bank_pin_login",
+        entityType: "staff_member",
+        entityId: staff?.id ?? null,
+        outcome: "failure",
+        details: { staffCode: parsed.data.staffCode, reason: staff ? "invalid_pin_or_type" : "not_found" }
+      });
+      response.status(401).json({ error: "Bank staff login was not accepted" });
+      return;
+    }
+
+    await recordAuditEvent({
+      organisationId: staff.organisationId,
+      actorStaffId: staff.id,
+      actorStaffCode: staff.staffCode,
+      eventType: "staff.bank_pin_login",
+      entityType: "staff_member",
+      entityId: staff.id,
+      details: { staffCode: staff.staffCode }
+    });
     response.json({ staff });
   } catch (error) {
     if (error instanceof StaffLookupAmbiguousError) {

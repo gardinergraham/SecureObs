@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { z } from "zod";
 
+import { auditActorFromBody, recordAuditEvent } from "../audit.js";
 import { pool } from "../db/pool.js";
 import { optionalOrganisationIdSchema, requireOrganisationId } from "./organisation.js";
 
@@ -64,6 +65,14 @@ router.post("/sites", async (request, response, next) => {
       [site.id, site.organisationId, site.name]
     );
 
+    await recordAuditEvent({
+      organisationId,
+      ...auditActorFromBody(request.body),
+      eventType: "settings.site.upsert",
+      entityType: "site",
+      entityId: site.id,
+      details: { name: site.name }
+    });
     response.status(201).json(result.rows[0]);
   } catch (error) {
     next(error);
@@ -167,6 +176,18 @@ router.post("/wards", async (request, response, next) => {
       ]
     );
 
+    await recordAuditEvent({
+      organisationId,
+      ...auditActorFromBody(request.body),
+      eventType: "settings.ward.upsert",
+      entityType: "ward",
+      entityId: ward.id,
+      details: {
+        name: ward.name,
+        siteId: ward.siteId,
+        observationIntervalMinutes: ward.observationIntervalMinutes
+      }
+    });
     response.status(201).json(toAppWard(result.rows[0]));
   } catch (error) {
     next(error);

@@ -2,6 +2,7 @@ import { seedData } from "../data/seedData";
 import { enqueueFailedSave, flushSyncQueue } from "./syncQueue";
 import type {
   MedicationAdministration,
+  MissedObservation,
   MedicationPrescription,
   News2Reading,
   Observation,
@@ -57,7 +58,12 @@ export type OrganisationScoped<T> = T & {
   organisationId?: string;
 };
 
-export async function createObservation(observation: OrganisationScoped<Omit<Observation, "id">>) {
+type ActorScoped = {
+  actorStaffId?: string;
+  actorStaffCode?: string;
+};
+
+export async function createObservation(observation: OrganisationScoped<Omit<Observation, "id"> & ActorScoped>) {
   if (!apiUrl) {
     return {
       ...observation,
@@ -98,7 +104,7 @@ export async function saveQueuedRequest<T>(label: string, path: string, init?: R
   }
 }
 
-export async function createObservationDirect(observation: OrganisationScoped<Omit<Observation, "id">>) {
+export async function createObservationDirect(observation: OrganisationScoped<Omit<Observation, "id"> & ActorScoped>) {
   return request<Observation>("/api/observations", {
     method: "POST",
     body: JSON.stringify(observation)
@@ -109,6 +115,13 @@ export async function lookupStaffByCode(staffCode: string, organisationId?: stri
   return request<{ staff: StaffMember }>("/api/staff/lookup", {
     method: "POST",
     body: JSON.stringify({ staffCode, organisationId })
+  });
+}
+
+export async function loginBankStaffByPin(staffCode: string, loginPin: string, organisationId: string) {
+  return request<{ staff: StaffMember }>("/api/staff/bank-pin-login", {
+    method: "POST",
+    body: JSON.stringify({ staffCode, loginPin, organisationId })
   });
 }
 
@@ -188,6 +201,23 @@ export async function updateMedicationPrescription(prescription: OrganisationSco
 
 export async function loadObservations(organisationId?: string) {
   return request<{ observations: Observation[] }>(withOrganisationId("/api/observations", organisationId));
+}
+
+export async function createMissedObservation(
+  missedObservation: OrganisationScoped<MissedObservation & { actorStaffId?: string; actorStaffCode?: string }>
+) {
+  return request<MissedObservation>("/api/missed-observations", {
+    method: "POST",
+    body: JSON.stringify(missedObservation)
+  });
+}
+
+export async function loadMissedObservations(organisationId?: string, wardId?: string) {
+  const path = withOrganisationId("/api/missed-observations", organisationId);
+  const separator = path.includes("?") ? "&" : "?";
+  return request<{ missedObservations: MissedObservation[] }>(
+    wardId ? `${path}${separator}wardId=${encodeURIComponent(wardId)}` : path
+  );
 }
 
 export async function createSite(site: OrganisationScoped<Site>) {
