@@ -68,7 +68,7 @@ export function MedicationChartScreen({
   const selectedStaff = staff.find((member) => member.id === selectedStaffId);
   const canPrescribe = Boolean(selectedStaff?.canPrescribe || selectedStaff?.role === "doctor");
   const visibleDates = useMemo(() => buildVisibleDates(), []);
-  const today = visibleDates[0] ?? new Date();
+  const today = visibleDates.find(isToday) ?? new Date();
   const patientPrescriptions = prescriptions.filter((prescription) => prescription.patientId === selectedPatient?.id);
   const activePrescriptions = patientPrescriptions.filter((prescription) => !prescription.discontinuedAt);
   const dueCount = activePrescriptions.reduce(
@@ -207,7 +207,7 @@ export function MedicationChartScreen({
 
       <View style={styles.summaryStrip}>
         <Text style={styles.summaryText}>{dueCount} doses due soon</Text>
-        <Text style={styles.summaryMeta}>Future doses are locked until their scheduled time.</Text>
+        <Text style={styles.summaryMeta}>Yesterday and today remain open so late doses, refusals and omissions can be recorded.</Text>
       </View>
 
       <View style={styles.viewToggleRow}>
@@ -623,7 +623,7 @@ function PrescriptionCard({
                     ) : prescription.discontinuedAt ? (
                       <Text style={styles.blankCell}>-</Text>
                     ) : isFutureDose ? (
-                      <Text style={styles.futureCell}>Due</Text>
+                      <Text style={styles.futureCell}>Future</Text>
                     ) : (
                       <View style={styles.recordButtons}>
                           <DoseButton label="G" onPress={() => onRecordDose(scheduledAt, "Given")} />
@@ -792,12 +792,22 @@ function OmissionLegend() {
 function buildVisibleDates() {
   const start = new Date();
   start.setHours(0, 0, 0, 0);
+  start.setDate(start.getDate() - 1);
 
-  return Array.from({ length: 7 }, (_, index) => {
+  return Array.from({ length: 8 }, (_, index) => {
     const date = new Date(start);
     date.setDate(start.getDate() + index);
     return date;
   });
+}
+
+function isToday(value: Date) {
+  const today = new Date();
+  return (
+    value.getFullYear() === today.getFullYear() &&
+    value.getMonth() === today.getMonth() &&
+    value.getDate() === today.getDate()
+  );
 }
 
 function buildScheduledAt(date: Date, time: string) {
@@ -866,6 +876,20 @@ function getDepotDueAt(prescription: MedicationPrescription, latestAdministratio
 }
 
 function formatDateHeader(date: Date) {
+  if (isToday(date)) {
+    return "Today";
+  }
+
+  const yesterday = new Date();
+  yesterday.setDate(yesterday.getDate() - 1);
+  if (
+    date.getFullYear() === yesterday.getFullYear() &&
+    date.getMonth() === yesterday.getMonth() &&
+    date.getDate() === yesterday.getDate()
+  ) {
+    return "Yesterday";
+  }
+
   return date.toLocaleDateString([], { day: "2-digit", month: "short" });
 }
 

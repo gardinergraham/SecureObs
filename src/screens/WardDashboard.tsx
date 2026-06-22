@@ -93,6 +93,17 @@ export function WardDashboard({
   const selectedPatientDueAt = selectedPatient
     ? getDueAt(selectedPatient, selectedWard?.observationIntervalMinutes ?? 15)
     : undefined;
+  const selectedPatientMissedObservationValidated = Boolean(
+    selectedPatient &&
+      selectedPatientDueAt &&
+      missedObservations.some(
+        (missedObservation) =>
+          missedObservation.patientId === selectedPatient.id &&
+          new Date(missedObservation.dueAt).getTime() === new Date(selectedPatientDueAt).getTime()
+      )
+  );
+  const mustValidateMissedObservation =
+    selectedPatientTiming?.status === "overdue" && !selectedPatientMissedObservationValidated;
   const selectedPatientMissedObservations = missedObservations
     .filter((missedObservation) => missedObservation.patientId === selectedPatient?.id)
     .slice(0, 3);
@@ -144,6 +155,14 @@ export function WardDashboard({
 
   const saveObservation = async () => {
     if (!selectedPatient) {
+      return;
+    }
+
+    if (mustValidateMissedObservation) {
+      Alert.alert(
+        "Missed observation needs recording",
+        "Record the missed observation reason before saving the new observation."
+      );
       return;
     }
 
@@ -338,13 +357,30 @@ export function WardDashboard({
                   value={comments}
                 />
 
-                <TouchableOpacity accessibilityRole="button" onPress={saveObservation} style={styles.saveButton}>
-                  <Text style={styles.saveButtonText}>Save check</Text>
+                {mustValidateMissedObservation ? (
+                  <Text style={styles.validationNotice}>
+                    This check is overdue. Record the missed observation reason before saving a new check.
+                  </Text>
+                ) : null}
+
+                <TouchableOpacity
+                  accessibilityRole="button"
+                  disabled={mustValidateMissedObservation}
+                  onPress={saveObservation}
+                  style={[styles.saveButton, mustValidateMissedObservation && styles.disabledSaveButton]}
+                >
+                  <Text style={styles.saveButtonText}>
+                    {mustValidateMissedObservation ? "Record missed observation first" : "Save check"}
+                  </Text>
                 </TouchableOpacity>
 
                 {selectedPatientTiming?.status === "overdue" ? (
                   <View style={styles.missedPanel}>
-                    <Text style={styles.missedTitle}>Record missed observation</Text>
+                    <Text style={styles.missedTitle}>
+                      {selectedPatientMissedObservationValidated
+                        ? "Missed observation validated"
+                        : "Record missed observation"}
+                    </Text>
                     <Text style={styles.missedMeta}>
                       Due {selectedPatientDueAt ? formatObservationTime(selectedPatientDueAt) : "--:--"} | Allocated to{" "}
                       {selectedStaff?.name ?? "current staff"}
@@ -358,9 +394,13 @@ export function WardDashboard({
                       style={styles.notes}
                       value={missedDetails}
                     />
-                    <TouchableOpacity accessibilityRole="button" onPress={saveMissedObservation} style={styles.missedButton}>
-                      <Text style={styles.missedButtonText}>Record missed observation</Text>
-                    </TouchableOpacity>
+                    {selectedPatientMissedObservationValidated ? (
+                      <Text style={styles.missedValidatedText}>Reason recorded for this overdue check.</Text>
+                    ) : (
+                      <TouchableOpacity accessibilityRole="button" onPress={saveMissedObservation} style={styles.missedButton}>
+                        <Text style={styles.missedButtonText}>Record missed observation</Text>
+                      </TouchableOpacity>
+                    )}
                   </View>
                 ) : null}
 
@@ -1057,10 +1097,24 @@ const styles = StyleSheet.create({
     marginTop: 16,
     minHeight: 50
   },
+  disabledSaveButton: {
+    backgroundColor: "#97a9b0"
+  },
   saveButtonText: {
     color: "#ffffff",
     fontSize: 16,
     fontWeight: "900"
+  },
+  validationNotice: {
+    backgroundColor: "#fff8e8",
+    borderColor: "#e4b75f",
+    borderRadius: 6,
+    borderWidth: 1,
+    color: "#7b5a1a",
+    fontSize: 13,
+    fontWeight: "900",
+    marginTop: 12,
+    padding: 10
   },
   missedPanel: {
     backgroundColor: "#fff8e8",
@@ -1091,6 +1145,11 @@ const styles = StyleSheet.create({
   missedButtonText: {
     color: "#ffffff",
     fontSize: 14,
+    fontWeight: "900"
+  },
+  missedValidatedText: {
+    color: "#315748",
+    fontSize: 13,
     fontWeight: "900"
   },
   missedHistory: {
