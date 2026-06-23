@@ -3,6 +3,7 @@ import { Alert, SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, Vi
 import { StatusBar } from "expo-status-bar";
 
 import { AdminSettingsScreen } from "./src/screens/AdminSettingsScreen";
+import { AuditLogScreen } from "./src/screens/AuditLogScreen";
 import { EnhancedObservationScreen } from "./src/screens/EnhancedObservationScreen";
 import { HomeScreen } from "./src/screens/HomeScreen";
 import { MedicationChartScreen } from "./src/screens/MedicationChartScreen";
@@ -79,6 +80,7 @@ const defaultOrganisationId = "00000000-0000-0000-0000-000000000001";
 type AppScreen =
   | "home"
   | "adminSettings"
+  | "auditLog"
   | "observations"
   | "enhanced"
   | "patientManagement"
@@ -504,7 +506,12 @@ export default function App() {
       );
     }
     void persistOrQueue("patient update", () =>
-      persistPatient({ ...updatedPatient, organisationId: selectedStaff?.organisationId })
+      persistPatient({
+        ...updatedPatient,
+        organisationId: selectedStaff?.organisationId,
+        actorStaffId: selectedStaff?.id,
+        actorStaffCode: selectedStaff?.staffCode
+      })
     );
   };
 
@@ -512,7 +519,9 @@ export default function App() {
     const result = await persistOrQueue("patient", () =>
       persistPatient({
         ...patient,
-        organisationId: selectedStaff?.organisationId
+        organisationId: selectedStaff?.organisationId,
+        actorStaffId: selectedStaff?.id,
+        actorStaffCode: selectedStaff?.staffCode
       })
     );
     setPatients((currentPatients) => upsertPatient(currentPatients, result?.patient ?? patient));
@@ -579,14 +588,24 @@ export default function App() {
   const handleCreateMedicationPrescription = (prescription: MedicationPrescription) => {
     setMedicationPrescriptions((currentPrescriptions) => [prescription, ...currentPrescriptions]);
     void persistOrQueue("medication prescription", () =>
-      persistMedicationPrescription({ ...prescription, organisationId: selectedStaff?.organisationId })
+      persistMedicationPrescription({
+        ...prescription,
+        organisationId: selectedStaff?.organisationId,
+        actorStaffId: selectedStaff?.id,
+        actorStaffCode: selectedStaff?.staffCode
+      })
     );
   };
 
   const handleCreateMedicationAdministration = (administration: MedicationAdministration) => {
     setMedicationAdministrations((currentAdministrations) => upsertById(currentAdministrations, administration));
     void persistOrQueue("medication administration", () =>
-      persistMedicationAdministration({ ...administration, organisationId: selectedStaff?.organisationId })
+      persistMedicationAdministration({
+        ...administration,
+        organisationId: selectedStaff?.organisationId,
+        actorStaffId: selectedStaff?.id,
+        actorStaffCode: selectedStaff?.staffCode
+      })
     );
   };
 
@@ -609,7 +628,12 @@ export default function App() {
       )
     );
     void persistOrQueue("medication prescription update", () =>
-      persistMedicationPrescriptionUpdate({ ...updatedPrescription, organisationId: selectedStaff?.organisationId })
+      persistMedicationPrescriptionUpdate({
+        ...updatedPrescription,
+        organisationId: selectedStaff?.organisationId,
+        actorStaffId: selectedStaff?.id,
+        actorStaffCode: selectedStaff?.staffCode
+      })
     );
   };
 
@@ -655,9 +679,16 @@ export default function App() {
             sites={sites}
             wards={wards}
             onBack={() => setScreen("home")}
+            onOpenAuditLog={() => setScreen("auditLog")}
             onCreateSite={handleCreateSite}
             onCreateStaff={handleCreateStaffMember}
             onCreateWard={handleCreateWard}
+          />
+        ) : screen === "auditLog" ? (
+          <AuditLogScreen
+            organisationId={selectedStaff?.organisationId ?? defaultOrganisationId}
+            selectedStaff={selectedStaff}
+            onBack={() => setScreen("adminSettings")}
           />
         ) : screen === "wardSettings" ? (
           <WardSettingsScreen

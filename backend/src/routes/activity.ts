@@ -548,6 +548,28 @@ router.post("/medication-administrations", async (request, response, next) => {
     const organisationId = requireOrganisationId(request, response);
     if (!organisationId) return;
     const administration = { ...parsed.data, organisationId, id: parsed.data.id ?? `med-admin-${Date.now()}` };
+    const existingResult = await pool.query(
+      `
+        select
+          status,
+          omission_code as "omissionCode",
+          recorded_by as "recordedBy",
+          recorded_at as "recordedAt",
+          notes
+        from medication_administrations
+        where organisation_id = $1 and id = $2
+      `,
+      [organisationId, administration.id]
+    );
+    const existingAdministration = existingResult.rows[0] as
+      | {
+          status?: string;
+          omissionCode?: string;
+          recordedBy?: string;
+          recordedAt?: string;
+          notes?: string;
+        }
+      | undefined;
     const result = await pool.query(
       `
         insert into medication_administrations (
@@ -589,10 +611,22 @@ router.post("/medication-administrations", async (request, response, next) => {
     await recordAuditEvent({
       organisationId: administration.organisationId,
       ...auditActorFromBody(request.body),
-      eventType: "medication.administration",
+      eventType: existingAdministration ? "medication.administration.correct" : "medication.administration",
       entityType: "medication_administration",
       entityId: administration.id,
-      details: { patientId: administration.patientId, status: administration.status }
+      details: {
+        patientId: administration.patientId,
+        prescriptionId: administration.prescriptionId,
+        scheduledAt: administration.scheduledAt,
+        previous: existingAdministration ?? null,
+        next: {
+          status: administration.status,
+          omissionCode: administration.omissionCode ?? null,
+          recordedBy: administration.recordedBy,
+          recordedAt: administration.recordedAt,
+          notes: administration.notes
+        }
+      }
     });
     response.status(201).json(result.rows[0] ?? administration);
   } catch (error) {
@@ -932,6 +966,9 @@ router.get("/audit-events", async (request, response, next) => {
     const organisationId = requireOrganisationId(request, response);
     if (!organisationId) return;
     const limit = Math.min(Number(request.query.limit ?? 100), 250);
+    const search = typeof request.query.search === "string" ? request.query.search.trim() : "";
+    const eventType = typeof request.query.eventType === "string" ? request.query.eventType.trim() : "";
+    const outcome = typeof request.query.outcome === "string" ? request.query.outcome.trim() : "";
     const result = await pool.query(
       `
         select
@@ -946,10 +983,20 @@ router.get("/audit-events", async (request, response, next) => {
           occurred_at as "occurredAt"
         from audit_events
         where organisation_id = $1
+          and ($2::text = '' or event_type = $2::text or event_type like $2::text || '.%')
+          and ($3::text = '' or outcome = $3::text)
+          and (
+            $4::text = ''
+            or actor_staff_code ilike '%' || $4::text || '%'
+            or event_type ilike '%' || $4::text || '%'
+            or entity_type ilike '%' || $4::text || '%'
+            or entity_id ilike '%' || $4::text || '%'
+            or details::text ilike '%' || $4::text || '%'
+          )
         order by occurred_at desc
-        limit $2
+        limit $5
       `,
-      [organisationId, limit]
+      [organisationId, eventType, outcome, search, limit]
     );
 
     response.json({ auditEvents: result.rows });

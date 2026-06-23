@@ -16,6 +16,7 @@ import { hasStaffRole } from "../utils/staffRole";
 const observationLevels: ObservationLevel[] = ["Intermittent", "Eyesight", "Within arms length"];
 const enhancedObservationLevels: Array<Exclude<ObservationLevel, "Intermittent">> = ["Eyesight", "Within arms length"];
 const ratios: StaffRatio[] = ["1:1", "2:1", "3:1", "4:1", "5:1", "6:1"];
+const reviewFrequencyOptions = [15, 30, 60, 120, 240];
 const reasons: TesoReason[] = [
   "Risk to self",
   "Risk to others",
@@ -33,6 +34,7 @@ type TesoDraft = {
   otherReason: string;
   assignedStaffIds: string[];
   carePlan: string;
+  reviewFrequencyMinutes: number;
 };
 
 type PatientSettingsScreenProps = {
@@ -64,6 +66,7 @@ export function PatientSettingsScreen({
   const [selectedPatientId, setSelectedPatientId] = useState(orderedPatients[0]?.id ?? "");
   const [tesoDraft, setTesoDraft] = useState<TesoDraft>(() => createDefaultDraft());
   const [activeCarePlanDraft, setActiveCarePlanDraft] = useState("");
+  const [endReason, setEndReason] = useState("");
   const [staffSearches, setStaffSearches] = useState<Record<string, string>>({});
   const detailScrollRef = useRef<ScrollView>(null);
   const selectedPatient = orderedPatients.find((patient) => patient.id === selectedPatientId) ?? orderedPatients[0];
@@ -87,6 +90,7 @@ export function PatientSettingsScreen({
 
   useEffect(() => {
     setTesoDraft(createDefaultDraft());
+    setEndReason("");
     setStaffSearches({});
   }, [selectedPatientId]);
 
@@ -163,7 +167,8 @@ export function PatientSettingsScreen({
       plan: currentPlan,
       observationLevel: selectedPatient.observationLevel === "Intermittent" ? "Eyesight" : selectedPatient.observationLevel,
       episodeId: `teso-${Date.now()}`,
-      endedAt
+      endedAt,
+      endedReason: endReason.trim() || "Ended by clinical review"
     });
 
     const tesoHistory =
@@ -179,7 +184,10 @@ export function PatientSettingsScreen({
                     selectedPatient.observationLevel === "Intermittent" ? episode.observationLevel : selectedPatient.observationLevel,
                   staffRatio: currentPlan.staffRatio,
                   authorisedBy: currentPlan.authorisedBy,
-                  carePlan: currentPlan.carePlan
+                  carePlan: currentPlan.carePlan,
+                  reviewFrequencyMinutes: currentPlan.reviewFrequencyMinutes,
+                  nextReviewAt: currentPlan.nextReviewAt,
+                  endedReason: endReason.trim() || "Ended by clinical review"
                 }
               : episode
           )
@@ -191,6 +199,7 @@ export function PatientSettingsScreen({
       enhancedObservation: undefined,
       tesoHistory
     });
+    setEndReason("");
   };
 
   return (
@@ -330,15 +339,6 @@ export function PatientSettingsScreen({
                   </View>
                 ) : null}
 
-                <TouchableOpacity
-                  accessibilityRole="button"
-                  disabled={!canEdit}
-                  onPress={endTeso}
-                  style={[styles.endTesoWideButton, !canEdit && styles.disabledControl]}
-                >
-                  <Text style={styles.tesoActionButtonText}>End active TESO</Text>
-                </TouchableOpacity>
-
                 <Text style={styles.label}>TESO staff ratio</Text>
                 <OptionRow
                   disabled={!canEdit}
@@ -433,6 +433,31 @@ export function PatientSettingsScreen({
                   value={selectedPatient.enhancedObservation?.authorisedBy ?? ""}
                 />
 
+                <Text style={styles.label}>Review frequency</Text>
+                <OptionRow
+                  disabled={!canEdit}
+                  options={reviewFrequencyOptions.map((minutes) => `${minutes} min`)}
+                  selected={`${selectedPatient.enhancedObservation?.reviewFrequencyMinutes ?? 60} min`}
+                  onSelect={(value) => {
+                    const reviewFrequencyMinutes = Number.parseInt(value, 10);
+                    updateActiveTesoPlan(selectedPatient, {
+                      reviewFrequencyMinutes,
+                      nextReviewAt: buildNextReviewAt(reviewFrequencyMinutes)
+                    });
+                  }}
+                />
+
+                <Text style={styles.label}>Next review due</Text>
+                <TextInput
+                  editable={canEdit}
+                  onChangeText={(nextReviewAt) =>
+                    updateActiveTesoPlan(selectedPatient, { nextReviewAt })
+                  }
+                  placeholder="Review date/time"
+                  style={[styles.input, !canEdit && styles.disabledControl]}
+                  value={selectedPatient.enhancedObservation?.nextReviewAt ?? ""}
+                />
+
                 <Text style={styles.label}>Update plan of care</Text>
                 <TextInput
                   editable={canEdit}
@@ -452,10 +477,41 @@ export function PatientSettingsScreen({
                 <TouchableOpacity
                   accessibilityRole="button"
                   disabled={!canEdit}
-                  onPress={() => updateActiveTesoPlan(selectedPatient, { carePlan: activeCarePlanDraft.trim() })}
+                  onPress={() =>
+                    updateActiveTesoPlan(selectedPatient, {
+                      carePlan: activeCarePlanDraft.trim(),
+                      lastCarePlanUpdatedAt: new Date().toISOString(),
+                      lastCarePlanUpdatedBy: selectedStaff?.name ?? "Unknown staff"
+                    })
+                  }
                   style={[styles.updateCarePlanButton, !canEdit && styles.disabledControl]}
                 >
                   <Text style={styles.updateCarePlanButtonText}>Update plan of care</Text>
+                </TouchableOpacity>
+                {selectedPatient.enhancedObservation?.lastCarePlanUpdatedAt ? (
+                  <Text style={styles.infoText}>
+                    Last plan update {formatDateTime(selectedPatient.enhancedObservation.lastCarePlanUpdatedAt)} by{" "}
+                    {selectedPatient.enhancedObservation.lastCarePlanUpdatedBy ?? "unknown staff"}
+                  </Text>
+                ) : null}
+
+                <Text style={styles.label}>End reason</Text>
+                <TextInput
+                  editable={canEdit}
+                  multiline
+                  onChangeText={setEndReason}
+                  placeholder="Clinical reason for ending the TESO"
+                  style={[styles.input, styles.endReasonInput, !canEdit && styles.disabledControl]}
+                  textAlignVertical="top"
+                  value={endReason}
+                />
+                <TouchableOpacity
+                  accessibilityRole="button"
+                  disabled={!canEdit}
+                  onPress={endTeso}
+                  style={[styles.endTesoWideButton, !canEdit && styles.disabledControl]}
+                >
+                  <Text style={styles.tesoActionButtonText}>End active TESO</Text>
                 </TouchableOpacity>
               </View>
               ) : (
@@ -538,6 +594,19 @@ export function PatientSettingsScreen({
                     value={tesoDraft.otherReason}
                   />
 
+                  <Text style={styles.label}>Review frequency</Text>
+                  <OptionRow
+                    disabled={!canEdit}
+                    options={reviewFrequencyOptions.map((minutes) => `${minutes} min`)}
+                    selected={`${tesoDraft.reviewFrequencyMinutes} min`}
+                    onSelect={(value) =>
+                      setTesoDraft((currentDraft) => ({
+                        ...currentDraft,
+                        reviewFrequencyMinutes: Number.parseInt(value, 10)
+                      }))
+                    }
+                  />
+
                   <Text style={styles.label}>Plan of care</Text>
                   {draftTesoMissingCarePlan ? (
                     <View style={styles.warningPanel}>
@@ -571,6 +640,7 @@ export function PatientSettingsScreen({
                       <Text style={[styles.historyCell, styles.historyStartCell]}>Start time</Text>
                       <Text style={styles.historyCell}>Reason</Text>
                       <Text style={styles.historyCell}>Level</Text>
+                      <Text style={styles.historyCell}>Review</Text>
                       <Text style={styles.historyCell}>End</Text>
                     </View>
                     {(selectedPatient.tesoHistory ?? []).map((episode) => (
@@ -583,7 +653,10 @@ export function PatientSettingsScreen({
                           {episode.observationLevel} | {episode.staffRatio}
                         </Text>
                         <Text style={styles.historyCell}>
-                          {episode.endedAt ? formatDateTime(episode.endedAt) : "Active"}
+                          {episode.reviewFrequencyMinutes ? `${episode.reviewFrequencyMinutes} min` : "Not set"}
+                        </Text>
+                        <Text style={styles.historyCell}>
+                          {episode.endedAt ? `${formatDateTime(episode.endedAt)} | ${episode.endedReason ?? "No reason"}` : "Active"}
                         </Text>
                       </View>
                     ))}
@@ -716,6 +789,8 @@ function StaffAssignmentSlots({
 }
 
 function createDefaultPlan(authorisedBy: string): EnhancedObservationPlan {
+  const reviewFrequencyMinutes = 60;
+
   return {
     staffRatio: "1:1" as StaffRatio,
     reasons: ["Risk to self"] as TesoReason[],
@@ -723,7 +798,9 @@ function createDefaultPlan(authorisedBy: string): EnhancedObservationPlan {
     startedAt: new Date().toISOString(),
     authorisedBy,
     assignedStaffIds: [],
-    carePlan: ""
+    carePlan: "",
+    reviewFrequencyMinutes,
+    nextReviewAt: buildNextReviewAt(reviewFrequencyMinutes)
   };
 }
 
@@ -734,7 +811,8 @@ function createDefaultDraft(): TesoDraft {
     reasons: [],
     otherReason: "",
     assignedStaffIds: [""],
-    carePlan: ""
+    carePlan: "",
+    reviewFrequencyMinutes: 60
   };
 }
 
@@ -748,7 +826,9 @@ function createPlanFromDraft(draft: TesoDraft, authorisedBy: string): EnhancedOb
     startedAt: new Date().toISOString(),
     authorisedBy,
     assignedStaffIds: normaliseAssignedStaffIds(draft.assignedStaffIds, staffCount).filter(Boolean),
-    carePlan: draft.carePlan.trim()
+    carePlan: draft.carePlan.trim(),
+    reviewFrequencyMinutes: draft.reviewFrequencyMinutes,
+    nextReviewAt: buildNextReviewAt(draft.reviewFrequencyMinutes)
   };
 }
 
@@ -756,12 +836,14 @@ function createTesoEpisode({
   plan,
   observationLevel,
   episodeId,
-  endedAt
+  endedAt,
+  endedReason
 }: {
   plan: ReturnType<typeof createDefaultPlan>;
   observationLevel: Exclude<ObservationLevel, "Intermittent">;
   episodeId: string;
   endedAt?: string;
+  endedReason?: string;
 }): TesoEpisode {
   return {
     id: episodeId,
@@ -772,7 +854,10 @@ function createTesoEpisode({
     observationLevel,
     staffRatio: plan.staffRatio,
     authorisedBy: plan.authorisedBy,
-    carePlan: plan.carePlan
+    carePlan: plan.carePlan,
+    reviewFrequencyMinutes: plan.reviewFrequencyMinutes,
+    nextReviewAt: plan.nextReviewAt,
+    endedReason
   };
 }
 
@@ -811,6 +896,10 @@ function setAssignedStaffAt(staffIds: string[], slotIndex: number, staffId: stri
   const nextStaffIds = normaliseAssignedStaffIds(staffIds, requiredCount);
   nextStaffIds[slotIndex] = staffId;
   return nextStaffIds;
+}
+
+function buildNextReviewAt(reviewFrequencyMinutes: number) {
+  return new Date(Date.now() + reviewFrequencyMinutes * 60 * 1000).toISOString();
 }
 
 function getStaffLookupOptions(
@@ -1143,6 +1232,11 @@ const styles = StyleSheet.create({
   carePlanInput: {
     lineHeight: 20,
     minHeight: 150,
+    paddingTop: 10
+  },
+  endReasonInput: {
+    lineHeight: 20,
+    minHeight: 82,
     paddingTop: 10
   },
   updateCarePlanButton: {

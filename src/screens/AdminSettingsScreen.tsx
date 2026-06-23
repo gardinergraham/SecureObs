@@ -10,6 +10,7 @@ type AdminSettingsScreenProps = {
   sites: Site[];
   wards: Ward[];
   onBack: () => void;
+  onOpenAuditLog: () => void;
   onCreateSite: (site: Site) => Promise<void>;
   onCreateStaff: (staff: StaffMember) => Promise<void>;
   onCreateWard: (ward: Ward) => Promise<void>;
@@ -19,6 +20,7 @@ export function AdminSettingsScreen({
   sites,
   wards,
   onBack,
+  onOpenAuditLog,
   onCreateSite,
   onCreateStaff,
   onCreateWard
@@ -129,6 +131,14 @@ export function AdminSettingsScreen({
           <Text style={styles.backButtonText}>Back to start</Text>
         </TouchableOpacity>
       </View>
+
+      <TouchableOpacity accessibilityRole="button" onPress={onOpenAuditLog} style={styles.auditButton}>
+        <View>
+          <Text style={styles.auditButtonTitle}>Audit log</Text>
+          <Text style={styles.auditButtonMeta}>Search staff lookups, observation saves, medication, settings and failed access.</Text>
+        </View>
+        <Text style={styles.auditButtonArrow}>Open</Text>
+      </TouchableOpacity>
 
       <View style={styles.split}>
         <View style={styles.panel}>
@@ -274,6 +284,19 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12
   },
   backButtonText: { color: "#1f5262", fontSize: 13, fontWeight: "900" },
+  auditButton: {
+    alignItems: "center",
+    backgroundColor: "#ffffff",
+    borderColor: "#1f5262",
+    borderRadius: 8,
+    borderWidth: 1,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    padding: 14
+  },
+  auditButtonTitle: { color: "#18262c", fontSize: 17, fontWeight: "900" },
+  auditButtonMeta: { color: "#617078", fontSize: 12, fontWeight: "800", marginTop: 3 },
+  auditButtonArrow: { color: "#1f5262", fontSize: 13, fontWeight: "900" },
   split: { alignItems: "stretch", flexDirection: "row", gap: 12 },
   panel: {
     backgroundColor: "#ffffff",

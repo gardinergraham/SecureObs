@@ -1,6 +1,7 @@
 import { seedData } from "../data/seedData";
 import { configureSyncQueue, enqueueFailedRequest, flushSyncQueue, QueuedSyncError } from "./syncQueue";
 import type {
+  AuditEvent,
   MedicationAdministration,
   MissedObservation,
   MedicationPrescription,
@@ -142,7 +143,7 @@ export async function loadPatients(organisationId?: string) {
   return request<{ patients: Patient[] }>(withOrganisationId("/api/patients", organisationId));
 }
 
-export async function savePatient(patient: OrganisationScoped<Patient>) {
+export async function savePatient(patient: OrganisationScoped<Patient> & ActorScoped) {
   return saveQueuedRequest<{ patient: Patient }>("patient", "/api/patients", {
     method: "POST",
     body: JSON.stringify(patient)
@@ -204,11 +205,32 @@ export async function loadStaffShiftAssignments(organisationId?: string, wardId?
   );
 }
 
+export async function loadAuditEvents({
+  organisationId,
+  search,
+  eventType,
+  outcome,
+  limit = 150
+}: {
+  organisationId?: string;
+  search?: string;
+  eventType?: string;
+  outcome?: string;
+  limit?: number;
+}) {
+  let path = withOrganisationId("/api/audit-events", organisationId);
+  path = withOptionalQuery(path, "search", search?.trim());
+  path = withOptionalQuery(path, "eventType", eventType);
+  path = withOptionalQuery(path, "outcome", outcome);
+  path = withOptionalQuery(path, "limit", String(limit));
+  return request<{ auditEvents: AuditEvent[] }>(path);
+}
+
 export async function loadNews2Readings(organisationId?: string) {
   return request<{ news2Readings: News2Reading[] }>(withOrganisationId("/api/news2-readings", organisationId));
 }
 
-export async function createMedicationPrescription(prescription: OrganisationScoped<MedicationPrescription>) {
+export async function createMedicationPrescription(prescription: OrganisationScoped<MedicationPrescription> & ActorScoped) {
   return saveQueuedRequest<MedicationPrescription>("medication prescription", "/api/medication-prescriptions", {
     method: "POST",
     body: JSON.stringify(prescription)
@@ -221,7 +243,7 @@ export async function loadMedicationPrescriptions(organisationId?: string) {
   );
 }
 
-export async function createMedicationAdministration(administration: OrganisationScoped<MedicationAdministration>) {
+export async function createMedicationAdministration(administration: OrganisationScoped<MedicationAdministration> & ActorScoped) {
   return saveQueuedRequest<MedicationAdministration>("medication administration", "/api/medication-administrations", {
     method: "POST",
     body: JSON.stringify(administration)
@@ -234,7 +256,7 @@ export async function loadMedicationAdministrations(organisationId?: string) {
   );
 }
 
-export async function updateMedicationPrescription(prescription: OrganisationScoped<MedicationPrescription>) {
+export async function updateMedicationPrescription(prescription: OrganisationScoped<MedicationPrescription> & ActorScoped) {
   return createMedicationPrescription(prescription);
 }
 

@@ -97,6 +97,18 @@ export type StaffMember = {
   active?: boolean;
 };
 
+export type AuditEvent = {
+  id: string;
+  actorStaffId?: string;
+  actorStaffCode?: string;
+  eventType: string;
+  entityType: string;
+  entityId?: string;
+  outcome: "success" | "failure";
+  details: Record<string, unknown>;
+  occurredAt: string;
+};
+
 export type EnhancedObservationPlan = {
   staffRatio: StaffRatio;
   reasons: TesoReason[];
@@ -105,6 +117,10 @@ export type EnhancedObservationPlan = {
   authorisedBy: string;
   assignedStaffIds: string[];
   carePlan: string;
+  reviewFrequencyMinutes?: number;
+  nextReviewAt?: string;
+  lastCarePlanUpdatedAt?: string;
+  lastCarePlanUpdatedBy?: string;
 };
 
 export type TesoEpisode = {
@@ -117,6 +133,9 @@ export type TesoEpisode = {
   staffRatio: StaffRatio;
   authorisedBy: string;
   carePlan: string;
+  reviewFrequencyMinutes?: number;
+  nextReviewAt?: string;
+  endedReason?: string;
 };
 
 export type Patient = {

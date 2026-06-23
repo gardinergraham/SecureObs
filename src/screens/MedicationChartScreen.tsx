@@ -176,6 +176,9 @@ export function MedicationChartScreen({
       return;
     }
 
+    const defaultNote = omissionCode ? omissionLabel(omissionCode) : "";
+    const governanceNote = buildAdministrationNote(scheduledAt, notes ?? defaultNote);
+
     onCreateAdministration({
       id: createAdministrationId(prescription, scheduledAt),
       prescriptionId: prescription.id,
@@ -185,7 +188,7 @@ export function MedicationChartScreen({
       omissionCode,
       recordedBy: selectedStaff.name,
       recordedAt: new Date().toISOString(),
-      notes: notes ?? (omissionCode ? omissionLabel(omissionCode) : "")
+      notes: governanceNote
     });
   };
 
@@ -244,7 +247,7 @@ export function MedicationChartScreen({
       allergies: allergyText.trim(),
       adverseDrugReactions: adrText.trim()
     });
-    setAllergySaveMessage("Saved locally and queued for sync.");
+    setAllergySaveMessage("Saved on this tablet. The sync status confirms when it reaches the backend.");
   };
 
   return (
@@ -350,6 +353,11 @@ export function MedicationChartScreen({
                   {pendingMedicationAction.omissionCode ? ` ${pendingMedicationAction.omissionCode}` : ""} |{" "}
                   {formatDateTime(pendingMedicationAction.scheduledAt)}
                 </Text>
+                {getLateMinutes(pendingMedicationAction.scheduledAt) > 0 ? (
+                  <Text style={styles.confirmWarning}>
+                    Late record: {formatLateMinutes(getLateMinutes(pendingMedicationAction.scheduledAt))} after due time
+                  </Text>
+                ) : null}
               </View>
               <View style={styles.confirmActions}>
                 <TouchableOpacity accessibilityRole="button" onPress={() => setPendingMedicationAction(null)} style={styles.cancelConfirmButton}>
@@ -1001,6 +1009,36 @@ function omissionLabel(code: MedicationOmissionCode) {
   return omissionOptions.find((option) => option.code === code)?.label ?? "Omitted";
 }
 
+function buildAdministrationNote(scheduledAt: string, note: string) {
+  const lateMinutes = getLateMinutes(scheduledAt);
+  const parts = [note.trim()].filter(Boolean);
+
+  if (lateMinutes > 0) {
+    parts.push(`Recorded ${formatLateMinutes(lateMinutes)} after due time`);
+  }
+
+  return parts.join(" | ");
+}
+
+function getLateMinutes(scheduledAt: string) {
+  const scheduledTime = new Date(scheduledAt).getTime();
+  if (Number.isNaN(scheduledTime)) {
+    return 0;
+  }
+
+  return Math.max(0, Math.floor((Date.now() - scheduledTime) / 60000));
+}
+
+function formatLateMinutes(minutes: number) {
+  if (minutes < 60) {
+    return `${minutes} minute${minutes === 1 ? "" : "s"}`;
+  }
+
+  const hours = Math.floor(minutes / 60);
+  const remainingMinutes = minutes % 60;
+  return `${hours} hour${hours === 1 ? "" : "s"}${remainingMinutes ? ` ${remainingMinutes} min` : ""}`;
+}
+
 function formatPrescriptionType(prescription?: MedicationPrescription) {
   if (!prescription) return "";
   if (prescription.prescriptionType === "prn") return "PRN";
@@ -1202,6 +1240,7 @@ const styles = StyleSheet.create({
   },
   confirmTitle: { color: "#62430f", fontSize: 14, fontWeight: "900" },
   confirmMeta: { color: "#7b5a1a", fontSize: 12, fontWeight: "800", marginTop: 3 },
+  confirmWarning: { color: "#8a3f00", fontSize: 12, fontWeight: "900", marginTop: 4 },
   confirmActions: { flexDirection: "row", gap: 8 },
   cancelConfirmButton: {
     alignItems: "center",
