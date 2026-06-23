@@ -23,7 +23,18 @@ const wardSchema = z.object({
   enhancedObservationsEnabled: z.boolean().default(true),
   securityChecksEnabled: z.boolean().default(true),
   medicationChartEnabled: z.boolean().default(true),
-  staffRotaEnabled: z.boolean().default(true)
+  staffRotaEnabled: z.boolean().default(true),
+  rotaShiftCount: z.number().int().positive().default(3),
+  rotaShifts: z
+    .array(
+      z.object({
+        id: z.string().min(1),
+        startsAt: z.string().min(1),
+        endsAt: z.string().min(1)
+      })
+    )
+    .default([]),
+  breakDurationMinutes: z.number().int().positive().default(30)
 });
 
 router.get("/sites", async (request, response, next) => {
@@ -95,7 +106,10 @@ router.get("/wards", async (request, response, next) => {
         wards.enhanced_observations_enabled as "enhancedObservationsEnabled",
         wards.security_checks_enabled as "securityChecksEnabled",
         wards.medication_chart_enabled as "medicationChartEnabled",
-        wards.staff_rota_enabled as "staffRotaEnabled"
+        wards.staff_rota_enabled as "staffRotaEnabled",
+        wards.rota_shift_count as "rotaShiftCount",
+        wards.rota_shifts as "rotaShifts",
+        wards.break_duration_minutes as "breakDurationMinutes"
       from wards
       inner join sites on sites.id = wards.site_id
       where sites.organisation_id = $1
@@ -138,8 +152,9 @@ router.post("/wards", async (request, response, next) => {
       `
         insert into wards (
           id, site_id, name, service_type, observation_interval_minutes, news2_enabled,
-          enhanced_observations_enabled, security_checks_enabled, medication_chart_enabled, staff_rota_enabled
-        ) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+          enhanced_observations_enabled, security_checks_enabled, medication_chart_enabled, staff_rota_enabled,
+          rota_shift_count, rota_shifts, break_duration_minutes
+        ) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12::jsonb,$13)
         on conflict (id) do update set
           site_id = excluded.site_id,
           name = excluded.name,
@@ -149,7 +164,10 @@ router.post("/wards", async (request, response, next) => {
           enhanced_observations_enabled = excluded.enhanced_observations_enabled,
           security_checks_enabled = excluded.security_checks_enabled,
           medication_chart_enabled = excluded.medication_chart_enabled,
-          staff_rota_enabled = excluded.staff_rota_enabled
+          staff_rota_enabled = excluded.staff_rota_enabled,
+          rota_shift_count = excluded.rota_shift_count,
+          rota_shifts = excluded.rota_shifts,
+          break_duration_minutes = excluded.break_duration_minutes
         returning
           id,
           site_id as "siteId",
@@ -160,7 +178,10 @@ router.post("/wards", async (request, response, next) => {
           enhanced_observations_enabled as "enhancedObservationsEnabled",
           security_checks_enabled as "securityChecksEnabled",
           medication_chart_enabled as "medicationChartEnabled",
-          staff_rota_enabled as "staffRotaEnabled"
+          staff_rota_enabled as "staffRotaEnabled",
+          rota_shift_count as "rotaShiftCount",
+          rota_shifts as "rotaShifts",
+          break_duration_minutes as "breakDurationMinutes"
       `,
       [
         ward.id,
@@ -172,7 +193,10 @@ router.post("/wards", async (request, response, next) => {
         ward.enhancedObservationsEnabled,
         ward.securityChecksEnabled,
         ward.medicationChartEnabled,
-        ward.staffRotaEnabled
+        ward.staffRotaEnabled,
+        ward.rotaShiftCount,
+        JSON.stringify(ward.rotaShifts),
+        ward.breakDurationMinutes
       ]
     );
 
@@ -206,18 +230,23 @@ function createId(prefix: string, name: string) {
 
 function toAppWard(row: Record<string, unknown>) {
   const id = String(row.id);
+  const rotaShifts = Array.isArray(row.rotaShifts) ? row.rotaShifts : defaultRotaShifts(id);
 
   return {
     ...row,
-    rotaShiftCount: 3,
-    rotaShifts: [
-      { id: `${id}-shift-1`, startsAt: "07:00", endsAt: "15:00" },
-      { id: `${id}-shift-2`, startsAt: "15:00", endsAt: "23:00" },
-      { id: `${id}-shift-3`, startsAt: "23:00", endsAt: "07:00" }
-    ],
-    breakDurationMinutes: 30,
+    rotaShiftCount: Number(row.rotaShiftCount ?? rotaShifts.length ?? 3),
+    rotaShifts,
+    breakDurationMinutes: Number(row.breakDurationMinutes ?? 30),
     selected: false
   };
+}
+
+function defaultRotaShifts(wardId: string) {
+  return [
+    { id: `${wardId}-shift-1`, startsAt: "07:00", endsAt: "15:00" },
+    { id: `${wardId}-shift-2`, startsAt: "15:00", endsAt: "23:00" },
+    { id: `${wardId}-shift-3`, startsAt: "23:00", endsAt: "07:00" }
+  ];
 }
 
 export { router as configRouter };

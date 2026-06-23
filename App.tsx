@@ -405,6 +405,14 @@ export default function App() {
   };
 
   const handleUpdateWardInterval = (wardId: string, observationIntervalMinutes: number) => {
+    const updatedWard = wards.find((ward) => ward.id === wardId);
+
+    if (updatedWard) {
+      void persistOrQueue("ward", () =>
+        persistWard({ ...updatedWard, observationIntervalMinutes, organisationId: selectedStaff?.organisationId })
+      );
+    }
+
     setWards((currentWards) =>
       currentWards.map((ward) =>
         ward.id === wardId
@@ -418,6 +426,14 @@ export default function App() {
   };
 
   const handleUpdateWardRotaEnabled = (wardId: string, staffRotaEnabled: boolean) => {
+    const updatedWard = wards.find((ward) => ward.id === wardId);
+
+    if (updatedWard) {
+      void persistOrQueue("ward", () =>
+        persistWard({ ...updatedWard, staffRotaEnabled, organisationId: selectedStaff?.organisationId })
+      );
+    }
+
     setWards((currentWards) =>
       currentWards.map((ward) =>
         ward.id === wardId
@@ -433,6 +449,9 @@ export default function App() {
   const handleUpdateWardRotaSettings = (updatedWard: Ward) => {
     setWards((currentWards) =>
       currentWards.map((ward) => (ward.id === updatedWard.id ? updatedWard : ward))
+    );
+    void persistOrQueue("ward", () =>
+      persistWard({ ...updatedWard, organisationId: selectedStaff?.organisationId })
     );
   };
 

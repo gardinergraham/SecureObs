@@ -552,6 +552,15 @@ export function WardSettingsScreen({
           </TouchableOpacity>
         </View>
 
+        <TouchableOpacity
+          accessibilityRole="button"
+          disabled={!selectedWard || !canEditWardSettings}
+          onPress={() => selectedWard && onUpdateWardRotaSettings(selectedWard)}
+          style={[styles.saveStaffButton, (!selectedWard || !canEditWardSettings) && styles.disabledControl]}
+        >
+          <Text style={styles.saveStaffButtonText}>Update ward settings</Text>
+        </TouchableOpacity>
+
         <View style={styles.settingBlock}>
           <View>
             <Text style={styles.settingLabel}>Staff rota</Text>
