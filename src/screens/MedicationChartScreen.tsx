@@ -24,7 +24,6 @@ const depotIntervalOptions = [
   { label: "Monthly", days: 28 }
 ];
 const omissionOptions: Array<{ code: MedicationOmissionCode; label: string }> = [
-  { code: "R", label: "Patient refused" },
   { code: "N", label: "Route not available" },
   { code: "X", label: "Prescriber request" },
   { code: "F", label: "Fasting" },
@@ -95,6 +94,7 @@ export function MedicationChartScreen({
   const [adrText, setAdrText] = useState(selectedPatient?.adverseDrugReactions ?? "");
   const [allergySaveMessage, setAllergySaveMessage] = useState("");
   const [pendingMedicationAction, setPendingMedicationAction] = useState<PendingMedicationAction | null>(null);
+  const [editingDoseKey, setEditingDoseKey] = useState("");
   const [form, setForm] = useState(() => ({
     drugName: "",
     dose: "",
@@ -211,6 +211,7 @@ export function MedicationChartScreen({
       pendingMedicationAction.notes
     );
     setPendingMedicationAction(null);
+    setEditingDoseKey("");
   };
 
   const discontinuePrescription = (prescription: MedicationPrescription) => {
@@ -360,7 +361,12 @@ export function MedicationChartScreen({
             </View>
           ) : null}
 
-          <ScrollView contentContainerStyle={styles.chartContent} nestedScrollEnabled showsVerticalScrollIndicator>
+          <ScrollView
+            contentContainerStyle={styles.chartContent}
+            nestedScrollEnabled
+            showsVerticalScrollIndicator
+            style={styles.chartScroll}
+          >
 
           {viewMode === "admin" ? (
             <>
@@ -523,6 +529,8 @@ export function MedicationChartScreen({
                 prescription={prescription}
                 visibleDates={visibleDates}
                 viewMode={viewMode}
+                editingDoseKey={editingDoseKey}
+                onChangeDose={setEditingDoseKey}
                 onDiscontinue={() => discontinuePrescription(prescription)}
                 onRecordDose={(scheduledAt, status, omissionCode, notes) =>
                   requestDoseRecord(prescription, scheduledAt, status, omissionCode, notes)
@@ -542,9 +550,11 @@ export function MedicationChartScreen({
 type PrescriptionCardProps = {
   administrations: MedicationAdministration[];
   canPrescribe: boolean;
+  editingDoseKey: string;
   prescription: MedicationPrescription;
   visibleDates: Date[];
   viewMode: MedicationChartViewMode;
+  onChangeDose: (doseKey: string) => void;
   onDiscontinue: () => void;
   onRecordDose: (
     scheduledAt: string,
@@ -557,9 +567,11 @@ type PrescriptionCardProps = {
 function PrescriptionCard({
   administrations,
   canPrescribe,
+  editingDoseKey,
   prescription,
   visibleDates,
   viewMode,
+  onChangeDose,
   onDiscontinue,
   onRecordDose
 }: PrescriptionCardProps) {
@@ -706,6 +718,8 @@ function PrescriptionCard({
                     administration.prescriptionId === prescription.id && administration.scheduledAt === scheduledAt
                 );
                 const isFutureDose = new Date(scheduledAt).getTime() > Date.now();
+                const doseKey = `${prescription.id}-${scheduledAt}`;
+                const isEditingDose = editingDoseKey === doseKey;
 
                 return (
                   <View key={`${prescription.id}-${scheduledAt}`} style={styles.gridCell}>
@@ -714,18 +728,26 @@ function PrescriptionCard({
                         <View style={[styles.statusBadge, statusStyle(record.status)]}>
                           <Text style={styles.statusText}>{statusCodeLabel(record)}</Text>
                         </View>
-                        <Text style={styles.changeDoseLabel}>Change</Text>
-                        <View style={styles.recordButtons}>
-                          <DoseButton label="G" onPress={() => onRecordDose(scheduledAt, "Given")} />
-                          <DoseButton label="Ref" onPress={() => onRecordDose(scheduledAt, "Refused", undefined, "Patient refused")} />
-                          {omissionOptions.map((option) => (
-                            <DoseButton
-                              key={option.code}
-                              label={option.code}
-                              onPress={() => onRecordDose(scheduledAt, "Omitted", option.code)}
-                            />
-                          ))}
-                        </View>
+                        <TouchableOpacity
+                          accessibilityRole="button"
+                          onPress={() => onChangeDose(isEditingDose ? "" : doseKey)}
+                          style={styles.changeDoseButton}
+                        >
+                          <Text style={styles.changeDoseLabel}>{isEditingDose ? "Hide" : "Change"}</Text>
+                        </TouchableOpacity>
+                        {isEditingDose ? (
+                          <View style={styles.recordButtons}>
+                            <DoseButton label="G" onPress={() => onRecordDose(scheduledAt, "Given")} />
+                            <DoseButton label="Ref" onPress={() => onRecordDose(scheduledAt, "Refused", undefined, "Patient refused")} />
+                            {omissionOptions.map((option) => (
+                              <DoseButton
+                                key={option.code}
+                                label={option.code}
+                                onPress={() => onRecordDose(scheduledAt, "Omitted", option.code)}
+                              />
+                            ))}
+                          </View>
+                        ) : null}
                       </View>
                     ) : prescription.discontinuedAt ? (
                       <Text style={styles.blankCell}>-</Text>
@@ -785,7 +807,7 @@ function MedicationHistory({
           <View key={administration.id} style={styles.historyRow}>
             <View style={[styles.historyStatusDot, statusStyle(administration.status)]}>
               <Text style={styles.statusText}>
-                {administration.status === "Omitted" ? administration.omissionCode ?? "O" : administration.status === "Refused" ? "R" : "G"}
+                {administration.status === "Omitted" ? administration.omissionCode ?? "O" : administration.status === "Refused" ? "Ref" : "G"}
               </Text>
             </View>
             <View style={styles.historyTextBlock}>
@@ -1122,6 +1144,7 @@ const styles = StyleSheet.create({
     flex: 1,
     overflow: "hidden"
   },
+  chartScroll: { flex: 1 },
   chartContent: { gap: 12, padding: 12, paddingBottom: 80 },
   patientHeader: {
     alignItems: "center",
@@ -1380,6 +1403,14 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 3,
     paddingVertical: 3
+  },
+  changeDoseButton: {
+    borderColor: "#c7d2d6",
+    borderRadius: 5,
+    borderWidth: 1,
+    minHeight: 22,
+    paddingHorizontal: 6,
+    justifyContent: "center"
   },
   changeDoseLabel: {
     color: "#607078",

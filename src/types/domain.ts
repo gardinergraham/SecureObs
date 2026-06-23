@@ -26,7 +26,7 @@ export type News2Consciousness = "Alert" | "New confusion" | "Voice" | "Pain" | 
 export type Spo2Scale = "Scale 1" | "Scale 2";
 export type ServiceType = "High secure hospital" | "Medium secure hospital" | "Care home";
 export type MedicationAdministrationStatus = "Given" | "Omitted" | "Refused";
-export type MedicationOmissionCode = "R" | "N" | "X" | "F" | "S" | "O" | "U";
+export type MedicationOmissionCode = "N" | "X" | "F" | "S" | "O" | "U";
 export type MedicationPrescriptionType = "regular" | "prn" | "depot" | "rapid";
 
 export type Site = {

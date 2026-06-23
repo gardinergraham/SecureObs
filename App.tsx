@@ -690,6 +690,7 @@ export default function App() {
             patients={wardPatients}
             selectedStaffId={selectedStaffId}
             staff={staffMembers}
+            staffShiftAssignments={staffShiftAssignments}
             onBack={() => setScreen("observations")}
             onUpdatePatient={handleUpdatePatient}
           />
@@ -901,7 +902,7 @@ function syncStatusLabel(state: SyncQueueState) {
     return `${state.pendingCount} pending sync`;
   }
 
-  return state.lastSyncedAt ? "Synced" : "Prototype";
+  return state.lastSyncedAt ? "Synced" : "Ready";
 }
 
 const styles = StyleSheet.create({
