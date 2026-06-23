@@ -52,13 +52,14 @@ export function PatientSettingsScreen({
   onUpdatePatient
 }: PatientSettingsScreenProps) {
   const selectedStaff = staff.find((member) => member.id === selectedStaffId);
-  const canEdit = selectedStaff?.role === "nurse" || selectedStaff?.role === "manager";
+  const canEdit = selectedStaff?.role === "nurse" || selectedStaff?.role === "manager" || selectedStaff?.role === "doctor";
   const orderedPatients = useMemo(
     () => [...patients].sort((a, b) => a.roomNumber - b.roomNumber),
     [patients]
   );
   const [selectedPatientId, setSelectedPatientId] = useState(orderedPatients[0]?.id ?? "");
   const [tesoDraft, setTesoDraft] = useState<TesoDraft>(() => createDefaultDraft());
+  const [activeCarePlanDraft, setActiveCarePlanDraft] = useState("");
   const [staffSearches, setStaffSearches] = useState<Record<string, string>>({});
   const detailScrollRef = useRef<ScrollView>(null);
   const selectedPatient = orderedPatients.find((patient) => patient.id === selectedPatientId) ?? orderedPatients[0];
@@ -81,6 +82,10 @@ export function PatientSettingsScreen({
     setTesoDraft(createDefaultDraft());
     setStaffSearches({});
   }, [selectedPatientId]);
+
+  useEffect(() => {
+    setActiveCarePlanDraft(selectedPatient?.enhancedObservation?.carePlan ?? "");
+  }, [selectedPatient?.enhancedObservation?.carePlan, selectedPatient?.id]);
 
   const updatePatient = (nextPatient: Patient) => {
     if (!canEdit) {
@@ -177,7 +182,7 @@ export function PatientSettingsScreen({
         <View>
           <Text style={styles.title}>Patient settings</Text>
           <Text style={styles.meta}>
-            {selectedStaff?.name ?? "No staff selected"} | {canEdit ? "Nurse/manager access" : "HCF locked"}
+            {selectedStaff?.name ?? "No staff selected"} | {canEdit ? "Clinical edit access" : "HCF locked"}
           </Text>
         </View>
         <TouchableOpacity accessibilityRole="button" onPress={onBack} style={styles.backButton}>
@@ -225,6 +230,13 @@ export function PatientSettingsScreen({
                 </View>
                 <Text style={styles.levelBadge}>{selectedPatient.observationLevel}</Text>
               </View>
+
+              {!canEdit ? (
+                <View style={styles.warningPanel}>
+                  <Text style={styles.warningTitle}>Editing locked</Text>
+                  <Text style={styles.warningText}>Select a nurse, manager, or doctor staff profile to update TESO settings.</Text>
+                </View>
+              ) : null}
 
               <View style={styles.tesoActionPanel}>
                 <View style={styles.actionTextBlock}>
@@ -298,6 +310,15 @@ export function PatientSettingsScreen({
                     <Text style={styles.warningText}>This TESO is active without a plan of care. Add or update it below.</Text>
                   </View>
                 ) : null}
+
+                <TouchableOpacity
+                  accessibilityRole="button"
+                  disabled={!canEdit}
+                  onPress={endTeso}
+                  style={[styles.endTesoWideButton, !canEdit && styles.disabledControl]}
+                >
+                  <Text style={styles.tesoActionButtonText}>End active TESO</Text>
+                </TouchableOpacity>
 
                 <Text style={styles.label}>TESO staff ratio</Text>
                 <OptionRow
@@ -402,13 +423,21 @@ export function PatientSettingsScreen({
                     setTimeout(() => detailScrollRef.current?.scrollToEnd({ animated: true }), 420);
                   }}
                   onChangeText={(carePlan) =>
-                    updateActiveTesoPlan(selectedPatient, { carePlan })
+                    setActiveCarePlanDraft(carePlan)
                   }
                   placeholder="Add or update how staff should support the patient during this enhanced observation period"
                   style={[styles.input, styles.carePlanInput, !canEdit && styles.disabledControl]}
                   textAlignVertical="top"
-                  value={selectedPatient.enhancedObservation?.carePlan ?? ""}
+                  value={activeCarePlanDraft}
                 />
+                <TouchableOpacity
+                  accessibilityRole="button"
+                  disabled={!canEdit}
+                  onPress={() => updateActiveTesoPlan(selectedPatient, { carePlan: activeCarePlanDraft.trim() })}
+                  style={[styles.updateCarePlanButton, !canEdit && styles.disabledControl]}
+                >
+                  <Text style={styles.updateCarePlanButtonText}>Update plan of care</Text>
+                </TouchableOpacity>
               </View>
               ) : (
                 <View style={styles.tesoPanel}>
@@ -1068,6 +1097,15 @@ const styles = StyleSheet.create({
   endTesoButton: {
     backgroundColor: "#8f2d25"
   },
+  endTesoWideButton: {
+    alignItems: "center",
+    backgroundColor: "#8f2d25",
+    borderRadius: 6,
+    justifyContent: "center",
+    marginBottom: 4,
+    minHeight: 44,
+    paddingHorizontal: 14
+  },
   tesoActionButtonText: {
     color: "#ffffff",
     fontSize: 13,
@@ -1087,6 +1125,20 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     minHeight: 150,
     paddingTop: 10
+  },
+  updateCarePlanButton: {
+    alignItems: "center",
+    backgroundColor: "#1f5262",
+    borderRadius: 6,
+    justifyContent: "center",
+    marginTop: 8,
+    minHeight: 44,
+    paddingHorizontal: 12
+  },
+  updateCarePlanButtonText: {
+    color: "#ffffff",
+    fontSize: 13,
+    fontWeight: "900"
   },
   staffSlots: {
     gap: 10
