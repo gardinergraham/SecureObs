@@ -69,13 +69,16 @@ export function PatientSettingsScreen({
     [selectedPatient?.wardId, staff, staffShiftAssignments, todayKey]
   );
   const draftRequiredStaffCount = ratioStaffCount(tesoDraft.staffRatio);
+  const hasActiveTeso = Boolean(
+    selectedPatient && (selectedPatient.enhancedObservation || selectedPatient.observationLevel !== "Intermittent")
+  );
   const canStartTeso =
     Boolean(tesoDraft.observationLevel) &&
     tesoDraft.reasons.length > 0 &&
     (!tesoDraft.reasons.includes("Other") || tesoDraft.otherReason.trim().length > 0) &&
     normaliseAssignedStaffIds(tesoDraft.assignedStaffIds, draftRequiredStaffCount).every(Boolean);
   const activeTesoMissingCarePlan =
-    Boolean(selectedPatient?.enhancedObservation) && !selectedPatient?.enhancedObservation?.carePlan.trim();
+    hasActiveTeso && !selectedPatient?.enhancedObservation?.carePlan.trim();
   const draftTesoMissingCarePlan = !tesoDraft.carePlan.trim();
 
   useEffect(() => {
@@ -110,7 +113,7 @@ export function PatientSettingsScreen({
   };
 
   const startTeso = () => {
-    if (!selectedPatient || !canEdit || selectedPatient.enhancedObservation || !canStartTeso || !tesoDraft.observationLevel) {
+    if (!selectedPatient || !canEdit || hasActiveTeso || !canStartTeso || !tesoDraft.observationLevel) {
       return;
     }
 
@@ -134,12 +137,22 @@ export function PatientSettingsScreen({
   };
 
   const endTeso = () => {
-    if (!selectedPatient || !canEdit || !selectedPatient.enhancedObservation) {
+    if (!selectedPatient || !canEdit || !hasActiveTeso) {
       return;
     }
 
     const endedAt = new Date().toISOString();
     const currentPlan = selectedPatient.enhancedObservation;
+
+    if (!currentPlan) {
+      updatePatient({
+        ...selectedPatient,
+        observationLevel: "Intermittent",
+        enhancedObservation: undefined
+      });
+      return;
+    }
+
     const history = selectedPatient.tesoHistory ?? [];
     const activeEpisodeIndex = history.findIndex((episode) => !episode.endedAt);
     const endedEpisode = createTesoEpisode({
@@ -241,33 +254,35 @@ export function PatientSettingsScreen({
               <View style={styles.tesoActionPanel}>
                 <View style={styles.actionTextBlock}>
                   <Text style={styles.actionTitle}>
-                    {selectedPatient.enhancedObservation ? "TESO currently active" : "TESO not active"}
+                    {hasActiveTeso ? "TESO currently active" : "TESO not active"}
                   </Text>
                   <Text style={styles.actionMeta}>
-                    {selectedPatient.enhancedObservation
+                    {hasActiveTeso && selectedPatient.enhancedObservation
                       ? `Started ${formatDateTime(selectedPatient.enhancedObservation.startedAt)}${
                           activeTesoMissingCarePlan ? " | Care plan missing" : ""
                         }`
+                      : hasActiveTeso
+                        ? `${selectedPatient.observationLevel} observation is active | Care plan missing`
                       : "Patient is on intermittent observation unless a new TESO episode is started."}
                   </Text>
                 </View>
                 <TouchableOpacity
                   accessibilityRole="button"
-                  disabled={!canEdit || (!selectedPatient.enhancedObservation && !canStartTeso)}
-                  onPress={selectedPatient.enhancedObservation ? endTeso : startTeso}
+                  disabled={!canEdit || (!hasActiveTeso && !canStartTeso)}
+                  onPress={hasActiveTeso ? endTeso : startTeso}
                   style={[
                     styles.tesoActionButton,
-                    selectedPatient.enhancedObservation && styles.endTesoButton,
-                    (!canEdit || (!selectedPatient.enhancedObservation && !canStartTeso)) && styles.disabledControl
+                    hasActiveTeso && styles.endTesoButton,
+                    (!canEdit || (!hasActiveTeso && !canStartTeso)) && styles.disabledControl
                   ]}
                 >
                   <Text style={styles.tesoActionButtonText}>
-                    {selectedPatient.enhancedObservation ? "End TESO" : "Start TESO"}
+                    {hasActiveTeso ? "End TESO" : "Start TESO"}
                   </Text>
                 </TouchableOpacity>
               </View>
 
-              {selectedPatient.enhancedObservation ? (
+              {hasActiveTeso ? (
                 <>
                   <Text style={styles.label}>TESO level</Text>
                   <OptionRow
@@ -302,7 +317,7 @@ export function PatientSettingsScreen({
                 }
               />
 
-              {selectedPatient.enhancedObservation ? (
+              {hasActiveTeso ? (
               <View style={styles.tesoPanel}>
                 {activeTesoMissingCarePlan ? (
                   <View style={styles.warningPanel}>
