@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { Alert, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 
 import type { StaffMember, Ward } from "../types/domain";
+import { hasStaffRole, normaliseStaffRole } from "../utils/staffRole";
 
 const shiftCountOptions = [1, 2, 3, 4];
 const breakDurationOptions = [15, 30, 60];
@@ -38,7 +39,7 @@ export function WardSettingsScreen({
 }: WardSettingsScreenProps) {
   const selectedWard = wards.find((ward) => ward.id === selectedWardId);
   const selectedStaff = staff.find((member) => member.id === selectedStaffId);
-  const canEditWardSettings = selectedStaff?.role === "manager";
+  const canEditWardSettings = hasStaffRole(selectedStaff, "manager");
   const [newStaffName, setNewStaffName] = useState("");
   const [newStaffCode, setNewStaffCode] = useState("");
   const [newStaffRole, setNewStaffRole] = useState<StaffMember["role"]>("nurse");
@@ -122,7 +123,7 @@ export function WardSettingsScreen({
     setEditingStaffId(member.id);
     setNewStaffName(member.name);
     setNewStaffCode(member.staffCode);
-    setNewStaffRole(member.role);
+    setNewStaffRole(normaliseStaffRole(member.role));
     setNewStaffDesignation(member.designation ?? "");
     setNewStaffCanPrescribe(Boolean(member.canPrescribe));
     setNewStaffActive(member.active !== false);
@@ -211,7 +212,7 @@ export function WardSettingsScreen({
       keyNumber: Date.now() % 100000,
       staffCode: newStaffCode.trim(),
       name: newStaffName.trim(),
-      role: newStaffRole,
+      role: normaliseStaffRole(newStaffRole),
       designation: newStaffDesignation.trim() || defaultDesignation(newStaffRole),
       canPrescribe: newStaffRole === "doctor" && newStaffCanPrescribe,
       employmentType: newStaffEmploymentType,

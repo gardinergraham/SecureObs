@@ -9,6 +9,7 @@ import type {
   Patient,
   StaffMember
 } from "../types/domain";
+import { hasStaffRole } from "../utils/staffRole";
 
 const routeOptions = ["Oral", "IM", "Depot", "S/L", "Topical"];
 const timeOptions = ["06:00", "08:00", "12:00", "14:00", "16:00", "18:00", "20:00", "22:00"];
@@ -74,7 +75,7 @@ export function MedicationChartScreen({
 }: MedicationChartScreenProps) {
   const selectedPatient = patients.find((patient) => patient.id === selectedPatientId) ?? patients[0];
   const selectedStaff = staff.find((member) => member.id === selectedStaffId);
-  const canPrescribe = Boolean(selectedStaff?.canPrescribe || selectedStaff?.role === "doctor");
+  const canPrescribe = Boolean(selectedStaff?.canPrescribe || hasStaffRole(selectedStaff, "doctor"));
   const visibleDates = useMemo(() => buildVisibleDates(), []);
   const today = visibleDates.find(isToday) ?? new Date();
   const patientPrescriptions = prescriptions.filter((prescription) => prescription.patientId === selectedPatient?.id);

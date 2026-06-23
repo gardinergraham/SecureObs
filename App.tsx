@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { SafeAreaView, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Alert, SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { StatusBar } from "expo-status-bar";
 
 import { AdminSettingsScreen } from "./src/screens/AdminSettingsScreen";
@@ -47,6 +47,7 @@ import {
   updateMedicationPrescription as persistMedicationPrescriptionUpdate
 } from "./src/services/api";
 import {
+  clearSyncQueue,
   flushSyncQueue,
   isQueuedSyncError,
   restoreSyncQueue,
@@ -55,6 +56,7 @@ import {
 } from "./src/services/syncQueue";
 import { parseStaffCardData } from "./src/utils/nfcStaffCard";
 import { readNfcTextPayload } from "./src/utils/nfcReader";
+import { hasStaffRole } from "./src/utils/staffRole";
 import type {
   MedicationAdministration,
   MissedObservation,
@@ -112,7 +114,7 @@ export default function App() {
   const [selectedStaffId, setSelectedStaffId] = useState("");
   const selectedStaff = staffMembers.find((staff) => staff.id === selectedStaffId);
   const activeStaff = selectedStaff;
-  const selectedStaffCanPrescribe = Boolean(activeStaff?.canPrescribe || activeStaff?.role === "doctor");
+  const selectedStaffCanPrescribe = Boolean(activeStaff?.canPrescribe || hasStaffRole(activeStaff, "doctor"));
   const [selectedSiteId, setSelectedSiteId] = useState("");
   const [selectedWardId, setSelectedWardId] = useState("");
   const [selectedPatientId, setSelectedPatientId] = useState(seedData.patients[0]?.id ?? "");
@@ -212,6 +214,54 @@ export default function App() {
       }
       return undefined;
     }
+  };
+
+  const showSyncStatus = () => {
+    const oldestItem = syncQueueState.oldestItem;
+    const details = [
+      syncStatusLabel(syncQueueState),
+      syncQueueState.lastError ? `Last error: ${syncQueueState.lastError}` : undefined,
+      oldestItem
+        ? `Oldest item: ${oldestItem.label}\nPath: ${oldestItem.path}\nAttempts: ${oldestItem.attempts}`
+        : undefined
+    ]
+      .filter(Boolean)
+      .join("\n\n");
+
+    if (syncQueueState.pendingCount === 0) {
+      Alert.alert("Sync status", details || "No pending saves.");
+      return;
+    }
+
+    Alert.alert("Sync status", details, [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Retry now",
+        onPress: () => {
+          void flushSyncQueue();
+        }
+      },
+      {
+        text: "Clear pending",
+        style: "destructive",
+        onPress: () => {
+          Alert.alert(
+            "Clear pending saves?",
+            "Only use this if the pending items are known to be stale or already saved elsewhere. This removes them from this tablet.",
+            [
+              { text: "Keep", style: "cancel" },
+              {
+                text: "Clear",
+                style: "destructive",
+                onPress: () => {
+                  void clearSyncQueue();
+                }
+              }
+            ]
+          );
+        }
+      }
+    ]);
   };
 
   const accessibleSites = useMemo(() => {
@@ -552,9 +602,9 @@ export default function App() {
           <Text style={styles.appName}>Secure Obs</Text>
           <Text style={styles.subtitle}>High secure ward observation workflow</Text>
         </View>
-        <View style={styles.badge}>
+        <TouchableOpacity accessibilityRole="button" onPress={showSyncStatus} style={styles.badge}>
           <Text style={styles.badgeText}>{syncStatusLabel(syncQueueState)}</Text>
-        </View>
+        </TouchableOpacity>
       </View>
 
       <ScrollView
@@ -938,6 +988,10 @@ function syncStatusLabel(state: SyncQueueState) {
   }
 
   if (state.pendingCount > 0) {
+    if (state.lastError) {
+      return `${state.pendingCount} sync issue`;
+    }
+
     return `${state.pendingCount} pending sync`;
   }
 

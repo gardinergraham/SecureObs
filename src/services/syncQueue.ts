@@ -8,6 +8,13 @@ export type SyncQueueState = {
   isSyncing: boolean;
   lastError?: string;
   lastSyncedAt?: string;
+  oldestItem?: {
+    label: string;
+    path: string;
+    createdAt: string;
+    attempts: number;
+    lastError?: string;
+  };
 };
 
 type SerializableRequestInit = {
@@ -59,12 +66,23 @@ export function subscribeToSyncQueue(listener: SyncQueueListener) {
 }
 
 export function getSyncQueueState(): SyncQueueState {
+  const oldest = queue[0];
+
   return {
     pendingCount: queue.length,
     isReady,
     isSyncing,
     lastError,
-    lastSyncedAt
+    lastSyncedAt,
+    oldestItem: oldest
+      ? {
+          label: oldest.label,
+          path: oldest.path,
+          createdAt: oldest.createdAt,
+          attempts: oldest.attempts,
+          lastError: oldest.lastError
+        }
+      : undefined
   };
 }
 
@@ -135,6 +153,14 @@ export async function flushSyncQueue() {
     isSyncing = false;
     notify();
   }
+}
+
+export async function clearSyncQueue() {
+  await restoreSyncQueue();
+  queue.splice(0, queue.length);
+  lastError = undefined;
+  await persistQueue();
+  notify();
 }
 
 async function loadQueueFromStorage() {

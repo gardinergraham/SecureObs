@@ -25,7 +25,10 @@ const staffMemberSchema = z.object({
   keyNumber: z.number().int().optional(),
   staffCode: z.string().min(1),
   name: z.string().min(1),
-  role: z.enum(["nurse", "hcf", "security", "manager", "doctor"]),
+  role: z.preprocess(
+    (value) => (typeof value === "string" ? value.toLowerCase() : value),
+    z.enum(["nurse", "hcf", "security", "manager", "doctor"])
+  ),
   designation: z.string().optional(),
   canPrescribe: z.boolean().default(false),
   employmentType: z.enum(["permanent", "bank"]).default("permanent"),

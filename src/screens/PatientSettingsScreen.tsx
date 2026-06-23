@@ -11,6 +11,7 @@ import type {
   TesoEpisode,
   TesoReason
 } from "../types/domain";
+import { hasStaffRole } from "../utils/staffRole";
 
 const observationLevels: ObservationLevel[] = ["Intermittent", "Eyesight", "Within arms length"];
 const enhancedObservationLevels: Array<Exclude<ObservationLevel, "Intermittent">> = ["Eyesight", "Within arms length"];
@@ -52,7 +53,10 @@ export function PatientSettingsScreen({
   onUpdatePatient
 }: PatientSettingsScreenProps) {
   const selectedStaff = staff.find((member) => member.id === selectedStaffId);
-  const canEdit = selectedStaff?.role === "nurse" || selectedStaff?.role === "manager" || selectedStaff?.role === "doctor";
+  const canEdit =
+    hasStaffRole(selectedStaff, "nurse") ||
+    hasStaffRole(selectedStaff, "manager") ||
+    hasStaffRole(selectedStaff, "doctor");
   const orderedPatients = useMemo(
     () => [...patients].sort((a, b) => a.roomNumber - b.roomNumber),
     [patients]
