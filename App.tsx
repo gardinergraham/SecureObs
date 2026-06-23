@@ -41,8 +41,9 @@ import {
   updateMedicationPrescription as persistMedicationPrescriptionUpdate
 } from "./src/services/api";
 import {
-  enqueueFailedSave,
   flushSyncQueue,
+  isQueuedSyncError,
+  restoreSyncQueue,
   subscribeToSyncQueue,
   type SyncQueueState
 } from "./src/services/syncQueue";
@@ -111,11 +112,13 @@ export default function App() {
   const [selectedPatientId, setSelectedPatientId] = useState(seedData.patients[0]?.id ?? "");
   const [syncQueueState, setSyncQueueState] = useState<SyncQueueState>({
     pendingCount: 0,
+    isReady: false,
     isSyncing: false
   });
 
   useEffect(() => {
     const unsubscribe = subscribeToSyncQueue(setSyncQueueState);
+    void restoreSyncQueue().then(() => flushSyncQueue());
     const retryTimer = setInterval(() => {
       void flushSyncQueue();
     }, 15000);
@@ -188,7 +191,9 @@ export default function App() {
       await flushSyncQueue();
       return result;
     } catch (error) {
-      enqueueFailedSave(label, run, error);
+      if (!isQueuedSyncError(error)) {
+        console.warn(`${label} save failed`, error);
+      }
       return undefined;
     }
   };
@@ -894,6 +899,10 @@ function scoreTemperature(value: number) {
 }
 
 function syncStatusLabel(state: SyncQueueState) {
+  if (!state.isReady) {
+    return "Preparing sync";
+  }
+
   if (state.isSyncing && state.pendingCount > 0) {
     return `Syncing ${state.pendingCount}`;
   }

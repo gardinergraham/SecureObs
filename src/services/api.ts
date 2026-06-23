@@ -1,5 +1,5 @@
 import { seedData } from "../data/seedData";
-import { enqueueFailedSave, flushSyncQueue } from "./syncQueue";
+import { configureSyncQueue, enqueueFailedRequest, flushSyncQueue, QueuedSyncError } from "./syncQueue";
 import type {
   MedicationAdministration,
   MissedObservation,
@@ -15,6 +15,8 @@ import type {
 
 const defaultApiUrl = "https://adequate-energy-production.up.railway.app";
 const apiUrl = process.env.EXPO_PUBLIC_API_URL ?? defaultApiUrl;
+
+configureSyncQueue(request);
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   if (!apiUrl) {
@@ -75,32 +77,30 @@ export async function createObservation(observation: OrganisationScoped<Omit<Obs
     ...observation,
     id: `local-${Date.now()}`
   };
-  const run = () =>
-    request<Observation>("/api/observations", {
-      method: "POST",
-      body: JSON.stringify(localObservation)
-    });
+  const path = "/api/observations";
+  const init = {
+    method: "POST",
+    body: JSON.stringify(localObservation)
+  };
 
   try {
-    const savedObservation = await run();
+    const savedObservation = await request<Observation>(path, init);
     await flushSyncQueue();
     return savedObservation;
   } catch (error) {
-    enqueueFailedSave("observation", run, error);
+    await enqueueFailedRequest("observation", path, init, error);
     return localObservation;
   }
 }
 
 export async function saveQueuedRequest<T>(label: string, path: string, init?: RequestInit) {
-  const run = () => request<T>(path, init);
-
   try {
-    const result = await run();
+    const result = await request<T>(path, init);
     await flushSyncQueue();
     return result;
   } catch (error) {
-    enqueueFailedSave(label, run, error);
-    throw error;
+    await enqueueFailedRequest(label, path, init, error);
+    throw new QueuedSyncError(`${label} queued for sync`);
   }
 }
 
@@ -126,7 +126,7 @@ export async function loginBankStaffByPin(staffCode: string, loginPin: string, o
 }
 
 export async function createStaffMember(staff: StaffMember) {
-  return request<{ staff: StaffMember }>("/api/staff", {
+  return saveQueuedRequest<{ staff: StaffMember }>("staff member", "/api/staff", {
     method: "POST",
     body: JSON.stringify(staff)
   });
@@ -141,14 +141,14 @@ export async function loadPatients(organisationId?: string) {
 }
 
 export async function savePatient(patient: OrganisationScoped<Patient>) {
-  return request<{ patient: Patient }>("/api/patients", {
+  return saveQueuedRequest<{ patient: Patient }>("patient", "/api/patients", {
     method: "POST",
     body: JSON.stringify(patient)
   });
 }
 
 export async function createSecurityCheck(check: OrganisationScoped<SecurityCheck>) {
-  return request<SecurityCheck>("/api/security-checks", {
+  return saveQueuedRequest<SecurityCheck>("security check", "/api/security-checks", {
     method: "POST",
     body: JSON.stringify(check)
   });
@@ -159,7 +159,7 @@ export async function loadSecurityChecks(organisationId?: string) {
 }
 
 export async function createNews2Reading(reading: OrganisationScoped<News2Reading>) {
-  return request<News2Reading>("/api/news2-readings", {
+  return saveQueuedRequest<News2Reading>("NEWS2 reading", "/api/news2-readings", {
     method: "POST",
     body: JSON.stringify(reading)
   });
@@ -170,7 +170,7 @@ export async function loadNews2Readings(organisationId?: string) {
 }
 
 export async function createMedicationPrescription(prescription: OrganisationScoped<MedicationPrescription>) {
-  return request<MedicationPrescription>("/api/medication-prescriptions", {
+  return saveQueuedRequest<MedicationPrescription>("medication prescription", "/api/medication-prescriptions", {
     method: "POST",
     body: JSON.stringify(prescription)
   });
@@ -183,7 +183,7 @@ export async function loadMedicationPrescriptions(organisationId?: string) {
 }
 
 export async function createMedicationAdministration(administration: OrganisationScoped<MedicationAdministration>) {
-  return request<MedicationAdministration>("/api/medication-administrations", {
+  return saveQueuedRequest<MedicationAdministration>("medication administration", "/api/medication-administrations", {
     method: "POST",
     body: JSON.stringify(administration)
   });
@@ -206,7 +206,7 @@ export async function loadObservations(organisationId?: string) {
 export async function createMissedObservation(
   missedObservation: OrganisationScoped<MissedObservation & { actorStaffId?: string; actorStaffCode?: string }>
 ) {
-  return request<MissedObservation>("/api/missed-observations", {
+  return saveQueuedRequest<MissedObservation>("missed observation", "/api/missed-observations", {
     method: "POST",
     body: JSON.stringify(missedObservation)
   });
@@ -221,7 +221,7 @@ export async function loadMissedObservations(organisationId?: string, wardId?: s
 }
 
 export async function createSite(site: OrganisationScoped<Site>) {
-  return request<Site>("/api/config/sites", {
+  return saveQueuedRequest<Site>("site", "/api/config/sites", {
     method: "POST",
     body: JSON.stringify(site)
   });
@@ -232,7 +232,7 @@ export async function loadSites(organisationId?: string) {
 }
 
 export async function createWard(ward: OrganisationScoped<Ward>) {
-  return request<Ward>("/api/config/wards", {
+  return saveQueuedRequest<Ward>("ward", "/api/config/wards", {
     method: "POST",
     body: JSON.stringify(ward)
   });
