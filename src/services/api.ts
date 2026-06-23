@@ -7,8 +7,10 @@ import type {
   News2Reading,
   Observation,
   Patient,
+  RotaAssignment,
   SecurityCheck,
   Site,
+  StaffShiftAssignment,
   StaffMember,
   Ward
 } from "../types/domain";
@@ -165,6 +167,43 @@ export async function createNews2Reading(reading: OrganisationScoped<News2Readin
   });
 }
 
+export async function saveRotaAssignment(assignment: OrganisationScoped<RotaAssignment>) {
+  return saveQueuedRequest<RotaAssignment>("rota assignment", "/api/rota-assignments", {
+    method: "POST",
+    body: JSON.stringify(assignment)
+  });
+}
+
+export async function deleteRotaAssignment(id: string, organisationId?: string) {
+  const path = withOrganisationId(`/api/rota-assignments/${encodeURIComponent(id)}`, organisationId);
+  return saveQueuedRequest<void>("rota assignment delete", path, { method: "DELETE" });
+}
+
+export async function loadRotaAssignments(organisationId?: string, wardId?: string) {
+  return request<{ rotaAssignments: RotaAssignment[] }>(
+    withOptionalQuery(withOrganisationId("/api/rota-assignments", organisationId), "wardId", wardId)
+  );
+}
+
+export async function saveStaffShiftAssignment(assignment: OrganisationScoped<StaffShiftAssignment>) {
+  return saveQueuedRequest<StaffShiftAssignment>("staff shift assignment", "/api/staff-shift-assignments", {
+    method: "POST",
+    body: JSON.stringify(assignment)
+  });
+}
+
+export async function deleteStaffShiftAssignment(id: string, organisationId?: string) {
+  const path = withOrganisationId(`/api/staff-shift-assignments/${encodeURIComponent(id)}`, organisationId);
+  return saveQueuedRequest<void>("staff shift assignment delete", path, { method: "DELETE" });
+}
+
+export async function loadStaffShiftAssignments(organisationId?: string, wardId?: string, date?: string) {
+  const withWard = withOptionalQuery(withOrganisationId("/api/staff-shift-assignments", organisationId), "wardId", wardId);
+  return request<{ staffShiftAssignments: StaffShiftAssignment[] }>(
+    withOptionalQuery(withWard, "date", date)
+  );
+}
+
 export async function loadNews2Readings(organisationId?: string) {
   return request<{ news2Readings: News2Reading[] }>(withOrganisationId("/api/news2-readings", organisationId));
 }
@@ -244,4 +283,13 @@ export async function loadWards(organisationId?: string) {
 
 function withOrganisationId(path: string, organisationId?: string) {
   return organisationId ? `${path}?organisationId=${encodeURIComponent(organisationId)}` : path;
+}
+
+function withOptionalQuery(path: string, key: string, value?: string) {
+  if (!value) {
+    return path;
+  }
+
+  const separator = path.includes("?") ? "&" : "?";
+  return `${path}${separator}${key}=${encodeURIComponent(value)}`;
 }

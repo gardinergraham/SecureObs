@@ -100,6 +100,33 @@ const missedObservationSchema = z.object({
   actorStaffCode: z.string().optional()
 });
 
+const rotaAssignmentSchema = z.object({
+  id: z.string().min(1),
+  organisationId: optionalOrganisationIdSchema,
+  wardId: z.string().min(1),
+  staffId: z.string().min(1),
+  role: z.string().min(1),
+  startsAt: z.string().datetime(),
+  endsAt: z.string().datetime(),
+  patientId: z.string().optional(),
+  notes: z.string().default(""),
+  actorStaffId: z.string().optional(),
+  actorStaffCode: z.string().optional()
+});
+
+const staffShiftAssignmentSchema = z.object({
+  id: z.string().min(1),
+  organisationId: optionalOrganisationIdSchema,
+  wardId: z.string().min(1),
+  shiftId: z.string().min(1),
+  staffId: z.string().min(1),
+  date: z.string().min(1),
+  nurseInCharge: z.boolean().optional(),
+  medicationNurse: z.boolean().optional(),
+  actorStaffId: z.string().optional(),
+  actorStaffCode: z.string().optional()
+});
+
 router.get("/observations", async (request, response, next) => {
   try {
     const organisationId = requireOrganisationId(request, response);
@@ -676,6 +703,225 @@ router.post("/missed-observations", async (request, response, next) => {
       }
     });
     response.status(201).json(result.rows[0] ?? missedObservation);
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.get("/rota-assignments", async (request, response, next) => {
+  try {
+    const organisationId = requireOrganisationId(request, response);
+    if (!organisationId) return;
+    const wardId = typeof request.query.wardId === "string" ? request.query.wardId : undefined;
+    const result = await pool.query(
+      `
+        select
+          id,
+          ward_id as "wardId",
+          staff_id as "staffId",
+          role,
+          starts_at as "startsAt",
+          ends_at as "endsAt",
+          patient_id as "patientId",
+          notes
+        from rota_assignments
+        where organisation_id = $1
+          and ($2::text is null or ward_id = $2::text)
+        order by starts_at asc
+      `,
+      [organisationId, wardId ?? null]
+    );
+
+    response.json({ rotaAssignments: result.rows });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post("/rota-assignments", async (request, response, next) => {
+  try {
+    const parsed = rotaAssignmentSchema.safeParse(request.body);
+    if (!parsed.success) {
+      response.status(400).json({ error: "Invalid rota assignment", details: parsed.error.flatten() });
+      return;
+    }
+
+    const organisationId = requireOrganisationId(request, response);
+    if (!organisationId) return;
+    const assignment = { ...parsed.data, organisationId };
+    const result = await pool.query(
+      `
+        insert into rota_assignments (
+          id, organisation_id, ward_id, staff_id, role, starts_at, ends_at, patient_id, notes
+        ) values ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+        on conflict (id) do update set
+          ward_id = excluded.ward_id,
+          staff_id = excluded.staff_id,
+          role = excluded.role,
+          starts_at = excluded.starts_at,
+          ends_at = excluded.ends_at,
+          patient_id = excluded.patient_id,
+          notes = excluded.notes,
+          updated_at = now()
+        returning
+          id,
+          ward_id as "wardId",
+          staff_id as "staffId",
+          role,
+          starts_at as "startsAt",
+          ends_at as "endsAt",
+          patient_id as "patientId",
+          notes
+      `,
+      [
+        assignment.id,
+        assignment.organisationId,
+        assignment.wardId,
+        assignment.staffId,
+        assignment.role,
+        assignment.startsAt,
+        assignment.endsAt,
+        assignment.patientId ?? null,
+        assignment.notes
+      ]
+    );
+
+    await recordAuditEvent({
+      organisationId: assignment.organisationId,
+      ...auditActorFromBody(request.body),
+      eventType: "rota.assignment.upsert",
+      entityType: "rota_assignment",
+      entityId: assignment.id,
+      details: { wardId: assignment.wardId, staffId: assignment.staffId, role: assignment.role }
+    });
+    response.status(201).json(result.rows[0]);
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.delete("/rota-assignments/:id", async (request, response, next) => {
+  try {
+    const organisationId = requireOrganisationId(request, response);
+    if (!organisationId) return;
+    await pool.query("delete from rota_assignments where organisation_id = $1 and id = $2", [organisationId, request.params.id]);
+    await recordAuditEvent({
+      organisationId,
+      eventType: "rota.assignment.delete",
+      entityType: "rota_assignment",
+      entityId: request.params.id
+    });
+    response.status(204).send();
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.get("/staff-shift-assignments", async (request, response, next) => {
+  try {
+    const organisationId = requireOrganisationId(request, response);
+    if (!organisationId) return;
+    const wardId = typeof request.query.wardId === "string" ? request.query.wardId : undefined;
+    const date = typeof request.query.date === "string" ? request.query.date : undefined;
+    const result = await pool.query(
+      `
+        select
+          id,
+          ward_id as "wardId",
+          shift_id as "shiftId",
+          staff_id as "staffId",
+          date,
+          nurse_in_charge as "nurseInCharge",
+          medication_nurse as "medicationNurse"
+        from staff_shift_assignments
+        where organisation_id = $1
+          and ($2::text is null or ward_id = $2::text)
+          and ($3::text is null or date = $3::text)
+        order by date desc, shift_id asc
+      `,
+      [organisationId, wardId ?? null, date ?? null]
+    );
+
+    response.json({ staffShiftAssignments: result.rows });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post("/staff-shift-assignments", async (request, response, next) => {
+  try {
+    const parsed = staffShiftAssignmentSchema.safeParse(request.body);
+    if (!parsed.success) {
+      response.status(400).json({ error: "Invalid staff shift assignment", details: parsed.error.flatten() });
+      return;
+    }
+
+    const organisationId = requireOrganisationId(request, response);
+    if (!organisationId) return;
+    const assignment = { ...parsed.data, organisationId };
+    const result = await pool.query(
+      `
+        insert into staff_shift_assignments (
+          id, organisation_id, ward_id, shift_id, staff_id, date, nurse_in_charge, medication_nurse
+        ) values ($1,$2,$3,$4,$5,$6,$7,$8)
+        on conflict (id) do update set
+          ward_id = excluded.ward_id,
+          shift_id = excluded.shift_id,
+          staff_id = excluded.staff_id,
+          date = excluded.date,
+          nurse_in_charge = excluded.nurse_in_charge,
+          medication_nurse = excluded.medication_nurse,
+          updated_at = now()
+        returning
+          id,
+          ward_id as "wardId",
+          shift_id as "shiftId",
+          staff_id as "staffId",
+          date,
+          nurse_in_charge as "nurseInCharge",
+          medication_nurse as "medicationNurse"
+      `,
+      [
+        assignment.id,
+        assignment.organisationId,
+        assignment.wardId,
+        assignment.shiftId,
+        assignment.staffId,
+        assignment.date,
+        assignment.nurseInCharge ?? false,
+        assignment.medicationNurse ?? false
+      ]
+    );
+
+    await recordAuditEvent({
+      organisationId: assignment.organisationId,
+      ...auditActorFromBody(request.body),
+      eventType: "staff_cover.assignment.upsert",
+      entityType: "staff_shift_assignment",
+      entityId: assignment.id,
+      details: { wardId: assignment.wardId, shiftId: assignment.shiftId, staffId: assignment.staffId }
+    });
+    response.status(201).json(result.rows[0]);
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.delete("/staff-shift-assignments/:id", async (request, response, next) => {
+  try {
+    const organisationId = requireOrganisationId(request, response);
+    if (!organisationId) return;
+    await pool.query("delete from staff_shift_assignments where organisation_id = $1 and id = $2", [
+      organisationId,
+      request.params.id
+    ]);
+    await recordAuditEvent({
+      organisationId,
+      eventType: "staff_cover.assignment.delete",
+      entityType: "staff_shift_assignment",
+      entityId: request.params.id
+    });
+    response.status(204).send();
   } catch (error) {
     next(error);
   }

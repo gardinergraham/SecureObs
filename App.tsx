@@ -24,6 +24,8 @@ import {
   createSite as persistSite,
   createStaffMember as persistStaffMember,
   createSecurityCheck as persistSecurityCheck,
+  deleteRotaAssignment as persistRotaAssignmentDelete,
+  deleteStaffShiftAssignment as persistStaffShiftAssignmentDelete,
   createWard as persistWard,
   loadSites,
   loadMedicationAdministrations,
@@ -32,11 +34,15 @@ import {
   loadNews2Readings,
   loadObservations,
   loadPatients,
+  loadRotaAssignments,
   loadSecurityChecks,
+  loadStaffShiftAssignments,
   loadWards,
   loadStaff,
   loginBankStaffByPin,
   lookupStaffByCode,
+  saveRotaAssignment as persistRotaAssignment,
+  saveStaffShiftAssignment as persistStaffShiftAssignment,
   savePatient as persistPatient,
   updateMedicationPrescription as persistMedicationPrescriptionUpdate
 } from "./src/services/api";
@@ -143,7 +149,9 @@ export default function App() {
           news2Result,
           medicationPrescriptionResult,
           medicationAdministrationResult,
-          missedObservationResult
+          missedObservationResult,
+          rotaAssignmentResult,
+          staffShiftAssignmentResult
         ] = await Promise.all([
           loadSites(organisationId),
           loadStaff(organisationId),
@@ -154,7 +162,9 @@ export default function App() {
           loadNews2Readings(organisationId),
           loadMedicationPrescriptions(organisationId),
           loadMedicationAdministrations(organisationId),
-          loadMissedObservations(organisationId, selectedWardId || undefined)
+          loadMissedObservations(organisationId, selectedWardId || undefined),
+          loadRotaAssignments(organisationId, selectedWardId || undefined),
+          loadStaffShiftAssignments(organisationId, selectedWardId || undefined)
         ]);
         setSites(siteResult.sites);
         setStaffMembers((currentStaff) => mergeById(staffResult.staff, currentStaff));
@@ -176,6 +186,12 @@ export default function App() {
         );
         setMissedObservations((currentMissedObservations) =>
           mergeById(missedObservationResult.missedObservations, currentMissedObservations)
+        );
+        setRotaAssignments((currentAssignments) =>
+          mergeById(rotaAssignmentResult.rotaAssignments, currentAssignments)
+        );
+        setStaffShiftAssignments((currentAssignments) =>
+          mergeById(staffShiftAssignmentResult.staffShiftAssignments, currentAssignments)
         );
       } catch (error) {
         console.warn("Unable to load backend data", error);
@@ -434,32 +450,46 @@ export default function App() {
   };
 
   const handleCreateRotaAssignment = (assignment: RotaAssignment) => {
-    setRotaAssignments((currentAssignments) => [...currentAssignments, assignment]);
+    setRotaAssignments((currentAssignments) => upsertById(currentAssignments, assignment));
+    void persistOrQueue("rota assignment", () =>
+      persistRotaAssignment({ ...assignment, organisationId: selectedStaff?.organisationId })
+    );
   };
 
   const handleUpdateRotaAssignment = (assignment: RotaAssignment) => {
-    setRotaAssignments((currentAssignments) =>
-      currentAssignments.map((item) => (item.id === assignment.id ? assignment : item))
+    setRotaAssignments((currentAssignments) => upsertById(currentAssignments, assignment));
+    void persistOrQueue("rota assignment", () =>
+      persistRotaAssignment({ ...assignment, organisationId: selectedStaff?.organisationId })
     );
   };
 
   const handleRemoveRotaAssignment = (assignmentId: string) => {
     setRotaAssignments((currentAssignments) => currentAssignments.filter((assignment) => assignment.id !== assignmentId));
+    void persistOrQueue("rota assignment delete", () =>
+      persistRotaAssignmentDelete(assignmentId, selectedStaff?.organisationId)
+    );
   };
 
   const handleAssignStaffShift = (assignment: StaffShiftAssignment) => {
-    setStaffShiftAssignments((currentAssignments) => [...currentAssignments, assignment]);
+    setStaffShiftAssignments((currentAssignments) => upsertById(currentAssignments, assignment));
+    void persistOrQueue("staff shift assignment", () =>
+      persistStaffShiftAssignment({ ...assignment, organisationId: selectedStaff?.organisationId })
+    );
   };
 
   const handleRemoveStaffShiftAssignment = (assignmentId: string) => {
     setStaffShiftAssignments((currentAssignments) =>
       currentAssignments.filter((assignment) => assignment.id !== assignmentId)
     );
+    void persistOrQueue("staff shift assignment delete", () =>
+      persistStaffShiftAssignmentDelete(assignmentId, selectedStaff?.organisationId)
+    );
   };
 
   const handleUpdateStaffShiftAssignment = (assignment: StaffShiftAssignment) => {
-    setStaffShiftAssignments((currentAssignments) =>
-      currentAssignments.map((item) => (item.id === assignment.id ? assignment : item))
+    setStaffShiftAssignments((currentAssignments) => upsertById(currentAssignments, assignment));
+    void persistOrQueue("staff shift assignment", () =>
+      persistStaffShiftAssignment({ ...assignment, organisationId: selectedStaff?.organisationId })
     );
   };
 
