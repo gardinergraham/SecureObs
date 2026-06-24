@@ -8,13 +8,17 @@ export type SyncQueueState = {
   isSyncing: boolean;
   lastError?: string;
   lastSyncedAt?: string;
-  oldestItem?: {
-    label: string;
-    path: string;
-    createdAt: string;
-    attempts: number;
-    lastError?: string;
-  };
+  items: SyncQueueStateItem[];
+  oldestItem?: SyncQueueStateItem;
+};
+
+export type SyncQueueStateItem = {
+  id: string;
+  label: string;
+  path: string;
+  createdAt: string;
+  attempts: number;
+  lastError?: string;
 };
 
 type SerializableRequestInit = {
@@ -66,7 +70,8 @@ export function subscribeToSyncQueue(listener: SyncQueueListener) {
 }
 
 export function getSyncQueueState(): SyncQueueState {
-  const oldest = queue[0];
+  const items = queue.map(toStateItem);
+  const oldest = items[0];
 
   return {
     pendingCount: queue.length,
@@ -74,15 +79,19 @@ export function getSyncQueueState(): SyncQueueState {
     isSyncing,
     lastError,
     lastSyncedAt,
+    items,
     oldestItem: oldest
-      ? {
-          label: oldest.label,
-          path: oldest.path,
-          createdAt: oldest.createdAt,
-          attempts: oldest.attempts,
-          lastError: oldest.lastError
-        }
-      : undefined
+  };
+}
+
+function toStateItem(item: SyncQueueItem): SyncQueueStateItem {
+  return {
+    id: item.id,
+    label: item.label,
+    path: item.path,
+    createdAt: item.createdAt,
+    attempts: item.attempts,
+    lastError: item.lastError
   };
 }
 
@@ -126,33 +135,59 @@ export async function flushSyncQueue() {
   isSyncing = true;
   notify();
 
+  let failedCount = 0;
+
   try {
-    while (queue.length > 0) {
-      const item = queue[0];
-      if (!item) {
-        break;
-      }
+    const itemIds = queue.map((item) => item.id);
+
+    for (const itemId of itemIds) {
+      const item = queue.find((queuedItem) => queuedItem.id === itemId);
+      if (!item) continue;
 
       try {
         item.attempts += 1;
         await persistQueue();
         await requestRunner(item.path, item.init);
-        queue.shift();
-        lastError = undefined;
+        const itemIndex = queue.findIndex((queuedItem) => queuedItem.id === item.id);
+        if (itemIndex !== -1) {
+          queue.splice(itemIndex, 1);
+        }
         lastSyncedAt = new Date().toISOString();
         await persistQueue();
         notify();
       } catch (error) {
+        failedCount += 1;
         item.lastError = toErrorMessage(error);
         lastError = `${item.label}: ${item.lastError}`;
         await persistQueue();
-        break;
+        notify();
       }
+    }
+
+    if (queue.length === 0) {
+      lastError = undefined;
+    } else if (failedCount > 1) {
+      lastError = `${failedCount} uploads still need attention`;
     }
   } finally {
     isSyncing = false;
     notify();
   }
+}
+
+export async function removeSyncQueueItem(itemId: string) {
+  await restoreSyncQueue();
+  const itemIndex = queue.findIndex((item) => item.id === itemId);
+  if (itemIndex === -1) {
+    return;
+  }
+
+  queue.splice(itemIndex, 1);
+  if (queue.length === 0) {
+    lastError = undefined;
+  }
+  await persistQueue();
+  notify();
 }
 
 export async function clearSyncQueue() {

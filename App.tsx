@@ -55,6 +55,7 @@ import {
   clearSyncQueue,
   flushSyncQueue,
   isQueuedSyncError,
+  removeSyncQueueItem,
   restoreSyncQueue,
   subscribeToSyncQueue,
   type SyncQueueState
@@ -131,7 +132,8 @@ export default function App() {
   const [syncQueueState, setSyncQueueState] = useState<SyncQueueState>({
     pendingCount: 0,
     isReady: false,
-    isSyncing: false
+    isSyncing: false,
+    items: []
   });
 
   useEffect(() => {
@@ -238,11 +240,24 @@ export default function App() {
 
   const showSyncStatus = () => {
     const oldestItem = syncQueueState.oldestItem;
+    const queuedItems = syncQueueState.items.slice(0, 8);
+    const uploadList =
+      queuedItems.length > 0
+        ? queuedItems
+            .map(
+              (item, index) =>
+                `${index + 1}. ${item.label}\nPath: ${item.path}\nAttempts: ${item.attempts}${
+                  item.lastError ? `\nIssue: ${item.lastError}` : ""
+                }`
+            )
+            .join("\n\n")
+        : undefined;
     const details = [
       syncStatusLabel(syncQueueState),
       syncQueueState.lastError ? `Last error: ${syncQueueState.lastError}` : undefined,
-      oldestItem
-        ? `Oldest item: ${oldestItem.label}\nPath: ${oldestItem.path}\nAttempts: ${oldestItem.attempts}`
+      uploadList ? `Waiting uploads:\n\n${uploadList}` : undefined,
+      syncQueueState.items.length > queuedItems.length
+        ? `${syncQueueState.items.length - queuedItems.length} more upload(s) waiting.`
         : undefined
     ]
       .filter(Boolean)
@@ -256,29 +271,34 @@ export default function App() {
     Alert.alert("Sync status", details, [
       { text: "Cancel", style: "cancel" },
       {
-        text: "Retry now",
+        text: "Retry all",
         onPress: () => {
           void flushSyncQueue();
         }
       },
       {
-        text: "Clear pending",
+        text: oldestItem ? "Remove oldest" : "Clear pending",
         style: "destructive",
         onPress: () => {
-          Alert.alert(
-            "Clear pending saves?",
-            "Only use this if the pending items are known to be stale or already saved elsewhere. This removes them from this tablet.",
-            [
-              { text: "Keep", style: "cancel" },
-              {
-                text: "Clear",
-                style: "destructive",
-                onPress: () => {
-                  void clearSyncQueue();
+          if (oldestItem) {
+            Alert.alert(
+              "Remove this upload?",
+              `${oldestItem.label}\n${oldestItem.path}\n\nOnly remove this if it is known to be stale or already saved elsewhere.`,
+              [
+                { text: "Keep", style: "cancel" },
+                {
+                  text: "Remove",
+                  style: "destructive",
+                  onPress: () => {
+                    void removeSyncQueueItem(oldestItem.id);
+                  }
                 }
-              }
-            ]
-          );
+              ]
+            );
+            return;
+          }
+
+          void clearSyncQueue();
         }
       }
     ]);
