@@ -3,6 +3,7 @@ import { ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 
 
 import { loadAuditEvents } from "../services/api";
 import type { AuditEvent, StaffMember } from "../types/domain";
+import { hasStaffRole } from "../utils/staffRole";
 
 const eventFilters = [
   { label: "All", value: "" },
@@ -17,17 +18,20 @@ const eventFilters = [
 type AuditLogScreenProps = {
   organisationId?: string;
   selectedStaff?: StaffMember;
+  backLabel?: string;
   onBack: () => void;
 };
 
-export function AuditLogScreen({ organisationId, selectedStaff, onBack }: AuditLogScreenProps) {
+export function AuditLogScreen({ organisationId, selectedStaff, backLabel = "Back", onBack }: AuditLogScreenProps) {
   const [auditEvents, setAuditEvents] = useState<AuditEvent[]>([]);
   const [search, setSearch] = useState("");
   const [eventFilter, setEventFilter] = useState("");
   const [outcome, setOutcome] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [message, setMessage] = useState("");
-  const canViewAudit = selectedStaff?.staffCode === "GardinerG" || selectedStaff?.role?.toLowerCase() === "manager";
+  const canViewAudit =
+    selectedStaff?.staffCode === "GardinerG" ||
+    hasStaffRole(selectedStaff, "manager");
   const filteredEvents = useMemo(() => {
     if (eventFilter !== "access-failure") {
       return auditEvents;
@@ -73,12 +77,12 @@ export function AuditLogScreen({ organisationId, selectedStaff, onBack }: AuditL
           <Text style={styles.meta}>Immutable governance record for access, settings, observations and medication.</Text>
         </View>
         <TouchableOpacity accessibilityRole="button" onPress={onBack} style={styles.backButton}>
-          <Text style={styles.backButtonText}>Back to admin</Text>
+          <Text style={styles.backButtonText}>{backLabel}</Text>
         </TouchableOpacity>
       </View>
 
       <View style={styles.filterPanel}>
-        <TextInput
+        <TextInput placeholderTextColor="#6f7f87"
           autoCapitalize="none"
           onChangeText={setSearch}
           placeholder="Search staff code, patient, event, entity or details"

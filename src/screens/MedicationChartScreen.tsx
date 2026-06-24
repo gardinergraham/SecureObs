@@ -324,13 +324,13 @@ export function MedicationChartScreen({
               </View>
               <View style={styles.allergyBox}>
                 <Text style={styles.allergyTitle}>Allergies / ADRs</Text>
-                <TextInput
+                <TextInput placeholderTextColor="#6f7f87"
                   onChangeText={setAllergyText}
                   placeholder="Allergies"
                   style={styles.allergyInput}
                   value={allergyText}
                 />
-                <TextInput
+                <TextInput placeholderTextColor="#6f7f87"
                   onChangeText={setAdrText}
                   placeholder="Adverse drug reactions"
                   style={styles.allergyInput}
@@ -387,7 +387,7 @@ export function MedicationChartScreen({
                     : "Prescription entry locked for non-prescribing staff."}
                 </Text>
                 <View style={styles.formGrid}>
-                  <TextInput
+                  <TextInput placeholderTextColor="#6f7f87"
                     editable={canPrescribe}
                     onChangeText={(value) => setForm({ ...form, drugName: value })}
                     placeholder="Drug approved name"
@@ -395,21 +395,21 @@ export function MedicationChartScreen({
                     value={form.drugName}
                   />
                   <View style={styles.twoColumnRow}>
-                    <TextInput
+                    <TextInput placeholderTextColor="#6f7f87"
                       editable={canPrescribe}
                       onChangeText={(value) => setForm({ ...form, dose: value })}
                       placeholder="Dose"
                       style={[styles.input, styles.flexInput]}
                       value={form.dose}
                     />
-                    <TextInput
+                    <TextInput placeholderTextColor="#6f7f87"
                       editable={canPrescribe}
                       onChangeText={(value) => setForm({ ...form, startDate: value })}
                       placeholder="Start date dd/mm/yyyy"
                       style={[styles.input, styles.flexInput]}
                       value={form.startDate}
                     />
-                    <TextInput
+                    <TextInput placeholderTextColor="#6f7f87"
                       editable={canPrescribe}
                       onChangeText={(value) => setForm({ ...form, timePrescribed: value })}
                       placeholder="Time prescribed hh:mm"
@@ -432,7 +432,7 @@ export function MedicationChartScreen({
                     }
                   />
                   {form.prescriptionType === "prn" || form.prescriptionType === "rapid" ? (
-                    <TextInput
+                    <TextInput placeholderTextColor="#6f7f87"
                       editable={canPrescribe}
                       multiline
                       onChangeText={(value) => setForm({ ...form, prnIndication: value })}
@@ -472,7 +472,7 @@ export function MedicationChartScreen({
                       }
                     />
                   )}
-                  <TextInput
+                  <TextInput placeholderTextColor="#6f7f87"
                     editable={canPrescribe}
                     multiline
                     onChangeText={(value) => setForm({ ...form, additionalInstructions: value })}
@@ -497,14 +497,14 @@ export function MedicationChartScreen({
               <View style={styles.stopPanel}>
                 <Text style={styles.panelTitle}>Stopped medication details</Text>
                 <View style={styles.twoColumnRow}>
-                  <TextInput
+                  <TextInput placeholderTextColor="#6f7f87"
                     editable={canPrescribe}
                     onChangeText={(value) => setForm({ ...form, stopDate: value })}
                     placeholder="Stopped date dd/mm/yyyy"
                     style={[styles.input, styles.flexInput]}
                     value={form.stopDate}
                   />
-                  <TextInput
+                  <TextInput placeholderTextColor="#6f7f87"
                     editable={canPrescribe}
                     onChangeText={(value) => setForm({ ...form, stopTime: value })}
                     placeholder="Stopped time hh:mm"
@@ -512,7 +512,7 @@ export function MedicationChartScreen({
                     value={form.stopTime}
                   />
                 </View>
-                <TextInput
+                <TextInput placeholderTextColor="#6f7f87"
                   editable={canPrescribe}
                   onChangeText={(value) => setForm({ ...form, discontinueReason: value })}
                   placeholder="Reason medicine is stopped"
@@ -631,7 +631,7 @@ function PrescriptionCard({
           </Text>
           {!prescription.discontinuedAt ? (
             <>
-              <TextInput
+              <TextInput placeholderTextColor="#6f7f87"
                 multiline
                 onChangeText={setPrnReason}
                 placeholder={isRapid ? "Reason, authorisation and monitoring notes" : "Reason for giving now, e.g. anxious, pain, agitation"}

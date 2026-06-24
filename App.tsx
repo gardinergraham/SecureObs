@@ -483,7 +483,9 @@ export default function App() {
     const result = await persistOrQueue("staff member", () =>
       persistStaffMember({
         ...staff,
-        organisationId: staff.organisationId ?? selectedStaff?.organisationId
+        organisationId: staff.organisationId ?? selectedStaff?.organisationId,
+        actorStaffId: selectedStaff?.id,
+        actorStaffCode: selectedStaff?.staffCode
       })
     );
     setStaffMembers((currentStaff) => upsertStaffByCode(currentStaff, result?.staff ?? staff));

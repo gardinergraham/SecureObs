@@ -206,7 +206,7 @@ export function PatientManagementScreen({
 
         <View style={styles.editor}>
           <Text style={styles.panelTitle}>{selectedPatient ? "Edit patient" : "Add patient"}</Text>
-          <TextInput
+          <TextInput placeholderTextColor="#6f7f87"
             editable={canManagePatients}
             onChangeText={(hospitalNumber) => setDraft((current) => ({ ...current, hospitalNumber }))}
             placeholder="Hospital / local patient number"
@@ -214,14 +214,14 @@ export function PatientManagementScreen({
             value={draft.hospitalNumber}
           />
           <View style={styles.formRow}>
-            <TextInput
+            <TextInput placeholderTextColor="#6f7f87"
               editable={canManagePatients}
               onChangeText={(firstName) => setDraft((current) => ({ ...current, firstName }))}
               placeholder="First name"
               style={[styles.input, styles.flexInput]}
               value={draft.firstName}
             />
-            <TextInput
+            <TextInput placeholderTextColor="#6f7f87"
               editable={canManagePatients}
               onChangeText={(surname) => setDraft((current) => ({ ...current, surname }))}
               placeholder="Surname"
@@ -229,7 +229,7 @@ export function PatientManagementScreen({
               value={draft.surname}
             />
           </View>
-          <TextInput
+          <TextInput placeholderTextColor="#6f7f87"
             editable={canManagePatients}
             keyboardType="number-pad"
             onChangeText={(roomNumber) => setDraft((current) => ({ ...current, roomNumber }))}

@@ -401,7 +401,7 @@ export function StaffRotaScreen({
             />
 
             <Text style={styles.label}>Notes</Text>
-            <TextInput
+            <TextInput placeholderTextColor="#6f7f87"
               onChangeText={setNotes}
               placeholder="Optional rota notes"
               style={styles.input}

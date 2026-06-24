@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { z } from "zod";
 
-import { recordAuditEvent } from "../audit.js";
+import { auditActorFromBody, recordAuditEvent } from "../audit.js";
 import { dataProvider } from "../data/provider.js";
 import { DuplicateStaffCodeError, StaffLookupAmbiguousError } from "../data/types.js";
 import { optionalOrganisationIdSchema, requireOrganisationId } from "./organisation.js";
@@ -38,7 +38,9 @@ const staffMemberSchema = z.object({
   wardId: z.string().min(1),
   allowedSiteIds: z.array(z.string()).min(1),
   allowedWardIds: z.array(z.string()).min(1),
-  active: z.boolean().default(true)
+  active: z.boolean().default(true),
+  actorStaffId: z.string().optional(),
+  actorStaffCode: z.string().optional()
 });
 
 router.get("/", async (request, response, next) => {
@@ -62,16 +64,76 @@ router.post("/", async (request, response, next) => {
 
     const organisationId = requireOrganisationId(request, response);
     if (!organisationId) return;
+    if (parsed.data.employmentType === "bank") {
+      if (!parsed.data.accessStartsAt || !parsed.data.accessExpiresAt) {
+        response.status(400).json({ error: "Bank/agency staff need a start and end access time" });
+        return;
+      }
+
+      const existingStaff = await dataProvider.staff.list(organisationId);
+      const conflictingAssignment = findOverlappingVirtualCardAssignment({
+        code: parsed.data.staffCode,
+        editingStaffId: parsed.data.id,
+        expiresAt: parsed.data.accessExpiresAt,
+        staff: existingStaff,
+        startsAt: parsed.data.accessStartsAt
+      });
+
+      if (conflictingAssignment) {
+        await recordAuditEvent({
+          organisationId,
+          ...auditActorFromBody(request.body),
+          eventType: "staff.bank_card_assignment",
+          entityType: "staff_member",
+          entityId: conflictingAssignment.id ?? null,
+          outcome: "failure",
+          details: {
+            virtualNfcCode: parsed.data.staffCode,
+            reason: "overlapping_assignment",
+            assignedToName: conflictingAssignment.name,
+            accessStartsAt: conflictingAssignment.accessStartsAt ?? null,
+            accessExpiresAt: conflictingAssignment.accessExpiresAt ?? null
+          }
+        });
+        response.status(409).json({
+          error: `Virtual NFC code ${parsed.data.staffCode} is already assigned to ${conflictingAssignment.name} for an overlapping access window`
+        });
+        return;
+      }
+    }
+
     const staff = await dataProvider.staff.upsert({ ...parsed.data, organisationId });
+    const actor = auditActorFromBody(request.body);
     await recordAuditEvent({
       organisationId,
-      actorStaffId: staff.id,
-      actorStaffCode: staff.staffCode,
+      actorStaffId: actor.actorStaffId ?? staff.id,
+      actorStaffCode: actor.actorStaffCode ?? staff.staffCode,
       eventType: "staff.upsert",
       entityType: "staff_member",
       entityId: staff.id,
       details: { staffCode: staff.staffCode, role: staff.role, employmentType: staff.employmentType }
     });
+    if (staff.employmentType === "bank") {
+      await recordAuditEvent({
+        organisationId,
+        actorStaffId: actor.actorStaffId ?? staff.id,
+        actorStaffCode: actor.actorStaffCode ?? staff.staffCode,
+        eventType: "staff.bank_card_assignment",
+        entityType: "staff_member",
+        entityId: staff.id,
+        details: {
+          virtualNfcCode: staff.staffCode,
+          assignedToName: staff.name,
+          role: staff.role,
+          designation: staff.designation ?? null,
+          accessStartsAt: staff.accessStartsAt ?? null,
+          accessExpiresAt: staff.accessExpiresAt ?? null,
+          wardId: staff.wardId,
+          allowedWardIds: staff.allowedWardIds,
+          active: staff.active
+        }
+      });
+    }
     response.status(201).json({ staff });
   } catch (error) {
     if (error instanceof DuplicateStaffCodeError) {
@@ -154,7 +216,7 @@ router.post("/bank-pin-login", async (request, response, next) => {
     const parsed = bankStaffPinLookupSchema.safeParse(request.body);
 
     if (!parsed.success) {
-      response.status(400).json({ error: "STAFFCODE, PIN and organisationId are required" });
+      response.status(400).json({ error: "Virtual NFC code, PIN and organisationId are required" });
       return;
     }
 
@@ -179,7 +241,13 @@ router.post("/bank-pin-login", async (request, response, next) => {
       eventType: "staff.bank_pin_login",
       entityType: "staff_member",
       entityId: staff.id,
-      details: { staffCode: staff.staffCode }
+      details: {
+        virtualNfcCode: staff.staffCode,
+        assignedToName: staff.name,
+        role: staff.role,
+        accessStartsAt: staff.accessStartsAt ?? null,
+        accessExpiresAt: staff.accessExpiresAt ?? null
+      }
     });
     response.json({ staff });
   } catch (error) {
@@ -193,3 +261,60 @@ router.post("/bank-pin-login", async (request, response, next) => {
 });
 
 export { router as staffRouter };
+
+function findOverlappingVirtualCardAssignment({
+  code,
+  editingStaffId,
+  expiresAt,
+  staff,
+  startsAt
+}: {
+  code: string;
+  editingStaffId?: string;
+  expiresAt: string;
+  staff: Array<{
+    id?: string;
+    name: string;
+    staffCode: string;
+    employmentType?: string;
+    accessStartsAt?: string | null;
+    accessExpiresAt?: string | null;
+    active?: boolean;
+  }>;
+  startsAt: string;
+}) {
+  const normalisedCode = code.trim().toLowerCase();
+
+  return staff.find((member) => {
+    if (member.id === editingStaffId || member.employmentType !== "bank" || member.active === false) {
+      return false;
+    }
+
+    return (
+      member.staffCode.trim().toLowerCase() === normalisedCode &&
+      rangesOverlap(startsAt, expiresAt, member.accessStartsAt, member.accessExpiresAt)
+    );
+  });
+}
+
+function rangesOverlap(
+  startsAt: string,
+  expiresAt: string,
+  otherStartsAt?: string | null,
+  otherExpiresAt?: string | null
+) {
+  if (!otherStartsAt || !otherExpiresAt) {
+    return false;
+  }
+
+  const start = new Date(startsAt).getTime();
+  const end = new Date(expiresAt).getTime();
+  const otherStart = new Date(otherStartsAt).getTime();
+  const otherEnd = new Date(otherExpiresAt).getTime();
+
+  if ([start, end, otherStart, otherEnd].some(Number.isNaN)) {
+    return false;
+  }
+
+  return start < otherEnd && otherStart < end;
+}

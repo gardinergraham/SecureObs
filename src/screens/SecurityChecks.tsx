@@ -133,7 +133,7 @@ export function SecurityChecks({
               {selectedArea.requiresCount ? (
                 <>
                   <Text style={styles.label}>Counted total</Text>
-                  <TextInput
+                  <TextInput placeholderTextColor="#6f7f87"
                     keyboardType="number-pad"
                     onChangeText={setCountedTotal}
                     placeholder="Enter total"
@@ -144,7 +144,7 @@ export function SecurityChecks({
               ) : null}
 
               <Text style={styles.label}>Notes</Text>
-              <TextInput
+              <TextInput placeholderTextColor="#6f7f87"
                 multiline
                 numberOfLines={5}
                 onChangeText={setNotes}

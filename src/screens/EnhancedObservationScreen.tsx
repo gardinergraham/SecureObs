@@ -206,7 +206,7 @@ export function EnhancedObservationScreen({
               />
 
               <Text style={styles.label}>TESO entry notes</Text>
-              <TextInput
+              <TextInput placeholderTextColor="#6f7f87"
                 multiline
                 numberOfLines={4}
                 onChangeText={setComments}

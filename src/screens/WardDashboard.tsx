@@ -348,7 +348,7 @@ export function WardDashboard({
                 />
 
                 <FieldLabel label="Notes" />
-                <TextInput
+                <TextInput placeholderTextColor="#6f7f87"
                   multiline
                   numberOfLines={4}
                   onChangeText={setComments}
@@ -386,7 +386,7 @@ export function WardDashboard({
                       {selectedStaff?.name ?? "current staff"}
                     </Text>
                     <OptionGrid options={missedObservationReasons} selected={missedReason} onSelect={setMissedReason} />
-                    <TextInput
+                    <TextInput placeholderTextColor="#6f7f87"
                       multiline
                       numberOfLines={3}
                       onChangeText={setMissedDetails}

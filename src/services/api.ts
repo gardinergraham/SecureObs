@@ -128,7 +128,7 @@ export async function loginBankStaffByPin(staffCode: string, loginPin: string, o
   });
 }
 
-export async function createStaffMember(staff: StaffMember) {
+export async function createStaffMember(staff: StaffMember & ActorScoped) {
   return saveQueuedRequest<{ staff: StaffMember }>("staff member", "/api/staff", {
     method: "POST",
     body: JSON.stringify(staff)

@@ -14,6 +14,7 @@ type BankAgencyStaffScreenProps = {
 };
 
 const roleOptions: StaffMember["role"][] = ["nurse", "hcf", "security", "doctor"];
+const virtualNfcCodes = Array.from({ length: 30 }, (_, index) => `TEMP-${String(index + 1).padStart(2, "0")}`);
 
 export function BankAgencyStaffScreen({
   selectedStaffId,
@@ -28,7 +29,7 @@ export function BankAgencyStaffScreen({
   const canEdit = hasStaffRole(selectedStaff, "manager") || hasStaffRole(selectedStaff, "nurse");
   const [editingStaffId, setEditingStaffId] = useState("");
   const [name, setName] = useState("");
-  const [staffCode, setStaffCode] = useState("");
+  const [virtualNfcCode, setVirtualNfcCode] = useState("");
   const [role, setRole] = useState<StaffMember["role"]>("nurse");
   const [designation, setDesignation] = useState("");
   const [loginPin, setLoginPin] = useState("");
@@ -53,11 +54,25 @@ export function BankAgencyStaffScreen({
         .slice(0, 40),
     [search, selectedWardId, staff]
   );
+  const requestedAccessWindow = useMemo(
+    () => ({
+      startsAt: buildIsoFromDateAndTime(startDate, startTime),
+      expiresAt: buildIsoFromDateAndTime(endDate, endTime)
+    }),
+    [endDate, endTime, startDate, startTime]
+  );
+  const codeConflict = findVirtualCodeConflict({
+    code: virtualNfcCode,
+    editingStaffId,
+    staff,
+    startsAt: requestedAccessWindow.startsAt,
+    expiresAt: requestedAccessWindow.expiresAt
+  });
 
   const clearDraft = () => {
     setEditingStaffId("");
     setName("");
-    setStaffCode("");
+    setVirtualNfcCode("");
     setRole("nurse");
     setDesignation("");
     setLoginPin("");
@@ -71,7 +86,7 @@ export function BankAgencyStaffScreen({
   const selectStaff = (member: StaffMember) => {
     setEditingStaffId(member.id);
     setName(member.name);
-    setStaffCode(member.staffCode);
+    setVirtualNfcCode(member.staffCode);
     setRole(member.role);
     setDesignation(member.designation ?? "");
     setLoginPin(member.loginPin ?? "");
@@ -94,10 +109,31 @@ export function BankAgencyStaffScreen({
     });
   };
 
+  const assignAvailableVirtualCode = () => {
+    if (!requestedAccessWindow.startsAt || !requestedAccessWindow.expiresAt) {
+      Alert.alert("Access dates needed", "Enter valid start and end date/time before assigning a virtual NFC code.");
+      return;
+    }
+
+    const availableCode = findAvailableVirtualCode({
+      editingStaffId,
+      staff,
+      startsAt: requestedAccessWindow.startsAt,
+      expiresAt: requestedAccessWindow.expiresAt
+    });
+
+    if (!availableCode) {
+      Alert.alert("No virtual cards available", "All virtual NFC codes are already assigned during this access window.");
+      return;
+    }
+
+    setVirtualNfcCode(availableCode);
+  };
+
   const saveStaff = async () => {
     if (!selectedWard || !selectedStaff || !canEdit) return;
-    if (!name.trim() || !staffCode.trim()) {
-      Alert.alert("Staff details needed", "Enter the bank or agency staff name and STAFFCODE.");
+    if (!name.trim()) {
+      Alert.alert("Staff details needed", "Enter the bank or agency staff name.");
       return;
     }
     if (!loginPin.trim()) {
@@ -119,6 +155,34 @@ export function BankAgencyStaffScreen({
       Alert.alert("Access dates invalid", "The end date/time must be after the start date/time.");
       return;
     }
+    const assignedVirtualCode =
+      virtualNfcCode.trim() ||
+      findAvailableVirtualCode({
+        editingStaffId,
+        staff,
+        startsAt: accessStartsAt,
+        expiresAt: accessExpiresAt
+      }) ||
+      "";
+    const assignedCodeConflict = findVirtualCodeConflict({
+      code: assignedVirtualCode,
+      editingStaffId,
+      staff,
+      startsAt: accessStartsAt,
+      expiresAt: accessExpiresAt
+    });
+
+    if (!assignedVirtualCode) {
+      Alert.alert("No virtual cards available", "All virtual NFC codes are already assigned during this access window.");
+      return;
+    }
+    if (assignedCodeConflict) {
+      Alert.alert(
+        "Virtual card already assigned",
+        `${assignedVirtualCode} is assigned to ${assignedCodeConflict.name} until ${formatShortDateTime(assignedCodeConflict.accessExpiresAt ?? "")}. Use the next available virtual NFC code.`
+      );
+      return;
+    }
 
     const primaryWard = wards.find((ward) => ward.id === allowedWardIds[0]) ?? selectedWard;
     const allowedSiteIds = Array.from(
@@ -129,10 +193,10 @@ export function BankAgencyStaffScreen({
       )
     );
     const nextStaff: StaffMember = {
-      id: editingStaffId || `staff-${staffCode.trim().toLowerCase()}`,
+      id: editingStaffId || `staff-${assignedVirtualCode.toLowerCase()}`,
       organisationId: selectedStaff.organisationId,
       keyNumber: Date.now() % 100000,
-      staffCode: staffCode.trim(),
+      staffCode: assignedVirtualCode,
       name: name.trim(),
       role: normaliseStaffRole(role),
       designation: designation.trim() || defaultDesignation(role),
@@ -151,7 +215,7 @@ export function BankAgencyStaffScreen({
     try {
       await onCreateStaff(nextStaff);
       clearDraft();
-      Alert.alert("Bank/agency staff saved", `${nextStaff.name} can sign in with STAFFCODE ${nextStaff.staffCode}.`);
+      Alert.alert("Bank/agency staff saved", `${nextStaff.name} is assigned to virtual NFC code ${nextStaff.staffCode}.`);
     } finally {
       setIsSaving(false);
     }
@@ -172,10 +236,10 @@ export function BankAgencyStaffScreen({
       <View style={styles.split}>
         <View style={styles.panel}>
           <Text style={styles.panelTitle}>Current temporary staff</Text>
-          <TextInput
+          <TextInput placeholderTextColor="#6f7f87"
             autoCapitalize="none"
             onChangeText={setSearch}
-            placeholder="Search name, STAFFCODE or role"
+            placeholder="Search name, virtual NFC code or role"
             style={styles.input}
             value={search}
           />
@@ -191,7 +255,7 @@ export function BankAgencyStaffScreen({
               >
                 <Text style={styles.staffName}>{member.name}</Text>
                 <Text style={styles.staffMeta}>
-                  {member.staffCode} | {member.role} | {accessStatus(member)}
+                  {member.staffCode} | {member.name} | {accessStatus(member)}
                 </Text>
               </TouchableOpacity>
             ))}
@@ -206,16 +270,31 @@ export function BankAgencyStaffScreen({
             </TouchableOpacity>
           </View>
           {!canEdit ? <Text style={styles.warningText}>Select a nurse or manager to add bank/agency staff.</Text> : null}
-          <TextInput editable={canEdit} onChangeText={setName} placeholder="Real name" style={styles.input} value={name} />
-          <TextInput
+          <TextInput placeholderTextColor="#6f7f87" editable={canEdit} onChangeText={setName} placeholder="Real name" style={styles.input} value={name} />
+          <TextInput placeholderTextColor="#6f7f87"
             autoCapitalize="none"
             editable={canEdit}
-            onChangeText={setStaffCode}
-            placeholder="STAFFCODE"
+            onChangeText={setVirtualNfcCode}
+            placeholder="Virtual NFC card/code, e.g. TEMP-01"
             style={styles.input}
-            value={staffCode}
+            value={virtualNfcCode}
           />
-          <TextInput
+          <TouchableOpacity
+            accessibilityRole="button"
+            disabled={!canEdit}
+            onPress={assignAvailableVirtualCode}
+            style={[styles.codeAssignButton, !canEdit && styles.disabledControl]}
+          >
+            <Text style={styles.codeAssignButtonText}>Assign next available virtual NFC code</Text>
+          </TouchableOpacity>
+          {codeConflict ? (
+            <Text style={styles.warningText}>
+              {virtualNfcCode.trim()} is already assigned to {codeConflict.name} for an overlapping access window.
+            </Text>
+          ) : virtualNfcCode.trim() ? (
+            <Text style={styles.codeStatusText}>{virtualNfcCode.trim()} is available for this access window.</Text>
+          ) : null}
+          <TextInput placeholderTextColor="#6f7f87"
             editable={canEdit}
             onChangeText={setDesignation}
             placeholder="Designation"
@@ -253,7 +332,7 @@ export function BankAgencyStaffScreen({
               );
             })}
           </View>
-          <TextInput
+          <TextInput placeholderTextColor="#6f7f87"
             autoCapitalize="none"
             editable={canEdit}
             keyboardType="number-pad"
@@ -264,10 +343,10 @@ export function BankAgencyStaffScreen({
           />
           <Text style={styles.label}>Access window</Text>
           <View style={styles.dateGrid}>
-            <TextInput editable={canEdit} onChangeText={setStartDate} placeholder="Start date dd/mm/yyyy" style={styles.dateInput} value={startDate} />
-            <TextInput editable={canEdit} onChangeText={setStartTime} placeholder="Start time hh:mm" style={styles.dateInput} value={startTime} />
-            <TextInput editable={canEdit} onChangeText={setEndDate} placeholder="End date dd/mm/yyyy" style={styles.dateInput} value={endDate} />
-            <TextInput editable={canEdit} onChangeText={setEndTime} placeholder="End time hh:mm" style={styles.dateInput} value={endTime} />
+            <TextInput placeholderTextColor="#6f7f87" editable={canEdit} onChangeText={setStartDate} placeholder="Start date dd/mm/yyyy" style={styles.dateInput} value={startDate} />
+            <TextInput placeholderTextColor="#6f7f87" editable={canEdit} onChangeText={setStartTime} placeholder="Start time hh:mm" style={styles.dateInput} value={startTime} />
+            <TextInput placeholderTextColor="#6f7f87" editable={canEdit} onChangeText={setEndDate} placeholder="End date dd/mm/yyyy" style={styles.dateInput} value={endDate} />
+            <TextInput placeholderTextColor="#6f7f87" editable={canEdit} onChangeText={setEndTime} placeholder="End time hh:mm" style={styles.dateInput} value={endTime} />
           </View>
           <TouchableOpacity
             accessibilityRole="button"
@@ -307,6 +386,81 @@ function accessStatus(member: StaffMember) {
   }
 
   return `expires ${formatShortDateTime(member.accessExpiresAt ?? "")}`;
+}
+
+function findVirtualCodeConflict({
+  code,
+  editingStaffId,
+  expiresAt,
+  staff,
+  startsAt
+}: {
+  code: string;
+  editingStaffId: string;
+  expiresAt?: string;
+  staff: StaffMember[];
+  startsAt?: string;
+}) {
+  const trimmedCode = code.trim().toLowerCase();
+  if (!trimmedCode || !startsAt || !expiresAt) {
+    return undefined;
+  }
+
+  return staff.find((member) => {
+    if (member.id === editingStaffId || member.employmentType !== "bank" || member.active === false) {
+      return false;
+    }
+
+    return (
+      member.staffCode.trim().toLowerCase() === trimmedCode &&
+      rangesOverlap(startsAt, expiresAt, member.accessStartsAt, member.accessExpiresAt)
+    );
+  });
+}
+
+function findAvailableVirtualCode({
+  editingStaffId,
+  expiresAt,
+  staff,
+  startsAt
+}: {
+  editingStaffId: string;
+  expiresAt: string;
+  staff: StaffMember[];
+  startsAt: string;
+}) {
+  return virtualNfcCodes.find(
+    (code) =>
+      !findVirtualCodeConflict({
+        code,
+        editingStaffId,
+        staff,
+        startsAt,
+        expiresAt
+      })
+  );
+}
+
+function rangesOverlap(
+  startsAt: string,
+  expiresAt: string,
+  otherStartsAt?: string,
+  otherExpiresAt?: string
+) {
+  if (!otherStartsAt || !otherExpiresAt) {
+    return false;
+  }
+
+  const start = new Date(startsAt).getTime();
+  const end = new Date(expiresAt).getTime();
+  const otherStart = new Date(otherStartsAt).getTime();
+  const otherEnd = new Date(otherExpiresAt).getTime();
+
+  if ([start, end, otherStart, otherEnd].some(Number.isNaN)) {
+    return false;
+  }
+
+  return start < otherEnd && otherStart < end;
 }
 
 function formatShortDateTime(value: string) {
@@ -444,6 +598,17 @@ const styles = StyleSheet.create({
     minHeight: 42,
     paddingHorizontal: 10
   },
+  codeAssignButton: {
+    alignItems: "center",
+    borderColor: "#1f5262",
+    borderRadius: 6,
+    borderWidth: 1,
+    justifyContent: "center",
+    minHeight: 40,
+    paddingHorizontal: 10
+  },
+  codeAssignButtonText: { color: "#1f5262", fontSize: 13, fontWeight: "900" },
+  codeStatusText: { color: "#315748", fontSize: 13, fontWeight: "900" },
   label: { color: "#31454d", fontSize: 13, fontWeight: "900", marginTop: 4 },
   optionRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   optionButton: {

@@ -127,9 +127,14 @@ export function AdminSettingsScreen({
           <Text style={styles.title}>SecureObs admin</Text>
           <Text style={styles.meta}>Add organisation sites and wards.</Text>
         </View>
-        <TouchableOpacity accessibilityRole="button" onPress={onBack} style={styles.backButton}>
-          <Text style={styles.backButtonText}>Back to start</Text>
-        </TouchableOpacity>
+        <View style={styles.headerActions}>
+          <TouchableOpacity accessibilityRole="button" onPress={onOpenAuditLog} style={styles.auditHeaderButton}>
+            <Text style={styles.auditHeaderButtonText}>Audit log</Text>
+          </TouchableOpacity>
+          <TouchableOpacity accessibilityRole="button" onPress={onBack} style={styles.backButton}>
+            <Text style={styles.backButtonText}>Back to start</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       <TouchableOpacity accessibilityRole="button" onPress={onOpenAuditLog} style={styles.auditButton}>
@@ -143,7 +148,7 @@ export function AdminSettingsScreen({
       <View style={styles.split}>
         <View style={styles.panel}>
           <Text style={styles.panelTitle}>Sites</Text>
-          <TextInput
+          <TextInput placeholderTextColor="#6f7f87"
             onChangeText={setSiteName}
             placeholder="Site or care home name"
             style={styles.input}
@@ -175,19 +180,19 @@ export function AdminSettingsScreen({
 
         <View style={styles.panel}>
           <Text style={styles.panelTitle}>Wards</Text>
-          <TextInput
+          <TextInput placeholderTextColor="#6f7f87"
             onChangeText={setWardName}
             placeholder="Ward name"
             style={styles.input}
             value={wardName}
           />
-          <TextInput
+          <TextInput placeholderTextColor="#6f7f87"
             onChangeText={setManagerName}
             placeholder="Ward manager name"
             style={styles.input}
             value={managerName}
           />
-          <TextInput
+          <TextInput placeholderTextColor="#6f7f87"
             autoCapitalize="none"
             onChangeText={setManagerStaffCode}
             placeholder="Manager STAFFCODE for NFC card"
@@ -274,6 +279,22 @@ const styles = StyleSheet.create({
   },
   title: { color: "#18262c", fontSize: 24, fontWeight: "900" },
   meta: { color: "#617078", fontSize: 13, fontWeight: "700", marginTop: 3 },
+  headerActions: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: 8
+  },
+  auditHeaderButton: {
+    alignItems: "center",
+    backgroundColor: "#1f5262",
+    borderColor: "#1f5262",
+    borderRadius: 6,
+    borderWidth: 1,
+    minHeight: 42,
+    justifyContent: "center",
+    paddingHorizontal: 12
+  },
+  auditHeaderButtonText: { color: "#ffffff", fontSize: 13, fontWeight: "900" },
   backButton: {
     alignItems: "center",
     borderColor: "#1f5262",

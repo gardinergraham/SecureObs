@@ -351,7 +351,7 @@ export function PatientSettingsScreen({
                 />
 
                 <Text style={styles.label}>Other reason</Text>
-                <TextInput
+                <TextInput placeholderTextColor="#6f7f87"
                   editable={canEdit}
                   onChangeText={(otherReason) =>
                     updateActiveTesoPlan(selectedPatient, { otherReason })
@@ -372,7 +372,7 @@ export function PatientSettingsScreen({
                 />
 
                 <Text style={styles.label}>TESO started</Text>
-                <TextInput
+                <TextInput placeholderTextColor="#6f7f87"
                   editable={canEdit}
                   onChangeText={(startedAt) =>
                     updateActiveTesoPlan(selectedPatient, { startedAt })
@@ -382,7 +382,7 @@ export function PatientSettingsScreen({
                 />
 
                 <Text style={styles.label}>Authorised by</Text>
-                <TextInput
+                <TextInput placeholderTextColor="#6f7f87"
                   editable={canEdit}
                   onChangeText={(authorisedBy) =>
                     updateActiveTesoPlan(selectedPatient, { authorisedBy })
@@ -406,7 +406,7 @@ export function PatientSettingsScreen({
                 />
 
                 <Text style={styles.label}>Next review due</Text>
-                <TextInput
+                <TextInput placeholderTextColor="#6f7f87"
                   editable={canEdit}
                   onChangeText={(nextReviewAt) =>
                     updateActiveTesoPlan(selectedPatient, { nextReviewAt })
@@ -417,7 +417,7 @@ export function PatientSettingsScreen({
                 />
 
                 <Text style={styles.label}>Update plan of care</Text>
-                <TextInput
+                <TextInput placeholderTextColor="#6f7f87"
                   editable={canEdit}
                   multiline
                   onFocus={() => {
@@ -454,7 +454,7 @@ export function PatientSettingsScreen({
                 ) : null}
 
                 <Text style={styles.label}>End reason</Text>
-                <TextInput
+                <TextInput placeholderTextColor="#6f7f87"
                   editable={canEdit}
                   multiline
                   onChangeText={setEndReason}
@@ -506,7 +506,7 @@ export function PatientSettingsScreen({
                   />
 
                   <Text style={styles.label}>Other reason</Text>
-                  <TextInput
+                  <TextInput placeholderTextColor="#6f7f87"
                     editable={canEdit}
                     onChangeText={(otherReason) => setTesoDraft((currentDraft) => ({ ...currentDraft, otherReason }))}
                     placeholder="Required when Other is selected"
@@ -547,7 +547,7 @@ export function PatientSettingsScreen({
                       <Text style={styles.warningText}>The TESO can start now, but the active record will show a reminder until a plan of care is added.</Text>
                     </View>
                   ) : null}
-                  <TextInput
+                  <TextInput placeholderTextColor="#6f7f87"
                     editable={canEdit}
                     multiline
                     onChangeText={(carePlan) => setTesoDraft((currentDraft) => ({ ...currentDraft, carePlan }))}

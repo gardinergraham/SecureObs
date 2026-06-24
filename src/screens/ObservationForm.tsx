@@ -67,7 +67,7 @@ export function ObservationForm({ patient, staff }: ObservationFormProps) {
       </View>
 
       <Text style={styles.label}>Comments</Text>
-      <TextInput
+      <TextInput placeholderTextColor="#6f7f87"
         multiline
         numberOfLines={4}
         style={[styles.input, styles.textArea]}

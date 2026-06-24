@@ -134,15 +134,7 @@ export function News2Screen({
                 {latestReading ? ` | Latest ${formatDate(latestReading.recordedAt)} ${formatTime(latestReading.recordedAt)} | Score ${latestReading.totalScore}` : ""}
               </Text>
             </View>
-            <ScrollView
-              horizontal
-              nestedScrollEnabled
-              ref={chartScrollRef}
-              showsHorizontalScrollIndicator
-              style={styles.chartScroller}
-            >
-              <News2Chart readings={patientReadings} />
-            </ScrollView>
+            <News2Chart readings={patientReadings} scrollRef={chartScrollRef} />
           </View>
         </View>
       </View>
@@ -160,7 +152,7 @@ function NumberField({ label, value, onChange }: FieldProps) {
   return (
     <View style={styles.field}>
       <Text style={styles.label}>{label}</Text>
-      <TextInput keyboardType="numeric" onChangeText={onChange} style={styles.input} value={value} />
+      <TextInput placeholderTextColor="#6f7f87" keyboardType="numeric" onChangeText={onChange} style={styles.input} value={value} />
     </View>
   );
 }
@@ -192,7 +184,7 @@ function ToggleRow({ label, options, selected, onSelect }: ToggleRowProps) {
   );
 }
 
-function News2Chart({ readings }: { readings: News2Reading[] }) {
+function News2Chart({ readings, scrollRef }: { readings: News2Reading[]; scrollRef: React.RefObject<ScrollView | null> }) {
   if (readings.length === 0) {
     return (
       <View style={[styles.chart, styles.emptyChart]}>
@@ -202,64 +194,78 @@ function News2Chart({ readings }: { readings: News2Reading[] }) {
   }
 
   return (
-    <View style={styles.chart}>
-      <View style={styles.dateRow}>
+    <View style={styles.chartFrame}>
+      <View style={styles.fixedChartColumn}>
         <View style={styles.sectionLabelSmall}><Text style={styles.sectionText}>DATE / TIME</Text></View>
+        <ChartSectionLabels title="A+B Respirations" bands={respiratoryBands} />
+        <ChartSectionLabels title="SpO₂ Scale 1" bands={spo2Scale1Bands} />
+        <ChartSectionLabels title="SpO₂ Scale 2" bands={spo2Scale2Bands} />
+        <ChartSectionLabels title="Air or oxygen?" bands={oxygenBands} />
+        <ChartSectionLabels title="C Blood pressure" bands={bpBands} />
+        <ChartSectionLabels title="C Pulse" bands={pulseBands} />
+        <ChartSectionLabels title="D Consciousness" bands={consciousnessBands} />
+        <ChartSectionLabels title="E Temperature" bands={temperatureBands} />
+        <View style={styles.scoreLabel}><Text style={styles.scoreLabelText}>NEWS TOTAL</Text></View>
+      </View>
+      <ScrollView
+        horizontal
+        nestedScrollEnabled
+        ref={scrollRef}
+        showsHorizontalScrollIndicator
+        style={styles.chartDataScroller}
+        contentContainerStyle={styles.chartDataContent}
+      >
+        <View>
+          <View style={styles.dateRow}>
         {readings.map((reading) => (
           <View key={reading.id} style={styles.dateCell}>
             <Text style={styles.dateText}>{formatDate(reading.recordedAt)}</Text>
             <Text style={styles.dateText}>{formatTime(reading.recordedAt)}</Text>
           </View>
         ))}
-      </View>
-      <ChartSection title="A+B Respirations" bands={respiratoryBands} readings={readings} getBand={(reading) => respirationBand(reading.respirationRate)} getValue={(reading) => String(reading.respirationRate)} />
-      <ChartSection
-        title="SpO₂ Scale 1"
-        bands={spo2Scale1Bands}
-        readings={readings}
-        getBand={(reading) => (reading.spo2Scale === "Scale 1" ? spo2Scale1Band(reading.spo2) : "")}
-        getValue={(reading) => String(reading.spo2)}
-      />
-      <ChartSection
-        title="SpO₂ Scale 2"
-        bands={spo2Scale2Bands}
-        readings={readings}
-        getBand={(reading) =>
-          reading.spo2Scale === "Scale 2" ? spo2Scale2Band(reading.spo2, reading.onOxygen) : ""
-        }
-        getValue={(reading) => String(reading.spo2)}
-      />
-      <ChartSection title="Air or oxygen?" bands={oxygenBands} readings={readings} getBand={(reading) => (reading.onOxygen ? "Oxygen" : "Air")} getValue={(reading) => (reading.onOxygen ? "O₂" : "A")} />
-      <ChartSection title="C Blood pressure" bands={bpBands} readings={readings} getBand={(reading) => bpBand(reading.systolicBp)} getValue={(reading) => String(reading.systolicBp)} />
-      <ChartSection title="C Pulse" bands={pulseBands} readings={readings} getBand={(reading) => pulseBand(reading.pulse)} getValue={(reading) => String(reading.pulse)} />
-      <ChartSection title="D Consciousness" bands={consciousnessBands} readings={readings} getBand={(reading) => reading.consciousness} getValue={(reading) => consciousnessLabel(reading.consciousness)} />
-      <ChartSection title="E Temperature" bands={temperatureBands} readings={readings} getBand={(reading) => temperatureBand(reading.temperature)} getValue={(reading) => reading.temperature.toFixed(1)} />
-      <ScoreRow readings={readings} />
+          </View>
+          <ChartSectionValues bands={respiratoryBands} readings={readings} getBand={(reading) => respirationBand(reading.respirationRate)} getValue={(reading) => String(reading.respirationRate)} />
+          <ChartSectionValues
+            bands={spo2Scale1Bands}
+            readings={readings}
+            getBand={(reading) => (reading.spo2Scale === "Scale 1" ? spo2Scale1Band(reading.spo2) : "")}
+            getValue={(reading) => String(reading.spo2)}
+          />
+          <ChartSectionValues
+            bands={spo2Scale2Bands}
+            readings={readings}
+            getBand={(reading) =>
+              reading.spo2Scale === "Scale 2" ? spo2Scale2Band(reading.spo2, reading.onOxygen) : ""
+            }
+            getValue={(reading) => String(reading.spo2)}
+          />
+          <ChartSectionValues bands={oxygenBands} readings={readings} getBand={(reading) => (reading.onOxygen ? "Oxygen" : "Air")} getValue={(reading) => (reading.onOxygen ? "O2" : "A")} />
+          <ChartSectionValues bands={bpBands} readings={readings} getBand={(reading) => bpBand(reading.systolicBp)} getValue={(reading) => String(reading.systolicBp)} />
+          <ChartSectionValues bands={pulseBands} readings={readings} getBand={(reading) => pulseBand(reading.pulse)} getValue={(reading) => String(reading.pulse)} />
+          <ChartSectionValues bands={consciousnessBands} readings={readings} getBand={(reading) => reading.consciousness} getValue={(reading) => consciousnessLabel(reading.consciousness)} />
+          <ChartSectionValues bands={temperatureBands} readings={readings} getBand={(reading) => temperatureBand(reading.temperature)} getValue={(reading) => reading.temperature.toFixed(1)} />
+          <ScoreValues readings={readings} />
+        </View>
+      </ScrollView>
     </View>
   );
 }
 
 type ChartSectionProps = {
-  title: string;
   bands: string[];
   readings: News2Reading[];
   getBand: (reading: News2Reading) => string;
   getValue: (reading: News2Reading) => string;
 };
 
-function ChartSection({ title, bands, readings, getBand, getValue }: ChartSectionProps) {
+function ChartSectionLabels({ title, bands }: { title: string; bands: string[] }) {
   return (
-    <View style={styles.chartSection}>
+    <View style={styles.chartSectionLabels}>
       <View style={styles.sectionLabel}><Text style={styles.sectionText}>{title}</Text></View>
       <View>
         {bands.map((band, bandIndex) => (
           <View key={band} style={styles.bandRow}>
             <View style={[styles.bandLabel, bandColourStyle(bandIndex, bands.length)]}><Text style={styles.bandText}>{band}</Text></View>
-            {readings.map((reading) => (
-              <View key={`${reading.id}-${band}`} style={[styles.readingCell, bandColourStyle(bandIndex, bands.length)]}>
-                {getBand(reading) === band ? <Text style={styles.pointText}>{getValue(reading)}</Text> : null}
-              </View>
-            ))}
           </View>
         ))}
       </View>
@@ -267,10 +273,25 @@ function ChartSection({ title, bands, readings, getBand, getValue }: ChartSectio
   );
 }
 
-function ScoreRow({ readings }: { readings: News2Reading[] }) {
+function ChartSectionValues({ bands, readings, getBand, getValue }: ChartSectionProps) {
+  return (
+    <View>
+      {bands.map((band, bandIndex) => (
+        <View key={band} style={styles.bandRow}>
+            {readings.map((reading) => (
+              <View key={`${reading.id}-${band}`} style={[styles.readingCell, bandColourStyle(bandIndex, bands.length)]}>
+                {getBand(reading) === band ? <Text style={styles.pointText}>{getValue(reading)}</Text> : null}
+              </View>
+            ))}
+        </View>
+      ))}
+    </View>
+  );
+}
+
+function ScoreValues({ readings }: { readings: News2Reading[] }) {
   return (
     <View style={styles.scoreRow}>
-      <View style={styles.scoreLabel}><Text style={styles.scoreLabelText}>NEWS TOTAL</Text></View>
       {readings.map((reading) => (
         <View key={reading.id} style={[styles.scoreCell, scoreColourStyle(reading.totalScore)]}>
           <Text style={styles.scoreText}>{reading.totalScore}</Text>
@@ -558,10 +579,21 @@ const styles = StyleSheet.create({
     padding: 10
   },
   chartHeader: { alignItems: "center", flexDirection: "row", justifyContent: "space-between", marginBottom: 8 },
-  chartScroller: { maxWidth: "100%" },
+  chartDataScroller: { flex: 1, maxWidth: "100%" },
+  chartDataContent: { paddingRight: 44 },
   windowText: { color: "#607078", fontSize: 12, fontWeight: "800" },
   panelTitle: { color: "#18262c", fontSize: 17, fontWeight: "900", marginBottom: 10 },
   chart: { borderColor: "#222", borderWidth: 1 },
+  chartFrame: {
+    borderColor: "#222",
+    borderWidth: 1,
+    flexDirection: "row",
+    marginBottom: 18,
+    maxWidth: "100%"
+  },
+  fixedChartColumn: {
+    width: 220
+  },
   emptyChart: { alignItems: "center", justifyContent: "center", minHeight: 180, width: 520 },
   emptyChartText: { color: "#607078", fontSize: 13, fontWeight: "900" },
   dateRow: { flexDirection: "row" },
@@ -570,7 +602,7 @@ const styles = StyleSheet.create({
   sectionText: { color: "#ffffff", fontSize: 13, fontWeight: "900" },
   dateCell: { borderColor: "#222", borderWidth: 1, minHeight: 42, width: 58, alignItems: "center", justifyContent: "center" },
   dateText: { color: "#18262c", fontSize: 10, fontWeight: "800" },
-  chartSection: { flexDirection: "row" },
+  chartSectionLabels: { flexDirection: "row" },
   bandRow: { flexDirection: "row" },
   bandLabel: { borderColor: "#222", borderWidth: 1, width: 70, minHeight: 24, justifyContent: "center", paddingRight: 4 },
   bandText: { color: "#18262c", fontSize: 10, fontWeight: "900", textAlign: "right" },

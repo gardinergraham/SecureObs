@@ -147,7 +147,7 @@ export function HomeScreen({
                 <Text style={styles.scanButtonText}>{isScanningStaffCard ? "Scanning" : "Scan card"}</Text>
               </TouchableOpacity>
             </View>
-            <TextInput
+            <TextInput placeholderTextColor="#6f7f87"
               autoCapitalize="none"
               onChangeText={setStaffCardData}
               placeholder="GardinerG"
@@ -169,14 +169,14 @@ export function HomeScreen({
             <View style={styles.nfcHeader}>
               <Text style={styles.nfcTitle}>Bank/temp staff PIN</Text>
             </View>
-            <TextInput
+            <TextInput placeholderTextColor="#6f7f87"
               autoCapitalize="none"
               onChangeText={setBankStaffCode}
-              placeholder="STAFFCODE"
+              placeholder="Virtual NFC code"
               style={styles.cardInput}
               value={bankStaffCode}
             />
-            <TextInput
+            <TextInput placeholderTextColor="#6f7f87"
               autoCapitalize="none"
               keyboardType="number-pad"
               onChangeText={setBankStaffPin}
