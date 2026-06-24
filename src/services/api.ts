@@ -9,6 +9,7 @@ import type {
   Observation,
   Patient,
   RotaAssignment,
+  SecurityArea,
   SecurityCheck,
   Site,
   StaffShiftAssignment,
@@ -155,6 +156,19 @@ export async function createSecurityCheck(check: OrganisationScoped<SecurityChec
     method: "POST",
     body: JSON.stringify(check)
   });
+}
+
+export async function saveSecurityArea(area: OrganisationScoped<SecurityArea> & ActorScoped) {
+  return saveQueuedRequest<{ securityArea: SecurityArea }>("security area", "/api/config/security-areas", {
+    method: "POST",
+    body: JSON.stringify(area)
+  });
+}
+
+export async function loadSecurityAreas(organisationId?: string, wardId?: string) {
+  return request<{ securityAreas: SecurityArea[] }>(
+    withOptionalQuery(withOrganisationId("/api/config/security-areas", organisationId), "wardId", wardId)
+  );
 }
 
 export async function loadSecurityChecks(organisationId?: string) {

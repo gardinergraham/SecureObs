@@ -84,7 +84,7 @@ export type StaffMember = {
   keyNumber: number;
   staffCode: string;
   name: string;
-  role: "nurse" | "hcf" | "security" | "manager" | "doctor";
+  role: "nurse" | "hcf" | "ot" | "security" | "manager" | "doctor";
   designation?: string;
   canPrescribe?: boolean;
   employmentType?: "permanent" | "bank";
@@ -243,12 +243,18 @@ export type PatientIncompatibility = {
   reason: string;
 };
 
+export type SecurityCheckCategory = "cutlery" | "ward_security" | "level_1_room_locker_zone" | "custom";
+export type SecurityCheckFrequency = "per_shift" | "per_meal" | "daily" | "weekly" | "monthly";
+
 export type SecurityArea = {
   id: string;
   wardId: string;
   name: string;
   frequencyMinutes: number;
   requiresCount: boolean;
+  category?: SecurityCheckCategory;
+  frequencyType?: SecurityCheckFrequency;
+  active?: boolean;
 };
 
 export type SecurityCheck = {

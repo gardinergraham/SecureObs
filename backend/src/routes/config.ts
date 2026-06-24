@@ -37,6 +37,20 @@ const wardSchema = z.object({
   breakDurationMinutes: z.number().int().positive().default(30)
 });
 
+const securityAreaSchema = z.object({
+  id: z.string().min(1).optional(),
+  organisationId: optionalOrganisationIdSchema,
+  wardId: z.string().min(1),
+  name: z.string().min(1),
+  frequencyMinutes: z.number().int().positive(),
+  requiresCount: z.boolean().default(false),
+  category: z.enum(["cutlery", "ward_security", "level_1_room_locker_zone", "custom"]).default("custom"),
+  frequencyType: z.enum(["per_shift", "per_meal", "daily", "weekly", "monthly"]).default("per_shift"),
+  active: z.boolean().default(true),
+  actorStaffId: z.string().optional(),
+  actorStaffCode: z.string().optional()
+});
+
 router.get("/sites", async (request, response, next) => {
   try {
     const organisationId = requireOrganisationId(request, response);
@@ -213,6 +227,125 @@ router.post("/wards", async (request, response, next) => {
       }
     });
     response.status(201).json(toAppWard(result.rows[0]));
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.get("/security-areas", async (request, response, next) => {
+  try {
+    const organisationId = requireOrganisationId(request, response);
+    if (!organisationId) return;
+    const wardId = typeof request.query.wardId === "string" ? request.query.wardId : undefined;
+
+    const params = wardId ? [organisationId, wardId] : [organisationId];
+    const result = await pool.query(
+      `
+        select
+          id,
+          ward_id as "wardId",
+          name,
+          frequency_minutes as "frequencyMinutes",
+          requires_count as "requiresCount",
+          category,
+          frequency_type as "frequencyType",
+          active
+        from security_areas
+        where organisation_id = $1
+          ${wardId ? "and ward_id = $2" : ""}
+        order by name asc
+      `,
+      params
+    );
+
+    response.json({ securityAreas: result.rows });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post("/security-areas", async (request, response, next) => {
+  try {
+    const parsed = securityAreaSchema.safeParse(request.body);
+    if (!parsed.success) {
+      response.status(400).json({ error: "Invalid security area", details: parsed.error.flatten() });
+      return;
+    }
+    const organisationId = requireOrganisationId(request, response);
+    if (!organisationId) return;
+
+    const wardResult = await pool.query(
+      `
+        select wards.id
+        from wards
+        inner join sites on sites.id = wards.site_id
+        where wards.id = $1 and sites.organisation_id = $2
+      `,
+      [parsed.data.wardId, organisationId]
+    );
+    if (!wardResult.rowCount) {
+      response.status(404).json({ error: "Ward not found for organisation" });
+      return;
+    }
+
+    const securityArea = {
+      ...parsed.data,
+      organisationId,
+      id: parsed.data.id ?? createId("security-area", `${parsed.data.wardId}-${parsed.data.name}`)
+    };
+
+    const result = await pool.query(
+      `
+        insert into security_areas (
+          id, organisation_id, ward_id, name, frequency_minutes, requires_count, category, frequency_type, active
+        ) values ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+        on conflict (id) do update set
+          ward_id = excluded.ward_id,
+          name = excluded.name,
+          frequency_minutes = excluded.frequency_minutes,
+          requires_count = excluded.requires_count,
+          category = excluded.category,
+          frequency_type = excluded.frequency_type,
+          active = excluded.active,
+          updated_at = now()
+        returning
+          id,
+          ward_id as "wardId",
+          name,
+          frequency_minutes as "frequencyMinutes",
+          requires_count as "requiresCount",
+          category,
+          frequency_type as "frequencyType",
+          active
+      `,
+      [
+        securityArea.id,
+        securityArea.organisationId,
+        securityArea.wardId,
+        securityArea.name,
+        securityArea.frequencyMinutes,
+        securityArea.requiresCount,
+        securityArea.category,
+        securityArea.frequencyType,
+        securityArea.active
+      ]
+    );
+
+    await recordAuditEvent({
+      organisationId,
+      ...auditActorFromBody(request.body),
+      eventType: "settings.security_area.upsert",
+      entityType: "security_area",
+      entityId: securityArea.id,
+      details: {
+        wardId: securityArea.wardId,
+        name: securityArea.name,
+        category: securityArea.category,
+        frequencyType: securityArea.frequencyType,
+        active: securityArea.active
+      }
+    });
+    response.status(201).json({ securityArea: result.rows[0] });
   } catch (error) {
     next(error);
   }

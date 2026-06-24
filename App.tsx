@@ -12,6 +12,7 @@ import { News2Screen } from "./src/screens/News2Screen";
 import { PatientManagementScreen } from "./src/screens/PatientManagementScreen";
 import { PatientSettingsScreen } from "./src/screens/PatientSettingsScreen";
 import { PreviousObservationsScreen } from "./src/screens/PreviousObservationsScreen";
+import { SecurityCheckSettingsScreen } from "./src/screens/SecurityCheckSettingsScreen";
 import { SecurityChecks } from "./src/screens/SecurityChecks";
 import { StaffCoverScreen } from "./src/screens/StaffCoverScreen";
 import { StaffRotaScreen } from "./src/screens/StaffRotaScreen";
@@ -29,6 +30,7 @@ import {
   deleteRotaAssignment as persistRotaAssignmentDelete,
   deleteStaffShiftAssignment as persistStaffShiftAssignmentDelete,
   createWard as persistWard,
+  loadSecurityAreas,
   loadSites,
   loadMedicationAdministrations,
   loadMedicationPrescriptions,
@@ -44,6 +46,7 @@ import {
   loginBankStaffByPin,
   lookupStaffByCode,
   saveRotaAssignment as persistRotaAssignment,
+  saveSecurityArea as persistSecurityArea,
   saveStaffShiftAssignment as persistStaffShiftAssignment,
   savePatient as persistPatient,
   updateMedicationPrescription as persistMedicationPrescriptionUpdate
@@ -69,6 +72,7 @@ import type {
   PatientLocation,
   PatientPresentation,
   RotaAssignment,
+  SecurityArea,
   SecurityCheck,
   Site,
   StaffMember,
@@ -91,6 +95,7 @@ type AppScreen =
   | "staffCover"
   | "staffRota"
   | "wardSettings"
+  | "securityCheckSettings"
   | "medicationChart"
   | "news2"
   | "securityChecks";
@@ -104,6 +109,7 @@ export default function App() {
   const [staffShiftAssignments, setStaffShiftAssignments] = useState<StaffShiftAssignment[]>(
     () => createDemoStaffShiftAssignments()
   );
+  const [securityAreas, setSecurityAreas] = useState<SecurityArea[]>(seedData.securityAreas);
   const [securityChecks, setSecurityChecks] = useState<SecurityCheck[]>(seedData.securityChecks);
   const [medicationPrescriptions, setMedicationPrescriptions] = useState<MedicationPrescription[]>(
     seedData.medicationPrescriptions
@@ -151,6 +157,7 @@ export default function App() {
           wardResult,
           observationResult,
           patientResult,
+          securityAreaResult,
           securityCheckResult,
           news2Result,
           medicationPrescriptionResult,
@@ -164,6 +171,7 @@ export default function App() {
           loadWards(organisationId),
           loadObservations(organisationId),
           loadPatients(organisationId),
+          loadSecurityAreas(organisationId, selectedWardId || undefined),
           loadSecurityChecks(organisationId),
           loadNews2Readings(organisationId),
           loadMedicationPrescriptions(organisationId),
@@ -182,6 +190,14 @@ export default function App() {
           )
         );
         setObservations((currentObservations) => mergeById(observationResult.observations, currentObservations));
+        setSecurityAreas((currentAreas) =>
+          selectedWardId
+            ? [
+                ...currentAreas.filter((area) => area.wardId !== selectedWardId),
+                ...securityAreaResult.securityAreas
+              ]
+            : securityAreaResult.securityAreas
+        );
         setSecurityChecks((currentChecks) => mergeById(securityCheckResult.securityChecks, currentChecks));
         setNews2Readings((currentReadings) => mergeById(news2Result.news2Readings, currentReadings));
         setMedicationPrescriptions((currentPrescriptions) =>
@@ -589,6 +605,21 @@ export default function App() {
     );
   };
 
+  const handleSaveSecurityArea = async (area: SecurityArea) => {
+    setSecurityAreas((currentAreas) => upsertById(currentAreas, area));
+    const saved = await persistOrQueue("security area", () =>
+      persistSecurityArea({
+        ...area,
+        organisationId: selectedStaff?.organisationId,
+        actorStaffId: selectedStaff?.id,
+        actorStaffCode: selectedStaff?.staffCode
+      })
+    );
+    if (saved?.securityArea) {
+      setSecurityAreas((currentAreas) => upsertById(currentAreas, saved.securityArea));
+    }
+  };
+
   const handleCreateMedicationPrescription = (prescription: MedicationPrescription) => {
     setMedicationPrescriptions((currentPrescriptions) => [prescription, ...currentPrescriptions]);
     void persistOrQueue("medication prescription", () =>
@@ -658,7 +689,6 @@ export default function App() {
         contentContainerStyle={screen === "home" ? styles.homeContent : styles.content}
         horizontal={false}
         keyboardShouldPersistTaps="handled"
-        scrollEnabled={screen !== "medicationChart"}
       >
         {screen === "home" ? (
           <HomeScreen
@@ -704,7 +734,18 @@ export default function App() {
             onUpdateWardInterval={handleUpdateWardInterval}
             onUpdateWardRotaEnabled={handleUpdateWardRotaEnabled}
             onUpdateWardRotaSettings={handleUpdateWardRotaSettings}
+            onOpenSecurityCheckSettings={() => setScreen("securityCheckSettings")}
             onCreateStaff={handleCreateStaffMember}
+          />
+        ) : screen === "securityCheckSettings" ? (
+          <SecurityCheckSettingsScreen
+            areas={securityAreas}
+            selectedStaffId={selectedStaffId}
+            selectedWardId={selectedWardId}
+            staff={staffMembers}
+            wards={siteWards}
+            onBack={() => setScreen("wardSettings")}
+            onSaveArea={handleSaveSecurityArea}
           />
         ) : screen === "observations" ? (
           <WardDashboard
@@ -715,6 +756,7 @@ export default function App() {
             selectedPatientId={selectedPatientId}
             selectedStaffId={selectedStaffId}
             selectedWardId={selectedWardId}
+            staffShiftAssignments={staffShiftAssignments}
             staff={staffMembers}
             wards={siteWards}
             onBackToHome={() => setScreen("home")}
@@ -826,7 +868,7 @@ export default function App() {
           />
         ) : screen === "securityChecks" ? (
           <SecurityChecks
-            areas={seedData.securityAreas.filter((area) => area.wardId === selectedWardId)}
+            areas={securityAreas.filter((area) => area.wardId === selectedWardId && area.active !== false)}
             checks={securityChecks}
             selectedStaffId={selectedStaffId}
             staff={staffMembers}

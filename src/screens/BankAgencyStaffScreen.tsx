@@ -13,7 +13,7 @@ type BankAgencyStaffScreenProps = {
   onCreateStaff: (staff: StaffMember) => Promise<void>;
 };
 
-const roleOptions: StaffMember["role"][] = ["nurse", "hcf", "security", "doctor"];
+const roleOptions: StaffMember["role"][] = ["nurse", "hcf", "ot", "security", "doctor"];
 const virtualNfcCodes = Array.from({ length: 30 }, (_, index) => `TEMP-${String(index + 1).padStart(2, "0")}`);
 
 export function BankAgencyStaffScreen({
@@ -364,6 +364,7 @@ export function BankAgencyStaffScreen({
 
 function defaultDesignation(role: StaffMember["role"]) {
   if (role === "hcf") return "HCF";
+  if (role === "ot") return "OT";
   if (role === "nurse") return "Nurse";
   if (role === "doctor") return "Doctor";
   if (role === "security") return "Security";

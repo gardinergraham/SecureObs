@@ -102,7 +102,7 @@ export function SecurityChecks({
                   <View style={styles.areaInfo}>
                     <Text style={styles.areaName}>{area.name}</Text>
                     <Text style={styles.areaMeta}>
-                      Every {area.frequencyMinutes}m | {area.requiresCount ? "Count required" : "Visual check"}
+                      {formatFrequency(area)} | {area.requiresCount ? "Count required" : "Visual check"}
                     </Text>
                     <Text style={styles.areaMeta}>
                       {latestCheck
@@ -199,6 +199,15 @@ function formatTime(value: string) {
     hour: "2-digit",
     minute: "2-digit"
   });
+}
+
+function formatFrequency(area: SecurityArea) {
+  if (area.frequencyType === "per_shift") return "Per shift";
+  if (area.frequencyType === "per_meal") return "Per meal";
+  if (area.frequencyType === "daily") return "Daily";
+  if (area.frequencyType === "weekly") return "Weekly";
+  if (area.frequencyType === "monthly") return "Monthly";
+  return `Every ${area.frequencyMinutes}m`;
 }
 
 const styles = StyleSheet.create({

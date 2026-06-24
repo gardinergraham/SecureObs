@@ -6,6 +6,7 @@ export function normaliseStaffRole(role: StaffMember["role"] | string | undefine
   if (
     normalisedRole === "nurse" ||
     normalisedRole === "hcf" ||
+    normalisedRole === "ot" ||
     normalisedRole === "security" ||
     normalisedRole === "manager" ||
     normalisedRole === "doctor"

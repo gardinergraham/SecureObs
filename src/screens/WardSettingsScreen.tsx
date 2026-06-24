@@ -23,6 +23,7 @@ type WardSettingsScreenProps = {
   onUpdateWardInterval: (wardId: string, observationIntervalMinutes: number) => void;
   onUpdateWardRotaEnabled: (wardId: string, staffRotaEnabled: boolean) => void;
   onUpdateWardRotaSettings: (ward: Ward) => void;
+  onOpenSecurityCheckSettings: () => void;
   onCreateStaff: (staff: StaffMember) => Promise<void>;
 };
 
@@ -35,6 +36,7 @@ export function WardSettingsScreen({
   onUpdateWardInterval,
   onUpdateWardRotaEnabled,
   onUpdateWardRotaSettings,
+  onOpenSecurityCheckSettings,
   onCreateStaff
 }: WardSettingsScreenProps) {
   const selectedWard = wards.find((ward) => ward.id === selectedWardId);
@@ -50,13 +52,15 @@ export function WardSettingsScreen({
   const [editingStaffId, setEditingStaffId] = useState("");
   const [staffSearch, setStaffSearch] = useState("");
   const [isSavingStaff, setIsSavingStaff] = useState(false);
-  const wardStaff = staff
-    .filter((member) => member.allowedWardIds.includes(selectedWardId) || member.wardId === selectedWardId)
+  const selectedSiteId = selectedWard?.siteId;
+  const siteWardIds = wards.filter((ward) => ward.siteId === selectedSiteId).map((ward) => ward.id);
+  const siteStaff = staff
+    .filter((member) => isStaffAssignedToSite(member, selectedSiteId, siteWardIds))
     .sort((left, right) => left.name.localeCompare(right.name));
-  const filteredWardStaff = wardStaff
+  const staffSearchResults = siteStaff
     .filter((member) => {
       const query = staffSearch.trim().toLowerCase();
-      if (!query) return true;
+      if (!query) return false;
       return (
         member.name.toLowerCase().includes(query) ||
         member.staffCode.toLowerCase().includes(query) ||
@@ -114,6 +118,7 @@ export function WardSettingsScreen({
   };
 
   const selectStaffForEditing = (member: StaffMember) => {
+    const wardIds = member.allowedWardIds.length > 0 ? member.allowedWardIds : [member.wardId];
     setEditingStaffId(member.id);
     setNewStaffName(member.name);
     setNewStaffCode(member.staffCode);
@@ -121,7 +126,8 @@ export function WardSettingsScreen({
     setNewStaffDesignation(member.designation ?? "");
     setNewStaffCanPrescribe(Boolean(member.canPrescribe));
     setNewStaffActive(member.active !== false);
-    setNewStaffWardIds(member.allowedWardIds.length > 0 ? member.allowedWardIds : [member.wardId]);
+    setNewStaffWardIds(wardIds.includes(selectedWardId) ? wardIds : [...wardIds, selectedWardId]);
+    setStaffSearch("");
   };
 
   const clearStaffDraft = () => {
@@ -213,14 +219,14 @@ export function WardSettingsScreen({
         <View style={styles.staffSetupPanel}>
           <Text style={styles.settingLabel}>Ward staff setup</Text>
           <Text style={styles.meta}>
-            Add, edit or deactivate staff for {selectedWard?.name ?? "this ward"}.
+            Search staff assigned to this site, then add or update ward access for {selectedWard?.name ?? "this ward"}.
           </Text>
           <View style={styles.staffPickerHeader}>
             <TextInput placeholderTextColor="#6f7f87"
               autoCapitalize="none"
               editable={canEditWardSettings}
               onChangeText={setStaffSearch}
-              placeholder="Search staff by name, STAFFCODE or role"
+              placeholder="Search site staff by name, STAFFCODE or role"
               style={[styles.input, styles.staffSearchInput]}
               value={staffSearch}
             />
@@ -228,8 +234,9 @@ export function WardSettingsScreen({
               <Text style={styles.addNewButtonText}>Add new</Text>
             </TouchableOpacity>
           </View>
-          <View style={styles.staffList}>
-            {filteredWardStaff.map((member) => (
+          {staffSearch.trim() ? (
+          <View style={styles.staffSearchResults}>
+            {staffSearchResults.map((member) => (
               <TouchableOpacity
                 accessibilityRole="button"
                 disabled={!canEditWardSettings}
@@ -246,10 +253,13 @@ export function WardSettingsScreen({
                 {member.canPrescribe ? <Text style={styles.prescriberBadge}>Rx</Text> : null}
               </TouchableOpacity>
             ))}
-            {wardStaff.length > filteredWardStaff.length ? (
-              <Text style={styles.staffMeta}>Showing first {filteredWardStaff.length} matches. Refine the search to narrow the list.</Text>
+            {staffSearchResults.length === 0 ? (
+              <Text style={styles.staffMeta}>No staff found on this site. Use Add new to create a permanent staff record.</Text>
+            ) : staffSearchResults.length >= 20 ? (
+              <Text style={styles.staffMeta}>Showing first {staffSearchResults.length} matches. Refine the search to narrow the list.</Text>
             ) : null}
           </View>
+          ) : null}
           <TextInput placeholderTextColor="#6f7f87"
             editable={canEditWardSettings}
             onChangeText={setNewStaffName}
@@ -273,7 +283,7 @@ export function WardSettingsScreen({
             value={newStaffDesignation}
           />
           <View style={styles.optionRow}>
-            {(["nurse", "hcf", "security", "doctor"] as StaffMember["role"][]).map((role) => (
+            {(["nurse", "hcf", "ot", "security", "doctor"] as StaffMember["role"][]).map((role) => (
               <TouchableOpacity
                 accessibilityRole="button"
                 disabled={!canEditWardSettings}
@@ -383,6 +393,14 @@ export function WardSettingsScreen({
           meta="Ward checkpoint recording"
           onToggle={() => updateWardSettings({ securityChecksEnabled: !selectedWard?.securityChecksEnabled })}
         />
+        <TouchableOpacity
+          accessibilityRole="button"
+          disabled={!selectedWard || !canEditWardSettings}
+          onPress={onOpenSecurityCheckSettings}
+          style={[styles.configureButton, (!selectedWard || !canEditWardSettings) && styles.disabledControl]}
+        >
+          <Text style={styles.configureButtonText}>Configure security checks</Text>
+        </TouchableOpacity>
         <FeatureToggle
           disabled={!selectedWard || !canEditWardSettings}
           enabled={Boolean(selectedWard?.medicationChartEnabled)}
@@ -622,8 +640,21 @@ function shiftTimeByMinutes(time: string, deltaMinutes: number) {
   return `${String(nextHours).padStart(2, "0")}:${String(nextMinutes).padStart(2, "0")}`;
 }
 
+function isStaffAssignedToSite(member: StaffMember, siteId: string | undefined, siteWardIds: string[]) {
+  if (!siteId) {
+    return false;
+  }
+
+  return (
+    member.allowedSiteIds.includes(siteId) ||
+    siteWardIds.includes(member.wardId) ||
+    member.allowedWardIds.some((wardId) => siteWardIds.includes(wardId))
+  );
+}
+
 function defaultDesignation(role: StaffMember["role"]) {
   if (role === "hcf") return "HCF";
+  if (role === "ot") return "OT";
   if (role === "nurse") return "Nurse";
   if (role === "doctor") return "Doctor";
   if (role === "security") return "Security";
@@ -681,7 +712,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12
   },
   addNewButtonText: { color: "#ffffff", fontSize: 13, fontWeight: "900" },
-  staffList: { gap: 7 },
+  staffSearchResults: { gap: 7 },
   staffRow: {
     alignItems: "center",
     backgroundColor: "#ffffff",
@@ -785,6 +816,16 @@ const styles = StyleSheet.create({
   featureText: { flex: 1, paddingRight: 10 },
   featureLabel: { color: "#18262c", fontSize: 14, fontWeight: "900" },
   featureMeta: { color: "#607078", fontSize: 12, fontWeight: "800", marginTop: 3 },
+  configureButton: {
+    alignItems: "center",
+    borderColor: "#1f5262",
+    borderRadius: 6,
+    borderWidth: 1,
+    justifyContent: "center",
+    marginBottom: 8,
+    minHeight: 42
+  },
+  configureButtonText: { color: "#1f5262", fontSize: 13, fontWeight: "900" },
   stepperRow: { alignItems: "center", flexDirection: "row", gap: 10, marginTop: 10 },
   stepperButton: {
     alignItems: "center",

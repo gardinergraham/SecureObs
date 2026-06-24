@@ -370,12 +370,7 @@ export function MedicationChartScreen({
             </View>
           ) : null}
 
-          <ScrollView
-            contentContainerStyle={styles.chartContent}
-            nestedScrollEnabled
-            showsVerticalScrollIndicator
-            style={styles.chartScroll}
-          >
+          <View style={styles.chartContent}>
 
           {viewMode === "admin" ? (
             <>
@@ -549,7 +544,7 @@ export function MedicationChartScreen({
           )}
 
           <OmissionLegend />
-          </ScrollView>
+          </View>
         </View>
       </View>
     </View>
@@ -1152,8 +1147,8 @@ const styles = StyleSheet.create({
   viewToggleButtonActive: { backgroundColor: "#1f5262", borderColor: "#1f5262" },
   viewToggleText: { color: "#30434a", fontSize: 13, fontWeight: "900" },
   viewToggleTextActive: { color: "#ffffff" },
-  split: { alignItems: "stretch", flexDirection: "row", gap: 12, height: 680 },
-  chartOnlySplit: { alignItems: "stretch", flexDirection: "row", gap: 12, height: 680 },
+  split: { alignItems: "stretch", flexDirection: "row", gap: 12 },
+  chartOnlySplit: { alignItems: "stretch", flexDirection: "row", gap: 12 },
   patientList: {
     backgroundColor: "#ffffff",
     borderColor: "#d8e0e3",
@@ -1180,10 +1175,8 @@ const styles = StyleSheet.create({
     borderColor: "#d8e0e3",
     borderRadius: 8,
     borderWidth: StyleSheet.hairlineWidth,
-    flex: 1,
-    overflow: "hidden"
+    flex: 1
   },
-  chartScroll: { flex: 1 },
   chartContent: { gap: 12, padding: 12, paddingBottom: 80 },
   patientHeader: {
     alignItems: "center",

@@ -453,14 +453,20 @@ export const seedData: {
       wardId: "ward-1",
       name: "Garden gate",
       frequencyMinutes: 60,
-      requiresCount: false
+      requiresCount: false,
+      category: "ward_security",
+      frequencyType: "per_shift",
+      active: true
     },
     {
       id: "area-2",
       wardId: "ward-1",
       name: "Cutlery count",
       frequencyMinutes: 30,
-      requiresCount: true
+      requiresCount: true,
+      category: "cutlery",
+      frequencyType: "per_meal",
+      active: true
     }
   ],
   securityChecks: [

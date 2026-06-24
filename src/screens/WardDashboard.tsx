@@ -9,6 +9,7 @@ import type {
   Patient,
   PatientLocation,
   PatientPresentation,
+  StaffShiftAssignment,
   StaffMember,
   Ward
 } from "../types/domain";
@@ -26,7 +27,7 @@ const locations: PatientLocation[] = [
 
 const presentations: PatientPresentation[] = ["Awake", "Asleep"];
 const patientSortModes = ["Rooms", "Ending soonest", "On Enhanced observations"] as const;
-const missedObservationReasons = ["Attending another incident", "Staff shortage", "Patient unavailable", "Clinical emergency", "Other"];
+const missedObservationReasons = ["Attending another incident", "Staff shortage", "Clinical emergency", "Other"];
 
 type PatientSortMode = (typeof patientSortModes)[number];
 
@@ -36,6 +37,7 @@ type WardDashboardProps = {
   news2Readings: News2Reading[];
   missedObservations: MissedObservation[];
   observations: Observation[];
+  staffShiftAssignments: StaffShiftAssignment[];
   staff: StaffMember[];
   selectedStaffId: string;
   selectedWardId: string;
@@ -60,6 +62,7 @@ export function WardDashboard({
   news2Readings,
   missedObservations,
   observations,
+  staffShiftAssignments,
   staff,
   selectedStaffId,
   selectedWardId,
@@ -81,6 +84,23 @@ export function WardDashboard({
   const selectedPatient = patients.find((patient) => patient.id === selectedPatientId);
   const selectedStaff = staff.find((member) => member.id === selectedStaffId);
   const [now, setNow] = useState(() => Date.now());
+  const currentShift = selectedWard ? getCurrentShift(selectedWard, now) : undefined;
+  const currentShiftAssignments = currentShift
+    ? staffShiftAssignments.filter(
+        (assignment) =>
+          assignment.wardId === selectedWardId &&
+          assignment.shiftId === currentShift.shiftId &&
+          assignment.date === currentShift.dateKey
+      )
+    : [];
+  const nurseInChargeNames = currentShiftAssignments
+    .filter((assignment) => assignment.nurseInCharge)
+    .map((assignment) => staff.find((member) => member.id === assignment.staffId)?.name)
+    .filter((name): name is string => Boolean(name));
+  const medicationNurseNames = currentShiftAssignments
+    .filter((assignment) => assignment.medicationNurse)
+    .map((assignment) => staff.find((member) => member.id === assignment.staffId)?.name)
+    .filter((name): name is string => Boolean(name));
   const [location, setLocation] = useState<PatientLocation>("Side room");
   const [presentation, setPresentation] = useState<PatientPresentation>("Awake");
   const [comments, setComments] = useState("");
@@ -276,7 +296,12 @@ export function WardDashboard({
         ) : null}
       </View>
 
-      <ClockStrip now={now} />
+      <ClockStrip
+        medicationNurseNames={medicationNurseNames}
+        now={now}
+        nurseInChargeNames={nurseInChargeNames}
+        shiftLabel={currentShift?.label}
+      />
 
       <View style={styles.split}>
         <View style={[styles.patientList, !selectedPatient && styles.patientListWide]}>
@@ -424,13 +449,36 @@ export function WardDashboard({
   );
 }
 
-function ClockStrip({ now }: { now: number }) {
+function ClockStrip({
+  medicationNurseNames,
+  now,
+  nurseInChargeNames,
+  shiftLabel
+}: {
+  medicationNurseNames: string[];
+  now: number;
+  nurseInChargeNames: string[];
+  shiftLabel?: string;
+}) {
   return (
     <View style={styles.clockStrip}>
-      <Text style={styles.clockStripLabel}>Time</Text>
-      <View style={styles.clockBox}>
-        <Text style={styles.clockDate}>{formatObservationDate(new Date(now).toISOString())}</Text>
-        <Text style={styles.clockText}>{formatClockTime(now)}</Text>
+      <View style={styles.clockMain}>
+        <Text style={styles.clockStripLabel}>Time</Text>
+        <View style={styles.clockBox}>
+          <Text style={styles.clockDate}>{formatObservationDate(new Date(now).toISOString())}</Text>
+          <Text style={styles.clockText}>{formatClockTime(now)}</Text>
+        </View>
+      </View>
+      <View style={styles.shiftLeadPanel}>
+        <Text style={styles.shiftLeadTitle}>{shiftLabel ?? "Current shift"}</Text>
+        <View style={styles.shiftLeadRow}>
+          <Text style={styles.shiftLeadLabel}>Nurse in charge</Text>
+          <Text style={styles.shiftLeadValue}>{formatStaffNames(nurseInChargeNames)}</Text>
+        </View>
+        <View style={styles.shiftLeadRow}>
+          <Text style={styles.shiftLeadLabel}>Medication nurse</Text>
+          <Text style={styles.shiftLeadValue}>{formatStaffNames(medicationNurseNames)}</Text>
+        </View>
       </View>
     </View>
   );
@@ -615,12 +663,62 @@ function formatObservationDate(value: string) {
   });
 }
 
+function formatDateKey(date: Date) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+}
+
 function formatClockTime(value: number) {
   return new Date(value).toLocaleTimeString([], {
     hour: "2-digit",
     minute: "2-digit",
     second: "2-digit"
   });
+}
+
+function formatStaffNames(names: string[]) {
+  return names.length > 0 ? names.join(", ") : "Not set";
+}
+
+function getCurrentShift(ward: Ward, nowValue: number) {
+  const shifts = ward.rotaShifts.slice(0, ward.rotaShiftCount);
+  const nowDate = new Date(nowValue);
+  const nowMinutes = nowDate.getHours() * 60 + nowDate.getMinutes();
+
+  for (const [index, shift] of shifts.entries()) {
+    const startMinutes = timeToMinutes(shift.startsAt);
+    const endMinutes = timeToMinutes(shift.endsAt);
+    const crossesMidnight = endMinutes <= startMinutes;
+    const isActive = crossesMidnight
+      ? nowMinutes >= startMinutes || nowMinutes < endMinutes
+      : nowMinutes >= startMinutes && nowMinutes < endMinutes;
+
+    if (isActive) {
+      const shiftDate = new Date(nowDate);
+      if (crossesMidnight && nowMinutes < endMinutes) {
+        shiftDate.setDate(shiftDate.getDate() - 1);
+      }
+
+      return {
+        dateKey: formatDateKey(shiftDate),
+        label: `Shift ${index + 1} | ${shift.startsAt}-${shift.endsAt}`,
+        shiftId: shift.id
+      };
+    }
+  }
+
+  const firstShift = shifts[0];
+  return firstShift
+    ? {
+        dateKey: formatDateKey(nowDate),
+        label: `Shift 1 | ${firstShift.startsAt}-${firstShift.endsAt}`,
+        shiftId: firstShift.id
+      }
+    : undefined;
+}
+
+function timeToMinutes(time: string) {
+  const [hourText = "0", minuteText = "0"] = time.split(":");
+  return Number(hourText) * 60 + Number(minuteText);
 }
 
 function formatObservationTime(value: string) {
@@ -701,6 +799,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 6
   },
+  clockMain: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: 12
+  },
   clockStrip: {
     alignItems: "center",
     backgroundColor: "#ffffff",
@@ -709,7 +812,7 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     flexDirection: "row",
     gap: 12,
-    justifyContent: "center",
+    justifyContent: "space-between",
     padding: 8,
     position: "sticky" as "relative",
     top: 0,
@@ -730,6 +833,39 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "900",
     lineHeight: 24
+  },
+  shiftLeadPanel: {
+    alignItems: "center",
+    backgroundColor: "#f8fafb",
+    borderColor: "#d8e0e3",
+    borderRadius: 8,
+    borderWidth: 1,
+    flex: 1,
+    flexDirection: "row",
+    gap: 10,
+    justifyContent: "space-between",
+    minHeight: 48,
+    paddingHorizontal: 12,
+    paddingVertical: 6
+  },
+  shiftLeadTitle: {
+    color: "#18262c",
+    fontSize: 13,
+    fontWeight: "900"
+  },
+  shiftLeadRow: {
+    flex: 1
+  },
+  shiftLeadLabel: {
+    color: "#607078",
+    fontSize: 11,
+    fontWeight: "900"
+  },
+  shiftLeadValue: {
+    color: "#18262c",
+    fontSize: 13,
+    fontWeight: "900",
+    marginTop: 2
   },
   changeButton: {
     alignItems: "center",
