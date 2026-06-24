@@ -6,7 +6,6 @@ import type {
   ObservationLevel,
   Patient,
   StaffMember,
-  StaffShiftAssignment,
   StaffRatio,
   TesoEpisode,
   TesoReason
@@ -32,7 +31,6 @@ type TesoDraft = {
   staffRatio: StaffRatio;
   reasons: TesoReason[];
   otherReason: string;
-  assignedStaffIds: string[];
   carePlan: string;
   reviewFrequencyMinutes: number;
 };
@@ -40,7 +38,6 @@ type TesoDraft = {
 type PatientSettingsScreenProps = {
   patients: Patient[];
   staff: StaffMember[];
-  staffShiftAssignments: StaffShiftAssignment[];
   selectedStaffId: string;
   onBack: () => void;
   onUpdatePatient: (patient: Patient) => void;
@@ -49,7 +46,6 @@ type PatientSettingsScreenProps = {
 export function PatientSettingsScreen({
   patients,
   staff,
-  staffShiftAssignments,
   selectedStaffId,
   onBack,
   onUpdatePatient
@@ -67,23 +63,15 @@ export function PatientSettingsScreen({
   const [tesoDraft, setTesoDraft] = useState<TesoDraft>(() => createDefaultDraft());
   const [activeCarePlanDraft, setActiveCarePlanDraft] = useState("");
   const [endReason, setEndReason] = useState("");
-  const [staffSearches, setStaffSearches] = useState<Record<string, string>>({});
   const detailScrollRef = useRef<ScrollView>(null);
   const selectedPatient = orderedPatients.find((patient) => patient.id === selectedPatientId) ?? orderedPatients[0];
-  const todayKey = formatDateKey(new Date());
-  const eligibleTesoStaff = useMemo(
-    () => getEligibleTesoStaff(staff, staffShiftAssignments, selectedPatient?.wardId, todayKey),
-    [selectedPatient?.wardId, staff, staffShiftAssignments, todayKey]
-  );
-  const draftRequiredStaffCount = ratioStaffCount(tesoDraft.staffRatio);
   const hasActiveTeso = Boolean(
     selectedPatient && (selectedPatient.enhancedObservation || selectedPatient.observationLevel !== "Intermittent")
   );
   const canStartTeso =
     Boolean(tesoDraft.observationLevel) &&
     tesoDraft.reasons.length > 0 &&
-    (!tesoDraft.reasons.includes("Other") || tesoDraft.otherReason.trim().length > 0) &&
-    normaliseAssignedStaffIds(tesoDraft.assignedStaffIds, draftRequiredStaffCount).every(Boolean);
+    (!tesoDraft.reasons.includes("Other") || tesoDraft.otherReason.trim().length > 0);
   const activeTesoMissingCarePlan =
     hasActiveTeso && !selectedPatient?.enhancedObservation?.carePlan.trim();
   const draftTesoMissingCarePlan = !tesoDraft.carePlan.trim();
@@ -91,7 +79,6 @@ export function PatientSettingsScreen({
   useEffect(() => {
     setTesoDraft(createDefaultDraft());
     setEndReason("");
-    setStaffSearches({});
   }, [selectedPatientId]);
 
   useEffect(() => {
@@ -339,45 +326,6 @@ export function PatientSettingsScreen({
                   </View>
                 ) : null}
 
-                <Text style={styles.label}>TESO staff ratio</Text>
-                <OptionRow
-                  disabled={!canEdit}
-                  options={ratios}
-                  selected={selectedPatient.enhancedObservation?.staffRatio ?? "1:1"}
-                  onSelect={(staffRatio) =>
-                    updateActiveTesoPlan(selectedPatient, {
-                      staffRatio: staffRatio as StaffRatio,
-                      assignedStaffIds: normaliseAssignedStaffIds(
-                        selectedPatient.enhancedObservation?.assignedStaffIds ?? [],
-                        ratioStaffCount(staffRatio as StaffRatio)
-                      )
-                    })
-                  }
-                />
-
-                <Text style={styles.label}>Assigned staff for this TESO</Text>
-                <StaffAssignmentSlots
-                  disabled={!canEdit}
-                  searchPrefix={`active-${selectedPatient.id}`}
-                  searches={staffSearches}
-                  selectedStaffIds={normaliseAssignedStaffIds(
-                    selectedPatient.enhancedObservation?.assignedStaffIds ?? [],
-                    ratioStaffCount(selectedPatient.enhancedObservation?.staffRatio ?? "1:1")
-                  )}
-                  staff={eligibleTesoStaff}
-                  onSearchChange={(slotKey, value) => setStaffSearches((current) => ({ ...current, [slotKey]: value }))}
-                  onSelect={(slotIndex, staffId) =>
-                    updateActiveTesoPlan(selectedPatient, {
-                      assignedStaffIds: setAssignedStaffAt(
-                        selectedPatient.enhancedObservation?.assignedStaffIds ?? [],
-                        slotIndex,
-                        staffId,
-                        ratioStaffCount(selectedPatient.enhancedObservation?.staffRatio ?? "1:1")
-                      )
-                    })
-                  }
-                />
-
                 <Text style={styles.label}>Reason for enhanced observation</Text>
                 <OptionRow
                   disabled={!canEdit}
@@ -411,6 +359,16 @@ export function PatientSettingsScreen({
                   placeholder="Required when Other is selected"
                   style={[styles.input, !canEdit && styles.disabledControl]}
                   value={selectedPatient.enhancedObservation?.otherReason ?? ""}
+                />
+
+                <Text style={styles.label}>TESO staff ratio</Text>
+                <OptionRow
+                  disabled={!canEdit}
+                  options={ratios}
+                  selected={selectedPatient.enhancedObservation?.staffRatio ?? "1:1"}
+                  onSelect={(staffRatio) =>
+                    updateActiveTesoPlan(selectedPatient, { staffRatio: staffRatio as StaffRatio })
+                  }
                 />
 
                 <Text style={styles.label}>TESO started</Text>
@@ -529,44 +487,6 @@ export function PatientSettingsScreen({
                     }
                   />
 
-                  <Text style={styles.label}>TESO staff ratio</Text>
-                  <OptionRow
-                    disabled={!canEdit}
-                    options={ratios}
-                    selected={tesoDraft.staffRatio}
-                    onSelect={(staffRatio) =>
-                      setTesoDraft((currentDraft) => ({
-                        ...currentDraft,
-                        staffRatio: staffRatio as StaffRatio,
-                        assignedStaffIds: normaliseAssignedStaffIds(
-                          currentDraft.assignedStaffIds,
-                          ratioStaffCount(staffRatio as StaffRatio)
-                        )
-                      }))
-                    }
-                  />
-
-                  <Text style={styles.label}>Assigned staff for this TESO</Text>
-                  <StaffAssignmentSlots
-                    disabled={!canEdit}
-                    searchPrefix={`draft-${selectedPatient.id}`}
-                    searches={staffSearches}
-                    selectedStaffIds={normaliseAssignedStaffIds(tesoDraft.assignedStaffIds, draftRequiredStaffCount)}
-                    staff={eligibleTesoStaff}
-                    onSearchChange={(slotKey, value) => setStaffSearches((current) => ({ ...current, [slotKey]: value }))}
-                    onSelect={(slotIndex, staffId) =>
-                      setTesoDraft((currentDraft) => ({
-                        ...currentDraft,
-                        assignedStaffIds: setAssignedStaffAt(
-                          currentDraft.assignedStaffIds,
-                          slotIndex,
-                          staffId,
-                          ratioStaffCount(currentDraft.staffRatio)
-                        )
-                      }))
-                    }
-                  />
-
                   <Text style={styles.label}>Reason for enhanced observation</Text>
                   <OptionRow
                     disabled={!canEdit}
@@ -592,6 +512,19 @@ export function PatientSettingsScreen({
                     placeholder="Required when Other is selected"
                     style={[styles.input, !canEdit && styles.disabledControl]}
                     value={tesoDraft.otherReason}
+                  />
+
+                  <Text style={styles.label}>TESO staff ratio</Text>
+                  <OptionRow
+                    disabled={!canEdit}
+                    options={ratios}
+                    selected={tesoDraft.staffRatio}
+                    onSelect={(staffRatio) =>
+                      setTesoDraft((currentDraft) => ({
+                        ...currentDraft,
+                        staffRatio: staffRatio as StaffRatio
+                      }))
+                    }
                   />
 
                   <Text style={styles.label}>Review frequency</Text>
@@ -625,7 +558,7 @@ export function PatientSettingsScreen({
                   />
 
                   <Text style={styles.infoText}>
-                    Select the TESO level, staff ratio, assigned staff, and reason before starting the TESO episode.
+                    Select the TESO level and reason before starting the TESO episode. Staff can be allocated from Enhanced/TESO observations or the staff rota.
                   </Text>
                 </View>
               )}
@@ -708,91 +641,11 @@ function OptionRow({ options, selected, disabled, multi, onSelect }: OptionRowPr
   );
 }
 
-type StaffAssignmentSlotsProps = {
-  disabled: boolean;
-  searchPrefix: string;
-  searches: Record<string, string>;
-  selectedStaffIds: string[];
-  staff: StaffMember[];
-  onSearchChange: (slotKey: string, value: string) => void;
-  onSelect: (slotIndex: number, staffId: string) => void;
-};
-
-function StaffAssignmentSlots({
-  disabled,
-  searchPrefix,
-  searches,
-  selectedStaffIds,
-  staff,
-  onSearchChange,
-  onSelect
-}: StaffAssignmentSlotsProps) {
-  return (
-    <View style={styles.staffSlots}>
-      {selectedStaffIds.map((selectedStaffId, slotIndex) => {
-        const slotKey = `${searchPrefix}-${slotIndex}`;
-        const searchValue = searches[slotKey] ?? "";
-        const selectedStaff = staff.find((member) => member.id === selectedStaffId);
-        const options = getStaffLookupOptions(staff, searchValue, selectedStaffIds, selectedStaffId);
-
-        return (
-          <View key={slotKey} style={styles.staffSlot}>
-            <Text style={styles.staffSlotLabel}>Staff {slotIndex + 1}</Text>
-            <TextInput
-              editable={!disabled}
-              onChangeText={(value) => onSearchChange(slotKey, value)}
-              placeholder={selectedStaff ? selectedStaff.name : "Search staff name or code"}
-              style={[styles.input, styles.staffLookupInput, disabled && styles.disabledControl]}
-              value={searchValue}
-            />
-            {selectedStaff ? (
-              <View style={styles.selectedStaffRow}>
-                <Text style={styles.selectedStaffText}>
-                  {selectedStaff.name} | {selectedStaff.staffCode}
-                </Text>
-                <TouchableOpacity
-                  accessibilityRole="button"
-                  disabled={disabled}
-                  onPress={() => onSelect(slotIndex, "")}
-                  style={[styles.clearStaffButton, disabled && styles.disabledControl]}
-                >
-                  <Text style={styles.clearStaffText}>Clear</Text>
-                </TouchableOpacity>
-              </View>
-            ) : null}
-            {searchValue.trim().length > 0 && options.length > 0 ? (
-              <View style={styles.staffLookupResults}>
-                {options.map((member) => (
-                  <TouchableOpacity
-                    accessibilityRole="button"
-                    disabled={disabled}
-                    key={member.id}
-                    onPress={() => {
-                      onSelect(slotIndex, member.id);
-                      onSearchChange(slotKey, "");
-                    }}
-                    style={[styles.staffLookupOption, disabled && styles.disabledControl]}
-                  >
-                    <Text style={styles.staffLookupName}>{member.name}</Text>
-                    <Text style={styles.staffLookupMeta}>
-                      {member.staffCode} | {member.role}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            ) : null}
-          </View>
-        );
-      })}
-    </View>
-  );
-}
-
 function createDefaultPlan(authorisedBy: string): EnhancedObservationPlan {
   const reviewFrequencyMinutes = 60;
 
   return {
-    staffRatio: "1:1" as StaffRatio,
+    staffRatio: "1:1",
     reasons: ["Risk to self"] as TesoReason[],
     otherReason: "",
     startedAt: new Date().toISOString(),
@@ -810,22 +663,19 @@ function createDefaultDraft(): TesoDraft {
     staffRatio: "1:1",
     reasons: [],
     otherReason: "",
-    assignedStaffIds: [""],
     carePlan: "",
     reviewFrequencyMinutes: 60
   };
 }
 
 function createPlanFromDraft(draft: TesoDraft, authorisedBy: string): EnhancedObservationPlan {
-  const staffCount = ratioStaffCount(draft.staffRatio);
-
   return {
     staffRatio: draft.staffRatio,
     reasons: draft.reasons,
     otherReason: draft.otherReason,
     startedAt: new Date().toISOString(),
     authorisedBy,
-    assignedStaffIds: normaliseAssignedStaffIds(draft.assignedStaffIds, staffCount).filter(Boolean),
+    assignedStaffIds: [],
     carePlan: draft.carePlan.trim(),
     reviewFrequencyMinutes: draft.reviewFrequencyMinutes,
     nextReviewAt: buildNextReviewAt(draft.reviewFrequencyMinutes)
@@ -883,104 +733,8 @@ function syncActiveTesoEpisode(patient: Patient): Patient {
   };
 }
 
-function ratioStaffCount(ratio: StaffRatio) {
-  const count = Number.parseInt(ratio.split(":")[0] ?? "1", 10);
-  return Number.isFinite(count) && count > 0 ? count : 1;
-}
-
-function normaliseAssignedStaffIds(staffIds: string[], requiredCount: number) {
-  return Array.from({ length: requiredCount }, (_, index) => staffIds[index] ?? "");
-}
-
-function setAssignedStaffAt(staffIds: string[], slotIndex: number, staffId: string, requiredCount: number) {
-  const nextStaffIds = normaliseAssignedStaffIds(staffIds, requiredCount);
-  nextStaffIds[slotIndex] = staffId;
-  return nextStaffIds;
-}
-
 function buildNextReviewAt(reviewFrequencyMinutes: number) {
   return new Date(Date.now() + reviewFrequencyMinutes * 60 * 1000).toISOString();
-}
-
-function getStaffLookupOptions(
-  staff: StaffMember[],
-  searchValue: string,
-  selectedStaffIds: string[],
-  currentStaffId: string
-) {
-  const query = searchValue.trim().toLowerCase();
-
-  if (!query) {
-    return [];
-  }
-
-  const selected = new Set(selectedStaffIds.filter((staffId) => staffId && staffId !== currentStaffId));
-
-  return staff
-    .filter((member) => member.active !== false)
-    .filter((member) => !selected.has(member.id))
-    .filter((member) => `${member.name} ${member.staffCode} ${member.role}`.toLowerCase().includes(query))
-    .slice(0, 8);
-}
-
-function getEligibleTesoStaff(
-  staff: StaffMember[],
-  staffShiftAssignments: StaffShiftAssignment[],
-  wardId: string | undefined,
-  dateKey: string
-) {
-  if (!wardId) {
-    return staff.filter(isStaffCurrentlyActive);
-  }
-
-  const shiftStaffIds = new Set(
-    staffShiftAssignments
-      .filter((assignment) => assignment.wardId === wardId && assignment.date === dateKey)
-      .map((assignment) => assignment.staffId)
-  );
-
-  return staff
-    .filter(isStaffCurrentlyActive)
-    .filter(
-      (member) =>
-        member.wardId === wardId ||
-        member.allowedWardIds.includes(wardId) ||
-        shiftStaffIds.has(member.id)
-    )
-    .sort((left, right) => {
-      const leftOnShift = shiftStaffIds.has(left.id) ? 0 : 1;
-      const rightOnShift = shiftStaffIds.has(right.id) ? 0 : 1;
-
-      if (leftOnShift !== rightOnShift) {
-        return leftOnShift - rightOnShift;
-      }
-
-      return left.name.localeCompare(right.name);
-    });
-}
-
-function isStaffCurrentlyActive(member: StaffMember) {
-  if (member.active === false) {
-    return false;
-  }
-
-  const now = Date.now();
-  const startsAt = member.accessStartsAt ? new Date(member.accessStartsAt).getTime() : undefined;
-  const expiresAt = member.accessExpiresAt ? new Date(member.accessExpiresAt).getTime() : undefined;
-
-  if (startsAt && startsAt > now) {
-    return false;
-  }
-
-  if (expiresAt && expiresAt < now) {
-    return false;
-  }
-
-  return true;
-}
-
-function formatDateKey(date: Date) {
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
 }
 
 function formatReasons(episode: TesoEpisode) {

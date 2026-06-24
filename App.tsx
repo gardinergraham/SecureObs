@@ -4,6 +4,7 @@ import { StatusBar } from "expo-status-bar";
 
 import { AdminSettingsScreen } from "./src/screens/AdminSettingsScreen";
 import { AuditLogScreen } from "./src/screens/AuditLogScreen";
+import { BankAgencyStaffScreen } from "./src/screens/BankAgencyStaffScreen";
 import { EnhancedObservationScreen } from "./src/screens/EnhancedObservationScreen";
 import { HomeScreen } from "./src/screens/HomeScreen";
 import { MedicationChartScreen } from "./src/screens/MedicationChartScreen";
@@ -86,6 +87,7 @@ type AppScreen =
   | "patientManagement"
   | "patientSettings"
   | "previousObservations"
+  | "bankAgencyStaff"
   | "staffCover"
   | "staffRota"
   | "wardSettings"
@@ -767,9 +769,19 @@ export default function App() {
             wards={siteWards}
             onBack={() => setScreen("observations")}
             onCreateAssignment={handleCreateRotaAssignment}
+            onOpenBankAgencyStaff={() => setScreen("bankAgencyStaff")}
             onOpenStaffCover={() => setScreen("staffCover")}
             onRemoveAssignment={handleRemoveRotaAssignment}
             onUpdateAssignment={handleUpdateRotaAssignment}
+          />
+        ) : screen === "bankAgencyStaff" ? (
+          <BankAgencyStaffScreen
+            selectedStaffId={selectedStaffId}
+            selectedWardId={selectedWardId}
+            staff={staffMembers}
+            wards={siteWards}
+            onBack={() => setScreen("staffRota")}
+            onCreateStaff={handleCreateStaffMember}
           />
         ) : screen === "staffCover" ? (
           <StaffCoverScreen
@@ -825,7 +837,6 @@ export default function App() {
             patients={wardPatients}
             selectedStaffId={selectedStaffId}
             staff={staffMembers}
-            staffShiftAssignments={staffShiftAssignments}
             onBack={() => setScreen("observations")}
             onUpdatePatient={handleUpdatePatient}
           />

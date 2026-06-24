@@ -1,5 +1,5 @@
-import React, { useMemo, useState } from "react";
-import { StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import { ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 
 import type { News2Consciousness, News2Reading, Patient, Spo2Scale, StaffMember } from "../types/domain";
 
@@ -39,8 +39,8 @@ export function News2Screen({
     () => readings.filter((reading) => reading.patientId === selectedPatient?.id).sort((a, b) => a.recordedAt.localeCompare(b.recordedAt)),
     [readings, selectedPatient?.id]
   );
-  const [windowStart, setWindowStart] = useState(Math.max(0, patientReadings.length - 12));
-  const visibleReadings = patientReadings.slice(windowStart, windowStart + 12);
+  const latestReading = patientReadings[patientReadings.length - 1];
+  const chartScrollRef = useRef<ScrollView>(null);
   const [form, setForm] = useState({
     respirationRate: "18",
     spo2: "96",
@@ -52,6 +52,11 @@ export function News2Screen({
     temperature: "36.8"
   });
 
+  useEffect(() => {
+    const scrollTimer = setTimeout(() => chartScrollRef.current?.scrollToEnd({ animated: false }), 80);
+    return () => clearTimeout(scrollTimer);
+  }, [patientReadings.length, selectedPatient?.id]);
+
   const saveReading = () => {
     if (!selectedPatient) {
       return;
@@ -59,7 +64,6 @@ export function News2Screen({
 
     const reading = buildReading(selectedPatient.id, selectedStaff?.name ?? "Unknown", form);
     onCreateReading(reading);
-    setWindowStart(Math.max(0, patientReadings.length + 1 - 12));
   };
 
   return (
@@ -83,7 +87,6 @@ export function News2Screen({
               key={patient.id}
               onPress={() => {
                 onSelectPatient(patient.id);
-                setWindowStart(0);
               }}
               style={[styles.patientRow, patient.id === selectedPatient?.id && styles.patientRowActive]}
             >
@@ -124,20 +127,22 @@ export function News2Screen({
           </View>
 
           <View style={styles.chartPanel}>
-            <View style={styles.chartNav}>
-              <TouchableOpacity accessibilityRole="button" onPress={() => setWindowStart(Math.max(0, windowStart - 12))} style={styles.navButton}>
-                <Text style={styles.navButtonText}>Previous 12</Text>
-              </TouchableOpacity>
-              <Text style={styles.windowText}>Showing {visibleReadings.length} of {patientReadings.length}</Text>
-              <TouchableOpacity
-                accessibilityRole="button"
-                onPress={() => setWindowStart(Math.min(Math.max(0, patientReadings.length - 12), windowStart + 12))}
-                style={styles.navButton}
-              >
-                <Text style={styles.navButtonText}>Next 12</Text>
-              </TouchableOpacity>
+            <View style={styles.chartHeader}>
+              <Text style={styles.panelTitle}>NEWS2 history</Text>
+              <Text style={styles.windowText}>
+                {patientReadings.length} entries
+                {latestReading ? ` | Latest ${formatDate(latestReading.recordedAt)} ${formatTime(latestReading.recordedAt)} | Score ${latestReading.totalScore}` : ""}
+              </Text>
             </View>
-            <News2Chart readings={visibleReadings} />
+            <ScrollView
+              horizontal
+              nestedScrollEnabled
+              ref={chartScrollRef}
+              showsHorizontalScrollIndicator
+              style={styles.chartScroller}
+            >
+              <News2Chart readings={patientReadings} />
+            </ScrollView>
           </View>
         </View>
       </View>
@@ -188,6 +193,14 @@ function ToggleRow({ label, options, selected, onSelect }: ToggleRowProps) {
 }
 
 function News2Chart({ readings }: { readings: News2Reading[] }) {
+  if (readings.length === 0) {
+    return (
+      <View style={[styles.chart, styles.emptyChart]}>
+        <Text style={styles.emptyChartText}>No NEWS2 readings recorded for this patient.</Text>
+      </View>
+    );
+  }
+
   return (
     <View style={styles.chart}>
       <View style={styles.dateRow}>
@@ -544,12 +557,13 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     padding: 10
   },
-  chartNav: { alignItems: "center", flexDirection: "row", justifyContent: "space-between", marginBottom: 8 },
-  navButton: { borderColor: "#1f5262", borderRadius: 6, borderWidth: 1, paddingHorizontal: 10, paddingVertical: 8 },
-  navButtonText: { color: "#1f5262", fontSize: 12, fontWeight: "900" },
+  chartHeader: { alignItems: "center", flexDirection: "row", justifyContent: "space-between", marginBottom: 8 },
+  chartScroller: { maxWidth: "100%" },
   windowText: { color: "#607078", fontSize: 12, fontWeight: "800" },
   panelTitle: { color: "#18262c", fontSize: 17, fontWeight: "900", marginBottom: 10 },
   chart: { borderColor: "#222", borderWidth: 1 },
+  emptyChart: { alignItems: "center", justifyContent: "center", minHeight: 180, width: 520 },
+  emptyChartText: { color: "#607078", fontSize: 13, fontWeight: "900" },
   dateRow: { flexDirection: "row" },
   sectionLabelSmall: { backgroundColor: "#0e6fbd", borderColor: "#222", borderWidth: 1, width: 220, justifyContent: "center", padding: 6 },
   sectionLabel: { backgroundColor: "#0e6fbd", borderColor: "#222", borderWidth: 1, width: 150, justifyContent: "center", padding: 6 },

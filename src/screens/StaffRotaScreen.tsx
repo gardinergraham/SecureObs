@@ -29,6 +29,7 @@ type StaffRotaScreenProps = {
   wards: Ward[];
   onBack: () => void;
   onCreateAssignment: (assignment: RotaAssignment) => void;
+  onOpenBankAgencyStaff: () => void;
   onOpenStaffCover: () => void;
   onRemoveAssignment: (assignmentId: string) => void;
   onUpdateAssignment: (assignment: RotaAssignment) => void;
@@ -43,6 +44,7 @@ export function StaffRotaScreen({
   wards,
   onBack,
   onCreateAssignment,
+  onOpenBankAgencyStaff,
   onOpenStaffCover,
   onRemoveAssignment,
   onUpdateAssignment
@@ -207,6 +209,9 @@ export function StaffRotaScreen({
         <View style={styles.headerActions}>
           <TouchableOpacity accessibilityRole="button" onPress={onOpenStaffCover} style={styles.backButton}>
             <Text style={styles.backButtonText}>Staff cover</Text>
+          </TouchableOpacity>
+          <TouchableOpacity accessibilityRole="button" onPress={onOpenBankAgencyStaff} style={styles.backButton}>
+            <Text style={styles.backButtonText}>Bank/Agency staff</Text>
           </TouchableOpacity>
           <TouchableOpacity accessibilityRole="button" onPress={onBack} style={styles.backButton}>
             <Text style={styles.backButtonText}>Back to observations</Text>
