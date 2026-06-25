@@ -89,7 +89,7 @@ export function BankAgencyStaffScreen({
     setVirtualNfcCode(member.staffCode);
     setRole(member.role);
     setDesignation(member.designation ?? "");
-    setLoginPin(member.loginPin ?? "");
+    setLoginPin("");
     setStartDate(formatInputDate(member.accessStartsAt ? new Date(member.accessStartsAt) : new Date()));
     setStartTime(formatInputTime(member.accessStartsAt ? new Date(member.accessStartsAt) : new Date()));
     const defaultEnd = addHours(new Date(), 12);
@@ -136,7 +136,7 @@ export function BankAgencyStaffScreen({
       Alert.alert("Staff details needed", "Enter the bank or agency staff name.");
       return;
     }
-    if (!loginPin.trim()) {
+    if (!editingStaffId && !loginPin.trim()) {
       Alert.alert("PIN needed", "Enter a temporary login PIN.");
       return;
     }
@@ -204,7 +204,7 @@ export function BankAgencyStaffScreen({
       employmentType: "bank",
       accessStartsAt,
       accessExpiresAt,
-      loginPin: loginPin.trim(),
+      loginPin: loginPin.trim() || undefined,
       wardId: primaryWard.id,
       allowedSiteIds,
       allowedWardIds,

@@ -48,6 +48,7 @@ export function WardSettingsScreen({
   const [newStaffRole, setNewStaffRole] = useState<StaffMember["role"]>("nurse");
   const [newStaffDesignation, setNewStaffDesignation] = useState("");
   const [newStaffCanPrescribe, setNewStaffCanPrescribe] = useState(false);
+  const [newStaffLoginPin, setNewStaffLoginPin] = useState("");
   const [newStaffActive, setNewStaffActive] = useState(true);
   const [newStaffWardIds, setNewStaffWardIds] = useState<string[]>(selectedWardId ? [selectedWardId] : []);
   const [editingStaffId, setEditingStaffId] = useState("");
@@ -131,6 +132,7 @@ export function WardSettingsScreen({
     setNewStaffRole(normaliseStaffRole(member.role));
     setNewStaffDesignation(member.designation ?? "");
     setNewStaffCanPrescribe(Boolean(member.canPrescribe));
+    setNewStaffLoginPin("");
     setNewStaffActive(member.active !== false);
     setNewStaffWardIds(wardIds.includes(selectedWardId) ? wardIds : [...wardIds, selectedWardId]);
     setStaffSearch("");
@@ -143,6 +145,7 @@ export function WardSettingsScreen({
     setNewStaffRole("nurse");
     setNewStaffDesignation("");
     setNewStaffCanPrescribe(false);
+    setNewStaffLoginPin("");
     setNewStaffActive(true);
     setNewStaffWardIds(selectedWardId ? [selectedWardId] : []);
   };
@@ -168,6 +171,10 @@ export function WardSettingsScreen({
       Alert.alert("Ward access needed", "Select at least one ward for this staff member.");
       return;
     }
+    if (newStaffLoginPin.trim() && !/^\d{4,6}$/.test(newStaffLoginPin.trim())) {
+      Alert.alert("PIN invalid", "Enter a 4 to 6 digit PIN, or leave the PIN box blank to keep the current PIN.");
+      return;
+    }
 
     const primaryWard = wards.find((ward) => ward.id === newStaffWardIds[0]) ?? selectedWard;
     const allowedSiteIds = Array.from(
@@ -190,7 +197,7 @@ export function WardSettingsScreen({
       employmentType: "permanent",
       accessStartsAt: undefined,
       accessExpiresAt: undefined,
-      loginPin: undefined,
+      loginPin: newStaffLoginPin.trim() || undefined,
       wardId: primaryWard.id,
       allowedSiteIds,
       allowedWardIds: newStaffWardIds,
@@ -287,6 +294,15 @@ export function WardSettingsScreen({
             placeholder="Designation"
             style={styles.input}
             value={newStaffDesignation}
+          />
+          <TextInput placeholderTextColor="#6f7f87"
+            editable={canEditWardSettings}
+            keyboardType="number-pad"
+            onChangeText={setNewStaffLoginPin}
+            placeholder={editingStaffId ? "Set new PIN (optional)" : "Set staff PIN"}
+            secureTextEntry
+            style={styles.input}
+            value={newStaffLoginPin}
           />
           <View style={styles.optionRow}>
             {(["nurse", "hcf", "ot", "security", "doctor"] as StaffMember["role"][]).map((role) => (

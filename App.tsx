@@ -45,6 +45,7 @@ import {
   loadCurrentStaffSession,
   loadStaff,
   loginBankStaffByPin,
+  loginStaffByPin,
   lookupStaffByCode,
   saveRotaAssignment as persistRotaAssignment,
   saveSecurityArea as persistSecurityArea,
@@ -504,6 +505,17 @@ export default function App() {
     return `Selected ${staff.name} for bank/temp access.`;
   };
 
+  const handleStaffPinLogin = async (staffCode: string, loginPin: string) => {
+    const { staff } = await loginStaffByPin(
+      staffCode,
+      loginPin,
+      selectedStaff?.organisationId ?? defaultOrganisationId
+    );
+    setStaffMembers((currentStaff) => upsertStaffByCode(currentStaff, staff));
+    selectStaffSession(staff);
+    return `Selected ${staff.name}.`;
+  };
+
   const handleUnlockStaffAccess = async (lockedStaffCode: string, nurseInChargeStaffCode: string) => {
     const result = await unlockStaffAccess(
       lockedStaffCode,
@@ -837,6 +849,7 @@ export default function App() {
             onSelectSite={handleSelectSite}
             onSelectWard={handleSelectWard}
             onReadStaffCardData={handleReadStaffCardData}
+            onStaffPinLogin={handleStaffPinLogin}
             onBankStaffPinLogin={handleBankStaffPinLogin}
             onUnlockStaffAccess={handleUnlockStaffAccess}
             onScanStaffCard={handleScanStaffCard}

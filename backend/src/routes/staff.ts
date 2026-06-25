@@ -1,10 +1,11 @@
+import crypto from "node:crypto";
 import { Router } from "express";
 import { z } from "zod";
 
 import { auditActorFromBody, recordAuditEvent } from "../audit.js";
 import { createStaffSession, requireAuthenticated, requireStaffRole, type AuthenticatedRequest } from "../auth.js";
 import { dataProvider } from "../data/provider.js";
-import { DuplicateStaffCodeError, StaffLookupAmbiguousError } from "../data/types.js";
+import { DuplicateStaffCodeError, StaffLookupAmbiguousError, type StaffMemberRecord } from "../data/types.js";
 import { pool } from "../db/pool.js";
 import { optionalOrganisationIdSchema, requireOrganisationId } from "./organisation.js";
 
@@ -19,6 +20,12 @@ const staffLookupSchema = z.object({
 });
 
 const bankStaffPinLookupSchema = z.object({
+  staffCode: z.string().min(1),
+  loginPin: z.string().min(1),
+  organisationId: z.string().uuid()
+});
+
+const staffPinLookupSchema = z.object({
   staffCode: z.string().min(1),
   loginPin: z.string().min(1),
   organisationId: z.string().uuid()
@@ -58,7 +65,8 @@ router.get("/", async (request, response, next) => {
   try {
     const organisationId = requireOrganisationId(request, response);
     if (!organisationId) return;
-    response.json({ staff: await dataProvider.staff.list(organisationId) });
+    const staff = await dataProvider.staff.list(organisationId);
+    response.json({ staff: staff.map(toPublicStaff) });
   } catch (error) {
     next(error);
   }
@@ -69,7 +77,7 @@ router.get("/session", async (request: AuthenticatedRequest, response, next) => 
     const auth = requireAuthenticated(request, response);
     if (!auth) return;
 
-    response.json({ staff: auth.staff });
+    response.json({ staff: toPublicStaff(auth.staff) });
   } catch (error) {
     next(error);
   }
@@ -124,7 +132,12 @@ router.post("/", requireStaffRole(["manager", "nurse"]), async (request, respons
       }
     }
 
-    const staff = await dataProvider.staff.upsert({ ...parsed.data, organisationId });
+    const staff = await dataProvider.staff.upsert({
+      ...parsed.data,
+      organisationId,
+      loginPin: null,
+      loginPinHash: parsed.data.loginPin?.trim() ? hashPin(parsed.data.loginPin.trim()) : undefined
+    });
     const actor = auditActorFromBody(request.body);
     await recordAuditEvent({
       organisationId,
@@ -156,7 +169,7 @@ router.post("/", requireStaffRole(["manager", "nurse"]), async (request, respons
         }
       });
     }
-    response.status(201).json({ staff });
+    response.status(201).json({ staff: toPublicStaff(staff) });
   } catch (error) {
     if (error instanceof DuplicateStaffCodeError) {
       response.status(409).json({ error: error.message });
@@ -176,7 +189,7 @@ router.get("/by-code/:staffCode", async (request, response, next) => {
       return;
     }
 
-    response.json({ staff, session: createStaffSession(staff) });
+    response.json({ staff: toPublicStaff(staff), session: createStaffSession(staff) });
   } catch (error) {
     if (error instanceof StaffLookupAmbiguousError) {
       response.status(409).json({ error: error.message });
@@ -238,7 +251,65 @@ router.post("/lookup", async (request, response, next) => {
       entityId: staff.id,
       details: { staffCode: staff.staffCode, employmentType: staff.employmentType }
     });
-    response.json({ staff, session: createStaffSession(staff) });
+    response.json({ staff: toPublicStaff(staff), session: createStaffSession(staff) });
+  } catch (error) {
+    if (error instanceof StaffLookupAmbiguousError) {
+      response.status(409).json({ error: error.message });
+      return;
+    }
+
+    next(error);
+  }
+});
+
+router.post("/pin-login", async (request, response, next) => {
+  try {
+    const parsed = staffPinLookupSchema.safeParse(request.body);
+
+    if (!parsed.success) {
+      response.status(400).json({ error: "STAFFCODE, PIN and organisationId are required" });
+      return;
+    }
+
+    const staff = await dataProvider.staff.findActiveByCode(parsed.data.staffCode, parsed.data.organisationId);
+    const activeLock = await getActiveAccessLockout(parsed.data.organisationId, parsed.data.staffCode, "pin_login");
+    if (activeLock) {
+      await recordLockedAttempt(parsed.data.organisationId, parsed.data.staffCode, "pin_login", activeLock);
+      response.status(423).json({ error: lockoutMessage(activeLock) });
+      return;
+    }
+
+    if (!staff || !verifyPin(parsed.data.loginPin, staff)) {
+      await recordAccessFailure({
+        organisationId: parsed.data.organisationId,
+        staffCode: parsed.data.staffCode,
+        attemptType: "pin_login",
+        reason: staff ? "invalid_pin" : "not_found",
+        staff
+      });
+      await recordAuditEvent({
+        organisationId: parsed.data.organisationId,
+        eventType: "staff.pin_login",
+        entityType: "staff_member",
+        entityId: staff?.id ?? null,
+        outcome: "failure",
+        details: { staffCode: parsed.data.staffCode, reason: staff ? "invalid_pin" : "not_found" }
+      });
+      response.status(401).json({ error: "STAFFCODE and PIN were not accepted" });
+      return;
+    }
+
+    await clearAccessLockout(staff.organisationId, staff.staffCode, "pin_login");
+    await recordAuditEvent({
+      organisationId: staff.organisationId,
+      actorStaffId: staff.id,
+      actorStaffCode: staff.staffCode,
+      eventType: "staff.pin_login",
+      entityType: "staff_member",
+      entityId: staff.id,
+      details: { staffCode: staff.staffCode, employmentType: staff.employmentType }
+    });
+    response.json({ staff: toPublicStaff(staff), session: createStaffSession(staff) });
   } catch (error) {
     if (error instanceof StaffLookupAmbiguousError) {
       response.status(409).json({ error: error.message });
@@ -266,7 +337,7 @@ router.post("/bank-pin-login", async (request, response, next) => {
       return;
     }
 
-    if (!staff || staff.employmentType !== "bank" || staff.loginPin !== parsed.data.loginPin) {
+    if (!staff || staff.employmentType !== "bank" || !verifyPin(parsed.data.loginPin, staff)) {
       await recordAccessFailure({
         organisationId: parsed.data.organisationId,
         staffCode: parsed.data.staffCode,
@@ -302,7 +373,7 @@ router.post("/bank-pin-login", async (request, response, next) => {
         accessExpiresAt: staff.accessExpiresAt ?? null
       }
     });
-    response.json({ staff, session: createStaffSession(staff) });
+    response.json({ staff: toPublicStaff(staff), session: createStaffSession(staff) });
   } catch (error) {
     if (error instanceof StaffLookupAmbiguousError) {
       response.status(409).json({ error: error.message });
@@ -450,7 +521,7 @@ function rangesOverlap(
   return start < otherEnd && otherStart < end;
 }
 
-type AccessAttemptType = "staff_lookup" | "bank_pin_login";
+type AccessAttemptType = "staff_lookup" | "bank_pin_login" | "pin_login";
 type AccessLockoutRow = {
   staffCode: string;
   attemptType: AccessAttemptType;
@@ -770,4 +841,32 @@ function timeToMinutes(value: string) {
 
 function formatDateKey(date: Date) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+}
+
+function hashPin(pin: string) {
+  const salt = crypto.randomBytes(16).toString("base64url");
+  const hash = crypto.pbkdf2Sync(pin, salt, 120000, 32, "sha256").toString("base64url");
+  return `pbkdf2_sha256$120000$${salt}$${hash}`;
+}
+
+function verifyPin(pin: string, staff: Pick<StaffMemberRecord, "loginPin" | "loginPinHash">) {
+  if (staff.loginPinHash) {
+    const [algorithm, iterationsText, salt, expectedHash] = staff.loginPinHash.split("$");
+    const iterations = Number(iterationsText);
+    if (algorithm !== "pbkdf2_sha256" || !iterations || !salt || !expectedHash) {
+      return false;
+    }
+
+    const actualHash = crypto.pbkdf2Sync(pin, salt, iterations, 32, "sha256").toString("base64url");
+    const expected = Buffer.from(expectedHash);
+    const actual = Buffer.from(actualHash);
+    return expected.length === actual.length && crypto.timingSafeEqual(expected, actual);
+  }
+
+  return Boolean(staff.loginPin && staff.loginPin === pin);
+}
+
+function toPublicStaff(staff: StaffMemberRecord) {
+  const { loginPin: _loginPin, loginPinHash: _loginPinHash, ...publicStaff } = staff;
+  return publicStaff;
 }

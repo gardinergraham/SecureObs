@@ -14,6 +14,7 @@ export type StaffMemberRecord = {
   accessStartsAt?: string | null;
   accessExpiresAt?: string | null;
   loginPin?: string | null;
+  loginPinHash?: string | null;
   wardId: string;
   allowedSiteIds: string[];
   allowedWardIds: string[];

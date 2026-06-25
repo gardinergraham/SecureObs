@@ -15,6 +15,7 @@ type HomeScreenProps = {
   onSelectSite: (siteId: string) => void;
   onSelectWard: (wardId: string) => void;
   onReadStaffCardData: (cardData: string) => Promise<string>;
+  onStaffPinLogin: (staffCode: string, loginPin: string) => Promise<string>;
   onBankStaffPinLogin: (staffCode: string, loginPin: string) => Promise<string>;
   onUnlockStaffAccess: (lockedStaffCode: string, nurseInChargeStaffCode: string) => Promise<string>;
   onScanStaffCard: () => Promise<string>;
@@ -34,6 +35,7 @@ export function HomeScreen({
   onSelectSite,
   onSelectWard,
   onReadStaffCardData,
+  onStaffPinLogin,
   onBankStaffPinLogin,
   onUnlockStaffAccess,
   onScanStaffCard,
@@ -43,6 +45,9 @@ export function HomeScreen({
 }: HomeScreenProps) {
   const [staffCardData, setStaffCardData] = useState("");
   const [staffCardMessage, setStaffCardMessage] = useState("");
+  const [staffPinCode, setStaffPinCode] = useState("");
+  const [staffPin, setStaffPin] = useState("");
+  const [staffPinMessage, setStaffPinMessage] = useState("");
   const [bankStaffCode, setBankStaffCode] = useState("");
   const [bankStaffPin, setBankStaffPin] = useState("");
   const [bankStaffMessage, setBankStaffMessage] = useState("");
@@ -50,6 +55,7 @@ export function HomeScreen({
   const [nurseInChargeStaffCode, setNurseInChargeStaffCode] = useState("");
   const [unlockMessage, setUnlockMessage] = useState("");
   const [isBankStaffSigningIn, setIsBankStaffSigningIn] = useState(false);
+  const [isStaffPinSigningIn, setIsStaffPinSigningIn] = useState(false);
   const [isUnlockingAccess, setIsUnlockingAccess] = useState(false);
   const [isScanningStaffCard, setIsScanningStaffCard] = useState(false);
   const selectedWard = wards.find((ward) => ward.id === selectedWardId);
@@ -105,6 +111,23 @@ export function HomeScreen({
       setBankStaffMessage(error instanceof Error ? error.message : "Bank staff sign-in failed.");
     } finally {
       setIsBankStaffSigningIn(false);
+    }
+  };
+
+  const signInStaffPin = async () => {
+    if (!staffPinCode.trim() || !staffPin.trim()) {
+      setStaffPinMessage("Enter STAFFCODE and PIN.");
+      return;
+    }
+
+    setIsStaffPinSigningIn(true);
+    try {
+      setStaffPinMessage(await onStaffPinLogin(staffPinCode.trim(), staffPin.trim()));
+      setStaffPin("");
+    } catch (error) {
+      setStaffPinMessage(error instanceof Error ? error.message : "Staff PIN sign-in failed.");
+    } finally {
+      setIsStaffPinSigningIn(false);
     }
   };
 
@@ -187,6 +210,37 @@ export function HomeScreen({
               <Text style={styles.secondaryButtonText}>Use STAFFCODE</Text>
             </TouchableOpacity>
             {staffCardMessage ? <Text style={styles.cardMessage}>{staffCardMessage}</Text> : null}
+          </View>
+
+          <View style={styles.nfcPanel}>
+            <View style={styles.nfcHeader}>
+              <Text style={styles.nfcTitle}>Staff PIN sign-in</Text>
+            </View>
+            <TextInput placeholderTextColor="#6f7f87"
+              autoCapitalize="none"
+              onChangeText={setStaffPinCode}
+              placeholder="STAFFCODE"
+              style={styles.cardInput}
+              value={staffPinCode}
+            />
+            <TextInput placeholderTextColor="#6f7f87"
+              autoCapitalize="none"
+              keyboardType="number-pad"
+              onChangeText={setStaffPin}
+              placeholder="PIN"
+              secureTextEntry
+              style={styles.cardInput}
+              value={staffPin}
+            />
+            <TouchableOpacity
+              accessibilityRole="button"
+              disabled={isStaffPinSigningIn}
+              onPress={signInStaffPin}
+              style={[styles.secondaryButton, isStaffPinSigningIn && styles.disabledOutline]}
+            >
+              <Text style={styles.secondaryButtonText}>{isStaffPinSigningIn ? "Checking" : "Sign in with PIN"}</Text>
+            </TouchableOpacity>
+            {staffPinMessage ? <Text style={styles.cardMessage}>{staffPinMessage}</Text> : null}
           </View>
 
           <View style={styles.nfcPanel}>
