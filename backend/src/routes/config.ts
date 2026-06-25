@@ -30,6 +30,7 @@ const wardSchema = z.object({
   securityChecksEnabled: z.boolean().default(true),
   medicationChartEnabled: z.boolean().default(true),
   staffRotaEnabled: z.boolean().default(true),
+  assessmentFormsEnabled: z.boolean().default(false),
   sessionTimeoutMinutes: z.number().int().positive().default(15),
   rotaShiftCount: z.number().int().positive().default(3),
   rotaShifts: z
@@ -193,6 +194,7 @@ router.get("/wards", async (request, response, next) => {
         wards.security_checks_enabled as "securityChecksEnabled",
         wards.medication_chart_enabled as "medicationChartEnabled",
         wards.staff_rota_enabled as "staffRotaEnabled",
+        wards.assessment_forms_enabled as "assessmentFormsEnabled",
         wards.session_timeout_minutes as "sessionTimeoutMinutes",
         wards.rota_shift_count as "rotaShiftCount",
         wards.rota_shifts as "rotaShifts",
@@ -240,8 +242,8 @@ router.post("/wards", requireStaffRole(["manager", "super_admin"]), async (reque
         insert into wards (
           id, site_id, name, service_type, observation_interval_minutes, news2_enabled,
           enhanced_observations_enabled, security_checks_enabled, medication_chart_enabled, staff_rota_enabled,
-          session_timeout_minutes, rota_shift_count, rota_shifts, break_duration_minutes
-        ) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13::jsonb,$14)
+          assessment_forms_enabled, session_timeout_minutes, rota_shift_count, rota_shifts, break_duration_minutes
+        ) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14::jsonb,$15)
         on conflict (id) do update set
           site_id = excluded.site_id,
           name = excluded.name,
@@ -252,6 +254,7 @@ router.post("/wards", requireStaffRole(["manager", "super_admin"]), async (reque
           security_checks_enabled = excluded.security_checks_enabled,
           medication_chart_enabled = excluded.medication_chart_enabled,
           staff_rota_enabled = excluded.staff_rota_enabled,
+          assessment_forms_enabled = excluded.assessment_forms_enabled,
           session_timeout_minutes = excluded.session_timeout_minutes,
           rota_shift_count = excluded.rota_shift_count,
           rota_shifts = excluded.rota_shifts,
@@ -267,6 +270,7 @@ router.post("/wards", requireStaffRole(["manager", "super_admin"]), async (reque
           security_checks_enabled as "securityChecksEnabled",
           medication_chart_enabled as "medicationChartEnabled",
           staff_rota_enabled as "staffRotaEnabled",
+          assessment_forms_enabled as "assessmentFormsEnabled",
           session_timeout_minutes as "sessionTimeoutMinutes",
           rota_shift_count as "rotaShiftCount",
           rota_shifts as "rotaShifts",
@@ -283,6 +287,7 @@ router.post("/wards", requireStaffRole(["manager", "super_admin"]), async (reque
         ward.securityChecksEnabled,
         ward.medicationChartEnabled,
         ward.staffRotaEnabled,
+        ward.assessmentFormsEnabled,
         ward.sessionTimeoutMinutes,
         ward.rotaShiftCount,
         JSON.stringify(ward.rotaShifts),
@@ -452,6 +457,7 @@ function toAppWard(row: Record<string, unknown>) {
     rotaShiftCount: Number(row.rotaShiftCount ?? rotaShifts.length ?? 3),
     rotaShifts,
     breakDurationMinutes: Number(row.breakDurationMinutes ?? 30),
+    assessmentFormsEnabled: Boolean(row.assessmentFormsEnabled ?? false),
     selected: false
   };
 }

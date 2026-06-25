@@ -50,6 +50,7 @@ export type Ward = {
   securityChecksEnabled: boolean;
   medicationChartEnabled: boolean;
   staffRotaEnabled: boolean;
+  assessmentFormsEnabled: boolean;
   sessionTimeoutMinutes: number;
   rotaShiftCount: number;
   rotaShifts: RotaShift[];
@@ -151,7 +152,17 @@ export type TesoEpisode = {
   endedReason?: string;
 };
 
-export type PatientFormSectionRisk = "Low" | "Medium" | "High" | "Not assessed";
+export type PatientFormSectionRisk =
+  | "Low"
+  | "Medium"
+  | "High"
+  | "Independent"
+  | "Prompting"
+  | "Assistance"
+  | "Full support"
+  | "Yes"
+  | "No"
+  | "Not assessed";
 
 export type PatientFormSection = {
   id: string;

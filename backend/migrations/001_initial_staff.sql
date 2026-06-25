@@ -22,7 +22,8 @@ create table if not exists wards (
   enhanced_observations_enabled boolean not null default true,
   security_checks_enabled boolean not null default true,
   medication_chart_enabled boolean not null default true,
-  staff_rota_enabled boolean not null default true
+  staff_rota_enabled boolean not null default true,
+  assessment_forms_enabled boolean not null default false
 );
 
 create table if not exists staff_members (

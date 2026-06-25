@@ -36,7 +36,8 @@ begin
     enhanced_observations_enabled bit not null default 1,
     security_checks_enabled bit not null default 1,
     medication_chart_enabled bit not null default 1,
-    staff_rota_enabled bit not null default 1
+    staff_rota_enabled bit not null default 1,
+    assessment_forms_enabled bit not null default 0
   );
 end;
 

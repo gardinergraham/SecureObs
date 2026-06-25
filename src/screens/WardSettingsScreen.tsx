@@ -430,6 +430,13 @@ export function WardSettingsScreen({
           meta="Due medication prompts and recording"
           onToggle={() => updateWardSettings({ medicationChartEnabled: !selectedWard?.medicationChartEnabled })}
         />
+        <FeatureToggle
+          disabled={!selectedWard || !canEditWardSettings}
+          enabled={Boolean(selectedWard?.assessmentFormsEnabled)}
+          label="Assessment forms"
+          meta="Care home forms, signatures and printable assessments"
+          onToggle={() => updateWardSettings({ assessmentFormsEnabled: !selectedWard?.assessmentFormsEnabled })}
+        />
 
         <Text style={styles.settingLabel}>Intermittent observation interval</Text>
         <View style={styles.optionRow}>

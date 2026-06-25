@@ -10,6 +10,7 @@ import { HomeScreen } from "./src/screens/HomeScreen";
 import { MedicationChartScreen } from "./src/screens/MedicationChartScreen";
 import { News2Screen } from "./src/screens/News2Screen";
 import { PatientManagementScreen } from "./src/screens/PatientManagementScreen";
+import { PatientAssessmentFormsScreen } from "./src/screens/PatientAssessmentFormsScreen";
 import { PatientSettingsScreen } from "./src/screens/PatientSettingsScreen";
 import { PreviousObservationsScreen } from "./src/screens/PreviousObservationsScreen";
 import { SecurityCheckSettingsScreen } from "./src/screens/SecurityCheckSettingsScreen";
@@ -101,6 +102,7 @@ type AppScreen =
   | "observations"
   | "enhanced"
   | "patientManagement"
+  | "patientAssessmentForms"
   | "patientSettings"
   | "previousObservations"
   | "bankAgencyStaff"
@@ -971,6 +973,14 @@ export default function App() {
             onBack={() => setScreen("observations")}
             onSavePatient={handleSaveManagedPatient}
           />
+        ) : screen === "patientAssessmentForms" ? (
+          <PatientAssessmentFormsScreen
+            patients={wardPatients}
+            selectedStaffId={selectedStaffId}
+            staff={staffMembers}
+            onBack={() => setScreen("patientSettings")}
+            onUpdatePatient={handleUpdatePatient}
+          />
         ) : screen === "previousObservations" ? (
           <PreviousObservationsScreen
             missedObservations={missedObservations}
@@ -1061,7 +1071,9 @@ export default function App() {
             patients={wardPatients}
             selectedStaffId={selectedStaffId}
             staff={staffMembers}
+            assessmentFormsEnabled={Boolean(selectedWard?.assessmentFormsEnabled)}
             onBack={() => setScreen("observations")}
+            onOpenAssessmentForms={() => setScreen("patientAssessmentForms")}
             onUpdatePatient={handleUpdatePatient}
           />
         )}

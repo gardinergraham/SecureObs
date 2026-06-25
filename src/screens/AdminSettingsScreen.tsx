@@ -92,6 +92,7 @@ export function AdminSettingsScreen({
       securityChecksEnabled: true,
       medicationChartEnabled: true,
       staffRotaEnabled: true,
+      assessmentFormsEnabled: serviceType === "Care home",
       sessionTimeoutMinutes: 15,
       rotaShiftCount: 3,
       rotaShifts: [
