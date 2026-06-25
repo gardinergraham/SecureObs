@@ -166,6 +166,20 @@ export function WardDashboard({
 
     return latestByPatientId;
   }, [news2Readings]);
+  const latestEnhancedObservationByPatientId = useMemo(() => {
+    const latestByPatientId = new Map<string, Observation>();
+
+    observations
+      .filter((observation) => observation.source === "Enhanced/TESO")
+      .forEach((observation) => {
+        const latestObservation = latestByPatientId.get(observation.patientId);
+        if (!latestObservation || observation.observedAt > latestObservation.observedAt) {
+          latestByPatientId.set(observation.patientId, observation);
+        }
+      });
+
+    return latestByPatientId;
+  }, [observations]);
 
   useEffect(() => {
     const timer = setInterval(() => setNow(Date.now()), 1000);
@@ -337,6 +351,7 @@ export function WardDashboard({
               key={patient.id}
               patient={patient}
               selected={patient.id === selectedPatient?.id}
+              latestEnhancedObservation={latestEnhancedObservationByPatientId.get(patient.id)}
               latestNews2Reading={latestNews2ByPatientId.get(patient.id)}
               wardIntervalMinutes={selectedWard?.observationIntervalMinutes ?? 15}
               now={now}
@@ -493,14 +508,24 @@ function ClockStrip({
 type PatientRowProps = {
   patient: Patient;
   selected: boolean;
+  latestEnhancedObservation?: Observation;
   latestNews2Reading?: News2Reading;
   wardIntervalMinutes: number;
   now: number;
   onPress: () => void;
 };
 
-function PatientRow({ patient, selected, latestNews2Reading, wardIntervalMinutes, now, onPress }: PatientRowProps) {
+function PatientRow({
+  patient,
+  selected,
+  latestEnhancedObservation,
+  latestNews2Reading,
+  wardIntervalMinutes,
+  now,
+  onPress
+}: PatientRowProps) {
   const timing = getObservationTiming(patient, wardIntervalMinutes, now);
+  const tesoTiming = getTesoGeneralObservationTiming(patient, latestEnhancedObservation, now);
 
   return (
     <TouchableOpacity
@@ -533,7 +558,7 @@ function PatientRow({ patient, selected, latestNews2Reading, wardIntervalMinutes
       </View>
       <View style={styles.patientTiming}>
         <LatestNews2Box reading={latestNews2Reading} />
-        <ObservationPill patient={patient} />
+        <ObservationPill patient={patient} tesoTiming={tesoTiming} />
         <Text
           style={[
             styles.timerText,
@@ -548,10 +573,27 @@ function PatientRow({ patient, selected, latestNews2Reading, wardIntervalMinutes
   );
 }
 
-function ObservationPill({ patient }: { patient: Patient }) {
+function ObservationPill({
+  patient,
+  tesoTiming
+}: {
+  patient: Patient;
+  tesoTiming?: ReturnType<typeof getTesoGeneralObservationTiming>;
+}) {
   return (
     <View style={[styles.obsPill, observationLevelStyle(patient.observationLevel)]}>
       <Text style={styles.obsPillText}>{patient.observationLevel}</Text>
+      {tesoTiming ? (
+        <Text
+          style={[
+            styles.tesoTimerText,
+            tesoTiming.status === "soon" && styles.soonText,
+            (tesoTiming.status === "due" || tesoTiming.status === "overdue") && styles.overdueText
+          ]}
+        >
+          TESO {tesoTiming.label}
+        </Text>
+      ) : null}
     </View>
   );
 }
@@ -636,6 +678,37 @@ function getDueAt(patient: Patient, wardIntervalMinutes: number) {
   const last = new Date(patient.latestObservationTime).getTime();
   if (Number.isNaN(last)) return undefined;
   return new Date(last + wardIntervalMinutes * 60 * 1000).toISOString();
+}
+
+function getTesoGeneralObservationTiming(patient: Patient, latestEnhancedObservation: Observation | undefined, now: number) {
+  if (patient.observationLevel !== "General observation") {
+    return undefined;
+  }
+
+  const intervalMinutes = patient.enhancedObservation?.reviewFrequencyMinutes ?? 60;
+  const baseline = latestEnhancedObservation?.observedAt ?? patient.enhancedObservation?.startedAt;
+  if (!baseline) {
+    return undefined;
+  }
+
+  const baselineTime = new Date(baseline).getTime();
+  if (Number.isNaN(baselineTime)) {
+    return undefined;
+  }
+
+  const dueAt = baselineTime + intervalMinutes * 60 * 1000;
+  const minutes = Math.round((dueAt - now) / 60000);
+
+  if (minutes < 0) {
+    return { label: `${Math.abs(minutes)}m overdue`, status: "overdue" as const };
+  }
+  if (minutes === 0) {
+    return { label: "due now", status: "due" as const };
+  }
+  if (minutes <= 5) {
+    return { label: `due in ${minutes}m`, status: "soon" as const };
+  }
+  return { label: `due in ${minutes}m`, status: "ok" as const };
 }
 
 function observationLevelStyle(level: Patient["observationLevel"]) {
@@ -1087,10 +1160,12 @@ const styles = StyleSheet.create({
   patientTiming: {
     alignItems: "flex-end",
     gap: 6,
-    width: 106
+    width: 124
   },
   obsPill: {
+    alignItems: "center",
     borderRadius: 6,
+    minWidth: 104,
     paddingHorizontal: 8,
     paddingVertical: 5
   },
@@ -1110,6 +1185,13 @@ const styles = StyleSheet.create({
     color: "#16262c",
     fontSize: 11,
     fontWeight: "900"
+  },
+  tesoTimerText: {
+    color: "#31454d",
+    fontSize: 10,
+    fontWeight: "900",
+    marginTop: 2,
+    textAlign: "center"
   },
   timerText: {
     color: "#3d565f",

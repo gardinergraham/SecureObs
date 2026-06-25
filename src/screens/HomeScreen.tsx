@@ -49,6 +49,7 @@ export function HomeScreen({
   const selectedWard = wards.find((ward) => ward.id === selectedWardId);
   const selectedStaff = staff.find((member) => member.id === selectedStaffId);
   const selectedSite = sites.find((site) => site.id === selectedSiteId);
+  const hasStaffSession = Boolean(selectedStaff);
   const canStart = Boolean(selectedStaff && selectedSite && selectedWard);
   const canOpenAdminSettings = selectedStaff?.staffCode === "GardinerG";
   const canEditWardSettings = hasStaffRole(selectedStaff, "manager");
@@ -200,35 +201,49 @@ export function HomeScreen({
         </View>
 
         <View style={styles.column}>
-          <SectionHeader title="Location" meta={selectedWard?.serviceType ?? "Select site and ward"} />
-          <SelectorRow
-            label="Site"
-            options={sites.map((site) => ({ id: site.id, label: site.name }))}
-            selectedId={selectedSiteId}
-            onSelect={onSelectSite}
+          <SectionHeader
+            title="Location"
+            meta={hasStaffSession ? selectedWard?.serviceType ?? "Select site and ward" : "Sign in required"}
           />
-          <SelectorRow
-            label="Ward"
-            options={wards.map((ward) => ({
-              id: ward.id,
-              label: `${ward.name} (${ward.observationIntervalMinutes}m)`
-            }))}
-            selectedId={selectedWardId}
-            onSelect={onSelectWard}
-          />
-          <View style={styles.wardSummary}>
-            <Text style={styles.summaryTitle}>{selectedWard?.name ?? "No ward selected"}</Text>
-            <Text style={styles.summaryMeta}>
-              NEWS2 {selectedWard?.news2Enabled ? "on" : "off"} | Enhanced{" "}
-              {selectedWard?.enhancedObservationsEnabled ? "on" : "off"} | Security{" "}
-              {selectedWard?.securityChecksEnabled ? "on" : "off"} | Meds{" "}
-              {selectedWard?.medicationChartEnabled ? "on" : "off"}
-            </Text>
-            <Text style={styles.summaryMeta}>
-              {selectedWard?.staffRotaEnabled ? "Staff rota enabled" : "Staff rota hidden"} |{" "}
-              {selectedWard?.rotaShiftCount ?? 0} shifts | Breaks {selectedWard?.breakDurationMinutes ?? 0}m
-            </Text>
-          </View>
+          {hasStaffSession ? (
+            <>
+              <SelectorRow
+                label="Site"
+                options={sites.map((site) => ({ id: site.id, label: site.name }))}
+                selectedId={selectedSiteId}
+                onSelect={onSelectSite}
+              />
+              <SelectorRow
+                label="Ward"
+                options={wards.map((ward) => ({
+                  id: ward.id,
+                  label: `${ward.name} (${ward.observationIntervalMinutes}m)`
+                }))}
+                selectedId={selectedWardId}
+                onSelect={onSelectWard}
+              />
+              <View style={styles.wardSummary}>
+                <Text style={styles.summaryTitle}>{selectedWard?.name ?? "No ward selected"}</Text>
+                <Text style={styles.summaryMeta}>
+                  NEWS2 {selectedWard?.news2Enabled ? "on" : "off"} | Enhanced{" "}
+                  {selectedWard?.enhancedObservationsEnabled ? "on" : "off"} | Security{" "}
+                  {selectedWard?.securityChecksEnabled ? "on" : "off"} | Meds{" "}
+                  {selectedWard?.medicationChartEnabled ? "on" : "off"}
+                </Text>
+                <Text style={styles.summaryMeta}>
+                  {selectedWard?.staffRotaEnabled ? "Staff rota enabled" : "Staff rota hidden"} |{" "}
+                  {selectedWard?.rotaShiftCount ?? 0} shifts | Breaks {selectedWard?.breakDurationMinutes ?? 0}m
+                </Text>
+              </View>
+            </>
+          ) : (
+            <View style={styles.locationLockedPanel}>
+              <Text style={styles.locationLockedTitle}>Location hidden</Text>
+              <Text style={styles.locationLockedText}>
+                Sign in with a staff card or bank/temp PIN to show authorised sites and wards.
+              </Text>
+            </View>
+          )}
         </View>
       </View>
 
@@ -552,6 +567,27 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     borderWidth: 1,
     padding: 12
+  },
+  locationLockedPanel: {
+    backgroundColor: "#f8fafb",
+    borderColor: "#d8e0e3",
+    borderRadius: 8,
+    borderWidth: 1,
+    gap: 6,
+    minHeight: 120,
+    justifyContent: "center",
+    padding: 14
+  },
+  locationLockedTitle: {
+    color: "#18262c",
+    fontSize: 15,
+    fontWeight: "900"
+  },
+  locationLockedText: {
+    color: "#607078",
+    fontSize: 13,
+    fontWeight: "800",
+    lineHeight: 19
   },
   summaryTitle: {
     color: "#18262c",

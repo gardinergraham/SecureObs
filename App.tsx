@@ -306,15 +306,20 @@ export default function App() {
 
   const accessibleSites = useMemo(() => {
     if (!selectedStaff) {
-      return sites;
+      return [];
     }
 
     if (selectedStaff.staffCode === "GardinerG") {
       return sites;
     }
 
-    return sites.filter((site) => selectedStaff.allowedSiteIds.includes(site.id));
-  }, [selectedStaff, sites]);
+    const allowedWardSiteIds = wards
+      .filter((ward) => selectedStaff.allowedWardIds.includes(ward.id))
+      .map((ward) => ward.siteId);
+    const allowedSiteIds = new Set([...selectedStaff.allowedSiteIds, ...allowedWardSiteIds]);
+
+    return sites.filter((site) => allowedSiteIds.has(site.id));
+  }, [selectedStaff, sites, wards]);
 
   const siteWards = useMemo(
     () =>
@@ -328,7 +333,7 @@ export default function App() {
 
   const accessibleWards = useMemo(() => {
     if (!selectedStaff) {
-      return wards;
+      return [];
     }
 
     if (selectedStaff.staffCode === "GardinerG") {
@@ -350,10 +355,21 @@ export default function App() {
 
   const selectStaffSession = (staff: StaffMember | undefined) => {
     setSelectedStaffId(staff?.id ?? "");
-    const firstSiteId = staff?.allowedSiteIds[0] ?? "";
-    const firstWard = wards.find(
-      (ward) => ward.siteId === firstSiteId && staff?.allowedWardIds.includes(ward.id)
+    if (!staff) {
+      setSelectedSiteId("");
+      setSelectedWardId("");
+      setSelectedPatientId("");
+      return;
+    }
+
+    const staffCanSeeAll = staff.staffCode === "GardinerG";
+    const firstWard = wards.find((ward) =>
+      staffCanSeeAll
+        ? true
+        : staff.allowedWardIds.includes(ward.id) ||
+          staff.allowedSiteIds.includes(ward.siteId)
     );
+    const firstSiteId = firstWard?.siteId ?? staff.allowedSiteIds[0] ?? "";
 
     setSelectedSiteId(firstSiteId);
     setSelectedWardId(firstWard?.id ?? "");
