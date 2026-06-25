@@ -140,6 +140,13 @@ export async function loginBankStaffByPin(staffCode: string, loginPin: string, o
   return { staff: result.staff };
 }
 
+export async function unlockStaffAccess(lockedStaffCode: string, nurseInChargeStaffCode: string, organisationId: string) {
+  return request<{ ok: boolean; unlocked: boolean; message: string }>("/api/staff/unlock-access", {
+    method: "POST",
+    body: JSON.stringify({ lockedStaffCode, nurseInChargeStaffCode, organisationId })
+  });
+}
+
 export async function loadCurrentStaffSession() {
   const session = await getAuthSession();
   if (!session) {

@@ -16,6 +16,7 @@ type HomeScreenProps = {
   onSelectWard: (wardId: string) => void;
   onReadStaffCardData: (cardData: string) => Promise<string>;
   onBankStaffPinLogin: (staffCode: string, loginPin: string) => Promise<string>;
+  onUnlockStaffAccess: (lockedStaffCode: string, nurseInChargeStaffCode: string) => Promise<string>;
   onScanStaffCard: () => Promise<string>;
   onOpenAdminSettings: () => void;
   onOpenWardSettings: () => void;
@@ -34,6 +35,7 @@ export function HomeScreen({
   onSelectWard,
   onReadStaffCardData,
   onBankStaffPinLogin,
+  onUnlockStaffAccess,
   onScanStaffCard,
   onOpenAdminSettings,
   onOpenWardSettings,
@@ -44,7 +46,11 @@ export function HomeScreen({
   const [bankStaffCode, setBankStaffCode] = useState("");
   const [bankStaffPin, setBankStaffPin] = useState("");
   const [bankStaffMessage, setBankStaffMessage] = useState("");
+  const [lockedStaffCode, setLockedStaffCode] = useState("");
+  const [nurseInChargeStaffCode, setNurseInChargeStaffCode] = useState("");
+  const [unlockMessage, setUnlockMessage] = useState("");
   const [isBankStaffSigningIn, setIsBankStaffSigningIn] = useState(false);
+  const [isUnlockingAccess, setIsUnlockingAccess] = useState(false);
   const [isScanningStaffCard, setIsScanningStaffCard] = useState(false);
   const selectedWard = wards.find((ward) => ward.id === selectedWardId);
   const selectedStaff = staff.find((member) => member.id === selectedStaffId);
@@ -99,6 +105,23 @@ export function HomeScreen({
       setBankStaffMessage(error instanceof Error ? error.message : "Bank staff sign-in failed.");
     } finally {
       setIsBankStaffSigningIn(false);
+    }
+  };
+
+  const unlockAccess = async () => {
+    if (!lockedStaffCode.trim() || !nurseInChargeStaffCode.trim()) {
+      setUnlockMessage("Enter the locked STAFFCODE and nurse in charge STAFFCODE.");
+      return;
+    }
+
+    setIsUnlockingAccess(true);
+    try {
+      setUnlockMessage(await onUnlockStaffAccess(lockedStaffCode.trim(), nurseInChargeStaffCode.trim()));
+      setNurseInChargeStaffCode("");
+    } catch (error) {
+      setUnlockMessage(error instanceof Error ? error.message : "Unable to unlock that sign-in.");
+    } finally {
+      setIsUnlockingAccess(false);
     }
   };
 
@@ -197,6 +220,36 @@ export function HomeScreen({
               </Text>
             </TouchableOpacity>
             {bankStaffMessage ? <Text style={styles.cardMessage}>{bankStaffMessage}</Text> : null}
+          </View>
+
+          <View style={styles.nfcPanel}>
+            <View style={styles.nfcHeader}>
+              <Text style={styles.nfcTitle}>Unlock sign-in</Text>
+            </View>
+            <TextInput placeholderTextColor="#6f7f87"
+              autoCapitalize="none"
+              onChangeText={setLockedStaffCode}
+              placeholder="Locked STAFFCODE or virtual code"
+              style={styles.cardInput}
+              value={lockedStaffCode}
+            />
+            <TextInput placeholderTextColor="#6f7f87"
+              autoCapitalize="none"
+              onChangeText={setNurseInChargeStaffCode}
+              placeholder="Nurse in charge STAFFCODE"
+              secureTextEntry
+              style={styles.cardInput}
+              value={nurseInChargeStaffCode}
+            />
+            <TouchableOpacity
+              accessibilityRole="button"
+              disabled={isUnlockingAccess}
+              onPress={unlockAccess}
+              style={[styles.secondaryButton, isUnlockingAccess && styles.disabledOutline]}
+            >
+              <Text style={styles.secondaryButtonText}>{isUnlockingAccess ? "Checking" : "Unlock sign-in"}</Text>
+            </TouchableOpacity>
+            {unlockMessage ? <Text style={styles.cardMessage}>{unlockMessage}</Text> : null}
           </View>
         </View>
 

@@ -50,6 +50,7 @@ import {
   saveSecurityArea as persistSecurityArea,
   saveStaffShiftAssignment as persistStaffShiftAssignment,
   savePatient as persistPatient,
+  unlockStaffAccess,
   updateMedicationPrescription as persistMedicationPrescriptionUpdate
 } from "./src/services/api";
 import { clearAuthSession } from "./src/services/authSession";
@@ -503,6 +504,15 @@ export default function App() {
     return `Selected ${staff.name} for bank/temp access.`;
   };
 
+  const handleUnlockStaffAccess = async (lockedStaffCode: string, nurseInChargeStaffCode: string) => {
+    const result = await unlockStaffAccess(
+      lockedStaffCode,
+      nurseInChargeStaffCode,
+      selectedStaff?.organisationId ?? defaultOrganisationId
+    );
+    return result.message;
+  };
+
   const handleScanStaffCard = async () => {
     const cardData = await readNfcTextPayload();
 
@@ -828,6 +838,7 @@ export default function App() {
             onSelectWard={handleSelectWard}
             onReadStaffCardData={handleReadStaffCardData}
             onBankStaffPinLogin={handleBankStaffPinLogin}
+            onUnlockStaffAccess={handleUnlockStaffAccess}
             onScanStaffCard={handleScanStaffCard}
             onOpenAdminSettings={() => setScreen("adminSettings")}
             onOpenWardSettings={() => setScreen("wardSettings")}
