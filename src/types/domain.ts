@@ -260,7 +260,40 @@ export type SecurityArea = {
   requiresCount: boolean;
   category?: SecurityCheckCategory;
   frequencyType?: SecurityCheckFrequency;
+  expectedItems?: SecurityExpectedItems;
   active?: boolean;
+};
+
+export type SecurityExpectedItems = {
+  cutlery?: {
+    knives: number;
+    forks: number;
+    spoons: number;
+  };
+  checklist?: Array<{
+    id: string;
+    name: string;
+    expectedCount: number;
+  }>;
+};
+
+export type SecurityCheckResultDetails = {
+  patientId?: string;
+  patientName?: string;
+  trigger?: string;
+  cutlery?: {
+    knives: number;
+    forks: number;
+    spoons: number;
+  };
+  checklist?: Array<{
+    id: string;
+    name: string;
+    expectedCount: number;
+    checked: boolean;
+    actualCount?: number;
+  }>;
+  completionPercent?: number;
 };
 
 export type SecurityCheck = {
@@ -271,4 +304,5 @@ export type SecurityCheck = {
   checkedAt: string;
   notes: string;
   countedTotal?: number;
+  resultDetails?: SecurityCheckResultDetails;
 };

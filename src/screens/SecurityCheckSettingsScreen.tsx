@@ -5,6 +5,7 @@ import type {
   SecurityArea,
   SecurityCheckCategory,
   SecurityCheckFrequency,
+  SecurityExpectedItems,
   StaffMember,
   Ward
 } from "../types/domain";
@@ -57,6 +58,7 @@ const standardChecks: Array<Pick<SecurityArea, "name" | "category" | "frequencyT
     requiresCount: false
   }
 ];
+const defaultChecklistItems = ["Radios", "Cameras", "Razors", "Toothbrushes"];
 
 type SecurityCheckSettingsScreenProps = {
   areas: SecurityArea[];
@@ -89,6 +91,10 @@ export function SecurityCheckSettingsScreen({
   const [category, setCategory] = useState<SecurityCheckCategory>("custom");
   const [frequencyType, setFrequencyType] = useState<SecurityCheckFrequency>("per_shift");
   const [requiresCount, setRequiresCount] = useState(false);
+  const [cutleryKnives, setCutleryKnives] = useState("");
+  const [cutleryForks, setCutleryForks] = useState("");
+  const [cutlerySpoons, setCutlerySpoons] = useState("");
+  const [checklistDraft, setChecklistDraft] = useState(defaultChecklistItems.map((name) => ({ name, expectedCount: "" })));
   const [active, setActive] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
 
@@ -98,6 +104,14 @@ export function SecurityCheckSettingsScreen({
     setCategory(area.category ?? "custom");
     setFrequencyType(area.frequencyType ?? inferFrequencyType(area.frequencyMinutes));
     setRequiresCount(area.requiresCount);
+    setCutleryKnives(String(area.expectedItems?.cutlery?.knives ?? ""));
+    setCutleryForks(String(area.expectedItems?.cutlery?.forks ?? ""));
+    setCutlerySpoons(String(area.expectedItems?.cutlery?.spoons ?? ""));
+    setChecklistDraft(
+      area.expectedItems?.checklist?.length
+        ? area.expectedItems.checklist.map((item) => ({ name: item.name, expectedCount: String(item.expectedCount) }))
+        : defaultChecklistItems.map((itemName) => ({ name: itemName, expectedCount: "" }))
+    );
     setActive(area.active !== false);
   };
 
@@ -107,6 +121,10 @@ export function SecurityCheckSettingsScreen({
     setCategory("custom");
     setFrequencyType("per_shift");
     setRequiresCount(false);
+    setCutleryKnives("");
+    setCutleryForks("");
+    setCutlerySpoons("");
+    setChecklistDraft(defaultChecklistItems.map((name) => ({ name, expectedCount: "" })));
     setActive(true);
   };
 
@@ -126,6 +144,7 @@ export function SecurityCheckSettingsScreen({
       frequencyType,
       frequencyMinutes: frequency.minutes,
       requiresCount,
+      expectedItems: buildExpectedItems(category, cutleryKnives, cutleryForks, cutlerySpoons, checklistDraft),
       active
     };
 
@@ -153,6 +172,7 @@ export function SecurityCheckSettingsScreen({
           frequencyType: check.frequencyType,
           frequencyMinutes: check.frequencyMinutes,
           requiresCount: check.requiresCount,
+          expectedItems: defaultExpectedItemsForCategory(check.category),
           active: true
         });
       }
@@ -241,6 +261,76 @@ export function SecurityCheckSettingsScreen({
             ))}
           </View>
 
+          {category === "cutlery" ? (
+            <View style={styles.configPanel}>
+              <Text style={styles.label}>Expected cutlery</Text>
+              <View style={styles.threeColumnRow}>
+                <TextInput
+                  editable={canEdit}
+                  keyboardType="number-pad"
+                  onChangeText={setCutleryKnives}
+                  placeholder="Knives"
+                  placeholderTextColor="#6f7f87"
+                  style={[styles.input, styles.smallInput]}
+                  value={cutleryKnives}
+                />
+                <TextInput
+                  editable={canEdit}
+                  keyboardType="number-pad"
+                  onChangeText={setCutleryForks}
+                  placeholder="Forks"
+                  placeholderTextColor="#6f7f87"
+                  style={[styles.input, styles.smallInput]}
+                  value={cutleryForks}
+                />
+                <TextInput
+                  editable={canEdit}
+                  keyboardType="number-pad"
+                  onChangeText={setCutlerySpoons}
+                  placeholder="Spoons"
+                  placeholderTextColor="#6f7f87"
+                  style={[styles.input, styles.smallInput]}
+                  value={cutlerySpoons}
+                />
+              </View>
+            </View>
+          ) : null}
+
+          {category === "ward_security" || category === "level_1_room_locker_zone" ? (
+            <View style={styles.configPanel}>
+              <Text style={styles.label}>Checklist items</Text>
+              {checklistDraft.map((item, index) => (
+                <View key={`${item.name}-${index}`} style={styles.checklistConfigRow}>
+                  <TextInput
+                    editable={canEdit}
+                    onChangeText={(name) => updateChecklistDraft(index, { name })}
+                    placeholder="Item name"
+                    placeholderTextColor="#6f7f87"
+                    style={[styles.input, styles.itemNameInput]}
+                    value={item.name}
+                  />
+                  <TextInput
+                    editable={canEdit}
+                    keyboardType="number-pad"
+                    onChangeText={(expectedCount) => updateChecklistDraft(index, { expectedCount })}
+                    placeholder="No."
+                    placeholderTextColor="#6f7f87"
+                    style={[styles.input, styles.countInput]}
+                    value={item.expectedCount}
+                  />
+                </View>
+              ))}
+              <TouchableOpacity
+                accessibilityRole="button"
+                disabled={!canEdit}
+                onPress={() => setChecklistDraft((current) => [...current, { name: "", expectedCount: "" }])}
+                style={[styles.secondaryButton, !canEdit && styles.disabledControl]}
+              >
+                <Text style={styles.secondaryButtonText}>Add checklist item</Text>
+              </TouchableOpacity>
+            </View>
+          ) : null}
+
           <Text style={styles.label}>Frequency</Text>
           <View style={styles.optionRow}>
             {frequencyOptions.map((option) => (
@@ -300,6 +390,10 @@ export function SecurityCheckSettingsScreen({
       </View>
     </View>
   );
+
+  function updateChecklistDraft(index: number, update: Partial<{ name: string; expectedCount: string }>) {
+    setChecklistDraft((current) => current.map((item, itemIndex) => (itemIndex === index ? { ...item, ...update } : item)));
+  }
 }
 
 function inferFrequencyType(frequencyMinutes: number): SecurityCheckFrequency {
@@ -325,6 +419,61 @@ function formatCategory(category: SecurityCheckCategory | undefined) {
 function formatFrequency(frequencyType: SecurityCheckFrequency | undefined, frequencyMinutes: number) {
   const option = frequencyOptions.find((item) => item.value === frequencyType);
   return option ? option.label : `Every ${frequencyMinutes}m`;
+}
+
+function buildExpectedItems(
+  category: SecurityCheckCategory,
+  knives: string,
+  forks: string,
+  spoons: string,
+  checklistDraft: Array<{ name: string; expectedCount: string }>
+): SecurityExpectedItems {
+  if (category === "cutlery") {
+    return {
+      cutlery: {
+        knives: parseCount(knives),
+        forks: parseCount(forks),
+        spoons: parseCount(spoons)
+      }
+    };
+  }
+
+  if (category === "ward_security" || category === "level_1_room_locker_zone") {
+    return {
+      checklist: checklistDraft
+        .filter((item) => item.name.trim())
+        .map((item) => ({
+          id: createItemId(item.name),
+          name: item.name.trim(),
+          expectedCount: parseCount(item.expectedCount)
+        }))
+    };
+  }
+
+  return {};
+}
+
+function defaultExpectedItemsForCategory(category: SecurityCheckCategory | undefined): SecurityExpectedItems {
+  if (category === "cutlery") {
+    return { cutlery: { knives: 12, forks: 12, spoons: 8 } };
+  }
+
+  if (category === "ward_security") {
+    return {
+      checklist: defaultChecklistItems.map((name) => ({ id: createItemId(name), name, expectedCount: 1 }))
+    };
+  }
+
+  return {};
+}
+
+function parseCount(value: string) {
+  const parsed = Number.parseInt(value, 10);
+  return Number.isNaN(parsed) || parsed < 0 ? 0 : parsed;
+}
+
+function createItemId(name: string) {
+  return name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") || `item-${Date.now()}`;
 }
 
 const styles = StyleSheet.create({
@@ -399,6 +548,22 @@ const styles = StyleSheet.create({
     minHeight: 44,
     paddingHorizontal: 10
   },
+  configPanel: {
+    backgroundColor: "#f8fafb",
+    borderColor: "#d8e0e3",
+    borderRadius: 7,
+    borderWidth: 1,
+    gap: 8,
+    padding: 10
+  },
+  threeColumnRow: { flexDirection: "row", gap: 8 },
+  smallInput: { flex: 1, minWidth: 80 },
+  checklistConfigRow: {
+    flexDirection: "row",
+    gap: 8
+  },
+  itemNameInput: { flex: 1 },
+  countInput: { width: 72 },
   label: { color: "#31454d", fontSize: 13, fontWeight: "900", marginTop: 4 },
   optionRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   optionButton: {

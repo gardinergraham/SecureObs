@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Alert, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 
 import type { Patient, SecurityArea, SecurityCheck, StaffMember } from "../types/domain";
@@ -29,6 +29,8 @@ export function SecurityChecks({
   const [selectedAreaId, setSelectedAreaId] = useState(areas[0]?.id ?? "");
   const [selectedPatientId, setSelectedPatientId] = useState("");
   const [levelOneTrigger, setLevelOneTrigger] = useState(levelOneTriggers[0] ?? "Weekly check");
+  const [cutleryCounts, setCutleryCounts] = useState({ knives: "", forks: "", spoons: "" });
+  const [checklistResults, setChecklistResults] = useState<Array<{ id: string; checked: boolean; actualCount: string }>>([]);
   const [notes, setNotes] = useState("");
   const [countedTotal, setCountedTotal] = useState("");
   const selectedArea = areas.find((area) => area.id === selectedAreaId) ?? areas[0];
@@ -41,6 +43,26 @@ export function SecurityChecks({
       })),
     [areas, checks]
   );
+  const historyByCategory = useMemo(() => buildHistoryByCategory(areas, checks), [areas, checks]);
+  const levelOneCompliance = useMemo(
+    () => buildLevelOneCompliance(patients, areas, checks),
+    [areas, checks, patients]
+  );
+
+  useEffect(() => {
+    setChecklistResults(
+      (selectedArea?.expectedItems?.checklist ?? []).map((item) => ({
+        id: item.id,
+        checked: false,
+        actualCount: String(item.expectedCount)
+      }))
+    );
+    setCutleryCounts({
+      knives: String(selectedArea?.expectedItems?.cutlery?.knives ?? ""),
+      forks: String(selectedArea?.expectedItems?.cutlery?.forks ?? ""),
+      spoons: String(selectedArea?.expectedItems?.cutlery?.spoons ?? "")
+    });
+  }, [selectedArea?.id, selectedArea?.expectedItems]);
 
   const saveCheck = () => {
     if (!selectedArea) {
@@ -48,7 +70,7 @@ export function SecurityChecks({
     }
 
     const parsedCount = Number.parseInt(countedTotal, 10);
-    if (selectedArea.requiresCount && (Number.isNaN(parsedCount) || parsedCount < 0)) {
+    if (selectedArea.requiresCount && selectedArea.category !== "cutlery" && (Number.isNaN(parsedCount) || parsedCount < 0)) {
       Alert.alert("Count needed", "Enter the counted total before saving this check.");
       return;
     }
@@ -60,11 +82,19 @@ export function SecurityChecks({
     const checkedBy = selectedStaff?.name ?? "Unknown";
     const checkedAt = new Date().toISOString();
     const selectedPatient = patients.find((patient) => patient.id === selectedPatientId);
+    const resultDetails = buildResultDetails({
+      area: selectedArea,
+      cutleryCounts,
+      checklistResults,
+      selectedPatient,
+      trigger: levelOneTrigger
+    });
     const outcomeNotes = buildCheckNotes({
       notes: notes.trim(),
       selectedArea,
       selectedPatient,
-      trigger: levelOneTrigger
+      trigger: levelOneTrigger,
+      resultDetails
     });
     const check: SecurityCheck = {
       id: `security-${Date.now()}`,
@@ -75,7 +105,10 @@ export function SecurityChecks({
       checkedBy,
       checkedAt,
       notes: outcomeNotes,
-      countedTotal: selectedArea.requiresCount ? parsedCount : undefined
+      countedTotal: selectedArea.category === "cutlery"
+        ? totalCutlery(resultDetails.cutlery)
+        : selectedArea.requiresCount ? parsedCount : undefined,
+      resultDetails
     };
 
     onCreateCheck(check);
@@ -190,6 +223,28 @@ export function SecurityChecks({
               ) : null}
 
               {selectedArea.requiresCount ? (
+                selectedArea.category === "cutlery" ? (
+                <>
+                  <Text style={styles.label}>Cutlery count</Text>
+                  <View style={styles.cutleryGrid}>
+                    {(["knives", "forks", "spoons"] as const).map((item) => (
+                      <View key={item} style={styles.cutleryBox}>
+                        <Text style={styles.cutleryLabel}>
+                          {item} expected {selectedArea.expectedItems?.cutlery?.[item] ?? 0}
+                        </Text>
+                        <TextInput
+                          keyboardType="number-pad"
+                          onChangeText={(value) => setCutleryCounts((current) => ({ ...current, [item]: value }))}
+                          placeholder={String(selectedArea.expectedItems?.cutlery?.[item] ?? 0)}
+                          placeholderTextColor="#6f7f87"
+                          style={styles.input}
+                          value={cutleryCounts[item]}
+                        />
+                      </View>
+                    ))}
+                  </View>
+                </>
+                ) : (
                 <>
                   <Text style={styles.label}>Counted total</Text>
                   <TextInput placeholderTextColor="#6f7f87"
@@ -199,6 +254,42 @@ export function SecurityChecks({
                     style={styles.input}
                     value={countedTotal}
                   />
+                </>
+                )
+              ) : null}
+
+              {selectedArea.expectedItems?.checklist?.length ? (
+                <>
+                  <Text style={styles.label}>Checklist</Text>
+                  <View style={styles.checklistPanel}>
+                    {selectedArea.expectedItems.checklist.map((item) => {
+                      const result = checklistResults.find((entry) => entry.id === item.id);
+                      return (
+                        <View key={item.id} style={styles.checklistRow}>
+                          <TouchableOpacity
+                            accessibilityRole="button"
+                            onPress={() => toggleChecklistItem(item.id)}
+                            style={[styles.checkBox, result?.checked && styles.checkBoxActive]}
+                          >
+                            <Text style={[styles.checkBoxText, result?.checked && styles.optionTextActive]}>
+                              {result?.checked ? "Done" : "Todo"}
+                            </Text>
+                          </TouchableOpacity>
+                          <Text style={styles.checklistName}>{item.name}</Text>
+                          <Text style={styles.checklistExpected}>Expected {item.expectedCount}</Text>
+                          <TextInput
+                            keyboardType="number-pad"
+                            onChangeText={(actualCount) => updateChecklistCount(item.id, actualCount)}
+                            placeholder={String(item.expectedCount)}
+                            placeholderTextColor="#6f7f87"
+                            style={[styles.input, styles.checklistCountInput]}
+                            value={result?.actualCount ?? ""}
+                          />
+                        </View>
+                      );
+                    })}
+                    <Text style={styles.completionText}>Completion {calculateChecklistCompletion(checklistResults)}%</Text>
+                  </View>
                 </>
               ) : null}
 
@@ -221,8 +312,42 @@ export function SecurityChecks({
           )}
         </View>
       </View>
+
+      <View style={styles.historyPanel}>
+        <Text style={styles.panelTitle}>Security check history</Text>
+        {Object.entries(historyByCategory).map(([category, categoryChecks]) => (
+          <View key={category} style={styles.historyCategory}>
+            <Text style={styles.historyCategoryTitle}>{category}</Text>
+            {categoryChecks.slice(0, 5).map((check) => (
+              <Text key={check.id} style={styles.historyText}>
+                {formatDateTime(check.checkedAt)} | {check.checkName} | {formatHistorySummary(check)}
+              </Text>
+            ))}
+          </View>
+        ))}
+        <View style={styles.historyCategory}>
+          <Text style={styles.historyCategoryTitle}>Level 1 monthly patient check</Text>
+          {levelOneCompliance.map((item) => (
+            <Text key={item.patientId} style={[styles.historyText, !item.completed && styles.historyWarningText]}>
+              {item.patientName}: {item.completed ? `done ${formatDateTime(item.lastCheckedAt)}` : "not recorded in last month"}
+            </Text>
+          ))}
+        </View>
+      </View>
     </View>
   );
+
+  function toggleChecklistItem(itemId: string) {
+    setChecklistResults((current) =>
+      current.map((item) => (item.id === itemId ? { ...item, checked: !item.checked } : item))
+    );
+  }
+
+  function updateChecklistCount(itemId: string, actualCount: string) {
+    setChecklistResults((current) =>
+      current.map((item) => (item.id === itemId ? { ...item, actualCount } : item))
+    );
+  }
 }
 
 function getLatestCheck(areaId: string, checks: SecurityCheck[]) {
@@ -255,13 +380,24 @@ function buildCheckNotes({
   notes,
   selectedArea,
   selectedPatient,
-  trigger
+  trigger,
+  resultDetails
 }: {
   notes: string;
   selectedArea: SecurityArea;
   selectedPatient?: Patient;
   trigger: string;
+  resultDetails: NonNullable<SecurityCheck["resultDetails"]>;
 }) {
+  if (selectedArea.category === "cutlery" && resultDetails.cutlery) {
+    const expected = selectedArea.expectedItems?.cutlery;
+    return `Cutlery: knives ${resultDetails.cutlery.knives}/${expected?.knives ?? 0}, forks ${resultDetails.cutlery.forks}/${expected?.forks ?? 0}, spoons ${resultDetails.cutlery.spoons}/${expected?.spoons ?? 0} | ${notes || "Complete"}`;
+  }
+
+  if (resultDetails.checklist?.length) {
+    return `Checklist ${resultDetails.completionPercent ?? 0}% complete | ${notes || "Complete"}`;
+  }
+
   if (!isLevelOnePatientCheck(selectedArea)) {
     return notes || "Complete";
   }
@@ -271,6 +407,139 @@ function buildCheckNotes({
     : "Patient: not recorded";
   const noteText = notes || "Complete";
   return `${patientText} | Reason: ${trigger} | ${noteText}`;
+}
+
+function buildResultDetails({
+  area,
+  cutleryCounts,
+  checklistResults,
+  selectedPatient,
+  trigger
+}: {
+  area: SecurityArea;
+  cutleryCounts: { knives: string; forks: string; spoons: string };
+  checklistResults: Array<{ id: string; checked: boolean; actualCount: string }>;
+  selectedPatient?: Patient;
+  trigger: string;
+}): NonNullable<SecurityCheck["resultDetails"]> {
+  if (area.category === "cutlery") {
+    return {
+      cutlery: {
+        knives: parseCount(cutleryCounts.knives),
+        forks: parseCount(cutleryCounts.forks),
+        spoons: parseCount(cutleryCounts.spoons)
+      }
+    };
+  }
+
+  if (area.expectedItems?.checklist?.length) {
+    const checklist = area.expectedItems.checklist.map((item) => {
+      const result = checklistResults.find((entry) => entry.id === item.id);
+      return {
+        id: item.id,
+        name: item.name,
+        expectedCount: item.expectedCount,
+        checked: Boolean(result?.checked),
+        actualCount: parseCount(result?.actualCount ?? String(item.expectedCount))
+      };
+    });
+
+    return {
+      checklist,
+      completionPercent: calculateChecklistCompletion(checklist.map((item) => ({
+        id: item.id,
+        checked: item.checked,
+        actualCount: String(item.actualCount)
+      })))
+    };
+  }
+
+  if (isLevelOnePatientCheck(area)) {
+    return {
+      patientId: selectedPatient?.id,
+      patientName: selectedPatient
+        ? `Room ${selectedPatient.roomNumber} ${selectedPatient.firstName} ${selectedPatient.surname}`
+        : undefined,
+      trigger
+    };
+  }
+
+  return {};
+}
+
+function parseCount(value: string) {
+  const parsed = Number.parseInt(value, 10);
+  return Number.isNaN(parsed) || parsed < 0 ? 0 : parsed;
+}
+
+function totalCutlery(cutlery: NonNullable<SecurityCheck["resultDetails"]>["cutlery"]) {
+  if (!cutlery) return undefined;
+  return cutlery.knives + cutlery.forks + cutlery.spoons;
+}
+
+function calculateChecklistCompletion(results: Array<{ checked: boolean }>) {
+  if (results.length === 0) return 0;
+  return Math.round((results.filter((item) => item.checked).length / results.length) * 100);
+}
+
+function buildHistoryByCategory(areas: SecurityArea[], checks: SecurityCheck[]) {
+  return checks.reduce<Record<string, SecurityCheck[]>>((groups, check) => {
+    const area = areas.find((item) => item.id === check.areaId);
+    const category = formatCategory(area);
+    groups[category] = [...(groups[category] ?? []), check];
+    return groups;
+  }, {});
+}
+
+function buildLevelOneCompliance(patients: Patient[], areas: SecurityArea[], checks: SecurityCheck[]) {
+  const levelOneAreaIds = new Set(areas.filter(isLevelOnePatientCheck).map((area) => area.id));
+  const monthAgo = Date.now() - 30 * 24 * 60 * 60 * 1000;
+
+  return patients.map((patient) => {
+    const lastCheck = checks
+      .filter(
+        (check) =>
+          levelOneAreaIds.has(check.areaId) &&
+          check.resultDetails?.patientId === patient.id &&
+          new Date(check.checkedAt).getTime() >= monthAgo
+      )
+      .sort((left, right) => right.checkedAt.localeCompare(left.checkedAt))[0];
+
+    return {
+      patientId: patient.id,
+      patientName: `Room ${patient.roomNumber} ${patient.firstName} ${patient.surname}`,
+      completed: Boolean(lastCheck),
+      lastCheckedAt: lastCheck?.checkedAt
+    };
+  });
+}
+
+function formatCategory(area: SecurityArea | undefined) {
+  if (area?.category === "cutlery") return "Cutlery";
+  if (area?.category === "ward_security") return "Ward security";
+  if (area?.category === "level_1_patient_search") return "Level 1 patient checks";
+  if (area?.category === "level_1_room_locker_zone") return "Room / locker / zone";
+  return "Other";
+}
+
+function formatHistorySummary(check: SecurityCheck) {
+  if (check.resultDetails?.patientName) {
+    return `${check.resultDetails.patientName} | ${check.resultDetails.trigger ?? "Level 1"}`;
+  }
+  if (check.resultDetails?.completionPercent !== undefined) {
+    return `${check.resultDetails.completionPercent}% complete`;
+  }
+  if (check.resultDetails?.cutlery) {
+    return `K ${check.resultDetails.cutlery.knives}, F ${check.resultDetails.cutlery.forks}, S ${check.resultDetails.cutlery.spoons}`;
+  }
+  return check.notes;
+}
+
+function formatDateTime(value: string | undefined) {
+  if (!value) return "Not recorded";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleString([], { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
 }
 
 function formatTime(value: string) {
@@ -461,6 +730,70 @@ const styles = StyleSheet.create({
   optionTextActive: {
     color: "#ffffff"
   },
+  cutleryGrid: {
+    flexDirection: "row",
+    gap: 8,
+    marginBottom: 6
+  },
+  cutleryBox: {
+    flex: 1,
+    gap: 5
+  },
+  cutleryLabel: {
+    color: "#31454d",
+    fontSize: 11,
+    fontWeight: "900"
+  },
+  checklistPanel: {
+    backgroundColor: "#f8fafb",
+    borderColor: "#d8e0e3",
+    borderRadius: 8,
+    borderWidth: 1,
+    gap: 8,
+    padding: 10
+  },
+  checklistRow: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: 8
+  },
+  checkBox: {
+    alignItems: "center",
+    borderColor: "#1f5262",
+    borderRadius: 6,
+    borderWidth: 1,
+    justifyContent: "center",
+    minHeight: 34,
+    width: 58
+  },
+  checkBoxActive: {
+    backgroundColor: "#1f5262"
+  },
+  checkBoxText: {
+    color: "#1f5262",
+    fontSize: 11,
+    fontWeight: "900"
+  },
+  checklistName: {
+    color: "#18262c",
+    flex: 1,
+    fontSize: 13,
+    fontWeight: "900"
+  },
+  checklistExpected: {
+    color: "#607078",
+    fontSize: 11,
+    fontWeight: "800"
+  },
+  checklistCountInput: {
+    minHeight: 36,
+    width: 68
+  },
+  completionText: {
+    color: "#315748",
+    fontSize: 12,
+    fontWeight: "900"
+  },
   input: {
     backgroundColor: "#f8fafb",
     borderColor: "#c9d4d8",
@@ -488,6 +821,35 @@ const styles = StyleSheet.create({
     color: "#ffffff",
     fontSize: 15,
     fontWeight: "900"
+  },
+  historyPanel: {
+    backgroundColor: "#ffffff",
+    borderColor: "#d8e0e3",
+    borderRadius: 8,
+    borderWidth: StyleSheet.hairlineWidth,
+    gap: 10,
+    padding: 12
+  },
+  historyCategory: {
+    backgroundColor: "#f8fafb",
+    borderColor: "#d8e0e3",
+    borderRadius: 7,
+    borderWidth: 1,
+    gap: 5,
+    padding: 10
+  },
+  historyCategoryTitle: {
+    color: "#18262c",
+    fontSize: 13,
+    fontWeight: "900"
+  },
+  historyText: {
+    color: "#52656e",
+    fontSize: 12,
+    fontWeight: "800"
+  },
+  historyWarningText: {
+    color: "#9a3f00"
   },
   empty: {
     color: "#607078",

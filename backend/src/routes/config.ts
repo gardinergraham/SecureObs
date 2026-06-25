@@ -46,6 +46,7 @@ const securityAreaSchema = z.object({
   requiresCount: z.boolean().default(false),
   category: z.enum(["cutlery", "ward_security", "level_1_patient_search", "level_1_room_locker_zone", "custom"]).default("custom"),
   frequencyType: z.enum(["per_shift", "per_meal", "daily", "weekly", "weekly_ad_hoc", "monthly"]).default("per_shift"),
+  expectedItems: z.record(z.unknown()).default({}),
   active: z.boolean().default(true),
   actorStaffId: z.string().optional(),
   actorStaffCode: z.string().optional()
@@ -249,6 +250,7 @@ router.get("/security-areas", async (request, response, next) => {
           requires_count as "requiresCount",
           category,
           frequency_type as "frequencyType",
+          expected_items as "expectedItems",
           active
         from security_areas
         where organisation_id = $1
@@ -297,8 +299,8 @@ router.post("/security-areas", async (request, response, next) => {
     const result = await pool.query(
       `
         insert into security_areas (
-          id, organisation_id, ward_id, name, frequency_minutes, requires_count, category, frequency_type, active
-        ) values ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+          id, organisation_id, ward_id, name, frequency_minutes, requires_count, category, frequency_type, expected_items, active
+        ) values ($1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb,$10)
         on conflict (id) do update set
           ward_id = excluded.ward_id,
           name = excluded.name,
@@ -306,6 +308,7 @@ router.post("/security-areas", async (request, response, next) => {
           requires_count = excluded.requires_count,
           category = excluded.category,
           frequency_type = excluded.frequency_type,
+          expected_items = excluded.expected_items,
           active = excluded.active,
           updated_at = now()
         returning
@@ -316,6 +319,7 @@ router.post("/security-areas", async (request, response, next) => {
           requires_count as "requiresCount",
           category,
           frequency_type as "frequencyType",
+          expected_items as "expectedItems",
           active
       `,
       [
@@ -327,6 +331,7 @@ router.post("/security-areas", async (request, response, next) => {
         securityArea.requiresCount,
         securityArea.category,
         securityArea.frequencyType,
+        JSON.stringify(securityArea.expectedItems ?? {}),
         securityArea.active
       ]
     );
@@ -342,6 +347,7 @@ router.post("/security-areas", async (request, response, next) => {
         name: securityArea.name,
         category: securityArea.category,
         frequencyType: securityArea.frequencyType,
+        expectedItems: securityArea.expectedItems,
         active: securityArea.active
       }
     });

@@ -28,7 +28,8 @@ const securityCheckSchema = z.object({
   checkedBy: z.string().min(1),
   checkedAt: z.string().datetime(),
   notes: z.string().default(""),
-  countedTotal: z.number().int().nonnegative().optional()
+  countedTotal: z.number().int().nonnegative().optional(),
+  resultDetails: z.record(z.unknown()).default({})
 });
 
 const news2ReadingSchema = z.object({
@@ -227,7 +228,8 @@ router.get("/security-checks", async (request, response, next) => {
           checked_by as "checkedBy",
           checked_at as "checkedAt",
           notes,
-          counted_total as "countedTotal"
+          counted_total as "countedTotal",
+          result_details as "resultDetails"
         from security_checks
         where organisation_id = $1
         order by checked_at desc
@@ -255,11 +257,12 @@ router.post("/security-checks", async (request, response, next) => {
     const result = await pool.query(
       `
         insert into security_checks (
-          id, organisation_id, area_id, check_name, checked_by, checked_at, notes, counted_total
-        ) values ($1,$2,$3,$4,$5,$6,$7,$8)
+          id, organisation_id, area_id, check_name, checked_by, checked_at, notes, counted_total, result_details
+        ) values ($1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb)
         on conflict (id) do update set
           notes = excluded.notes,
-          counted_total = excluded.counted_total
+          counted_total = excluded.counted_total,
+          result_details = excluded.result_details
         returning
           id,
           area_id as "areaId",
@@ -267,7 +270,8 @@ router.post("/security-checks", async (request, response, next) => {
           checked_by as "checkedBy",
           checked_at as "checkedAt",
           notes,
-          counted_total as "countedTotal"
+          counted_total as "countedTotal",
+          result_details as "resultDetails"
       `,
       [
         check.id,
@@ -277,7 +281,8 @@ router.post("/security-checks", async (request, response, next) => {
         check.checkedBy,
         check.checkedAt,
         check.notes,
-        check.countedTotal ?? null
+        check.countedTotal ?? null,
+        JSON.stringify(check.resultDetails ?? {})
       ]
     );
 
