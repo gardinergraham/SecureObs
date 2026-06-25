@@ -2,6 +2,7 @@ import { Router } from "express";
 import { z } from "zod";
 
 import { auditActorFromBody, recordAuditEvent } from "../audit.js";
+import { requireStaffRole } from "../auth.js";
 import { pool } from "../db/pool.js";
 import { optionalOrganisationIdSchema, requireOrganisationId } from "./organisation.js";
 
@@ -65,7 +66,7 @@ router.get("/sites", async (request, response, next) => {
   }
 });
 
-router.post("/sites", async (request, response, next) => {
+router.post("/sites", requireStaffRole(["manager"]), async (request, response, next) => {
   try {
     const parsed = siteSchema.safeParse(request.body);
     if (!parsed.success) {
@@ -139,7 +140,7 @@ router.get("/wards", async (request, response, next) => {
   }
 });
 
-router.post("/wards", async (request, response, next) => {
+router.post("/wards", requireStaffRole(["manager"]), async (request, response, next) => {
   try {
     const parsed = wardSchema.safeParse(request.body);
     if (!parsed.success) {
@@ -266,7 +267,7 @@ router.get("/security-areas", async (request, response, next) => {
   }
 });
 
-router.post("/security-areas", async (request, response, next) => {
+router.post("/security-areas", requireStaffRole(["manager"]), async (request, response, next) => {
   try {
     const parsed = securityAreaSchema.safeParse(request.body);
     if (!parsed.success) {

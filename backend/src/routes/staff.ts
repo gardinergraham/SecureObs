@@ -2,7 +2,7 @@ import { Router } from "express";
 import { z } from "zod";
 
 import { auditActorFromBody, recordAuditEvent } from "../audit.js";
-import { createStaffSession, requireAuthenticated, type AuthenticatedRequest } from "../auth.js";
+import { createStaffSession, requireAuthenticated, requireStaffRole, type AuthenticatedRequest } from "../auth.js";
 import { dataProvider } from "../data/provider.js";
 import { DuplicateStaffCodeError, StaffLookupAmbiguousError } from "../data/types.js";
 import { optionalOrganisationIdSchema, requireOrganisationId } from "./organisation.js";
@@ -65,7 +65,7 @@ router.get("/session", async (request: AuthenticatedRequest, response, next) => 
   }
 });
 
-router.post("/", async (request, response, next) => {
+router.post("/", requireStaffRole(["manager", "nurse"]), async (request, response, next) => {
   try {
     const parsed = staffMemberSchema.safeParse(request.body);
 

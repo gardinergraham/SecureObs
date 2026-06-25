@@ -108,6 +108,30 @@ export function requireStaffRole(roles: StaffRole[]) {
   };
 }
 
+export function requirePrescriber() {
+  return async (request: AuthenticatedRequest, response: Response, next: NextFunction) => {
+    const auth = requireAuthenticated(request, response);
+    if (!auth) return;
+
+    if (!auth.staff.canPrescribe && auth.staff.role !== "doctor") {
+      await recordAuditEvent({
+        organisationId: auth.staff.organisationId,
+        actorStaffId: auth.staff.id,
+        actorStaffCode: auth.staff.staffCode,
+        eventType: "access.denied",
+        entityType: "route",
+        entityId: request.path,
+        outcome: "failure",
+        details: { method: request.method, requiredPermission: "can_prescribe", actualRole: auth.staff.role }
+      });
+      response.status(403).json({ error: "Prescribing permission required for this action" });
+      return;
+    }
+
+    next();
+  };
+}
+
 export function staffCanAccessOrganisation(request: AuthenticatedRequest, organisationId: string) {
   return !request.auth || request.auth.staff.organisationId === organisationId;
 }

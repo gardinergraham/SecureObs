@@ -151,7 +151,7 @@ export function HomeScreen({
             <TextInput placeholderTextColor="#6f7f87"
               autoCapitalize="none"
               onChangeText={setStaffCardData}
-              placeholder="GardinerG"
+              placeholder="Enter STAFFCODE"
               style={styles.cardInput}
               value={staffCardData}
             />

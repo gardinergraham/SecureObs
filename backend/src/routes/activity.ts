@@ -2,10 +2,12 @@ import { Router } from "express";
 import { z } from "zod";
 
 import { auditActorFromBody, recordAuditEvent } from "../audit.js";
+import { requirePrescriber, requireStaffRole } from "../auth.js";
 import { pool } from "../db/pool.js";
 import { optionalOrganisationIdSchema, requireOrganisationId } from "./organisation.js";
 
 const router = Router();
+const anyWardStaff = ["nurse", "hcf", "ot", "security", "manager", "doctor"] as const;
 
 const observationSchema = z.object({
   id: z.string().min(1).optional(),
@@ -158,7 +160,7 @@ router.get("/observations", async (request, response, next) => {
   }
 });
 
-router.post("/observations", async (request, response, next) => {
+router.post("/observations", requireStaffRole([...anyWardStaff]), async (request, response, next) => {
   try {
     const parsed = observationSchema.safeParse(request.body);
     if (!parsed.success) {
@@ -243,7 +245,7 @@ router.get("/security-checks", async (request, response, next) => {
   }
 });
 
-router.post("/security-checks", async (request, response, next) => {
+router.post("/security-checks", requireStaffRole([...anyWardStaff]), async (request, response, next) => {
   try {
     const parsed = securityCheckSchema.safeParse(request.body);
     if (!parsed.success) {
@@ -333,7 +335,7 @@ router.get("/news2-readings", async (request, response, next) => {
   }
 });
 
-router.post("/news2-readings", async (request, response, next) => {
+router.post("/news2-readings", requireStaffRole(["nurse", "manager", "doctor"]), async (request, response, next) => {
   try {
     const parsed = news2ReadingSchema.safeParse(request.body);
     if (!parsed.success) {
@@ -435,7 +437,7 @@ router.get("/medication-prescriptions", async (request, response, next) => {
   }
 });
 
-router.post("/medication-prescriptions", async (request, response, next) => {
+router.post("/medication-prescriptions", requirePrescriber(), async (request, response, next) => {
   try {
     const parsed = medicationPrescriptionSchema.safeParse(request.body);
     if (!parsed.success) {
@@ -543,7 +545,7 @@ router.get("/medication-administrations", async (request, response, next) => {
   }
 });
 
-router.post("/medication-administrations", async (request, response, next) => {
+router.post("/medication-administrations", requireStaffRole(["nurse", "manager", "doctor"]), async (request, response, next) => {
   try {
     const parsed = medicationAdministrationSchema.safeParse(request.body);
     if (!parsed.success) {
@@ -676,7 +678,7 @@ router.get("/missed-observations", async (request, response, next) => {
   }
 });
 
-router.post("/missed-observations", async (request, response, next) => {
+router.post("/missed-observations", requireStaffRole([...anyWardStaff]), async (request, response, next) => {
   try {
     const parsed = missedObservationSchema.safeParse(request.body);
     if (!parsed.success) {
@@ -782,7 +784,7 @@ router.get("/rota-assignments", async (request, response, next) => {
   }
 });
 
-router.post("/rota-assignments", async (request, response, next) => {
+router.post("/rota-assignments", requireStaffRole(["nurse", "manager"]), async (request, response, next) => {
   try {
     const parsed = rotaAssignmentSchema.safeParse(request.body);
     if (!parsed.success) {
@@ -844,16 +846,17 @@ router.post("/rota-assignments", async (request, response, next) => {
   }
 });
 
-router.delete("/rota-assignments/:id", async (request, response, next) => {
+router.delete("/rota-assignments/:id", requireStaffRole(["nurse", "manager"]), async (request, response, next) => {
   try {
     const organisationId = requireOrganisationId(request, response);
     if (!organisationId) return;
-    await pool.query("delete from rota_assignments where organisation_id = $1 and id = $2", [organisationId, request.params.id]);
+    const assignmentId = String(request.params.id);
+    await pool.query("delete from rota_assignments where organisation_id = $1 and id = $2", [organisationId, assignmentId]);
     await recordAuditEvent({
       organisationId,
       eventType: "rota.assignment.delete",
       entityType: "rota_assignment",
-      entityId: request.params.id
+      entityId: assignmentId
     });
     response.status(204).send();
   } catch (error) {
@@ -892,7 +895,7 @@ router.get("/staff-shift-assignments", async (request, response, next) => {
   }
 });
 
-router.post("/staff-shift-assignments", async (request, response, next) => {
+router.post("/staff-shift-assignments", requireStaffRole(["nurse", "manager"]), async (request, response, next) => {
   try {
     const parsed = staffShiftAssignmentSchema.safeParse(request.body);
     if (!parsed.success) {
@@ -951,19 +954,20 @@ router.post("/staff-shift-assignments", async (request, response, next) => {
   }
 });
 
-router.delete("/staff-shift-assignments/:id", async (request, response, next) => {
+router.delete("/staff-shift-assignments/:id", requireStaffRole(["nurse", "manager"]), async (request, response, next) => {
   try {
     const organisationId = requireOrganisationId(request, response);
     if (!organisationId) return;
+    const assignmentId = String(request.params.id);
     await pool.query("delete from staff_shift_assignments where organisation_id = $1 and id = $2", [
       organisationId,
-      request.params.id
+      assignmentId
     ]);
     await recordAuditEvent({
       organisationId,
       eventType: "staff_cover.assignment.delete",
       entityType: "staff_shift_assignment",
-      entityId: request.params.id
+      entityId: assignmentId
     });
     response.status(204).send();
   } catch (error) {
@@ -971,7 +975,7 @@ router.delete("/staff-shift-assignments/:id", async (request, response, next) =>
   }
 });
 
-router.get("/audit-events", async (request, response, next) => {
+router.get("/audit-events", requireStaffRole(["manager"]), async (request, response, next) => {
   try {
     const organisationId = requireOrganisationId(request, response);
     if (!organisationId) return;

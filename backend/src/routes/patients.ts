@@ -2,6 +2,7 @@ import { Router } from "express";
 import { z } from "zod";
 
 import { auditActorFromBody, recordAuditEvent } from "../audit.js";
+import { requireStaffRole } from "../auth.js";
 import { pool } from "../db/pool.js";
 import { optionalOrganisationIdSchema, requireOrganisationId } from "./organisation.js";
 
@@ -75,7 +76,7 @@ router.get("/", async (request, response, next) => {
   }
 });
 
-router.post("/", async (request, response, next) => {
+router.post("/", requireStaffRole(["nurse", "manager", "doctor"]), async (request, response, next) => {
   try {
     const parsed = patientSchema.safeParse(request.body);
 
