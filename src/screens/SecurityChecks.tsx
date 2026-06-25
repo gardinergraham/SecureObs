@@ -33,6 +33,8 @@ export function SecurityChecks({
   const [checklistResults, setChecklistResults] = useState<Array<{ id: string; checked: boolean; actualCount: string }>>([]);
   const [notes, setNotes] = useState("");
   const [countedTotal, setCountedTotal] = useState("");
+  const [selectedHistoryDateKey, setSelectedHistoryDateKey] = useState(() => formatDateKey(new Date()));
+  const [viewMode, setViewMode] = useState<"record" | "history">("record");
   const selectedArea = areas.find((area) => area.id === selectedAreaId) ?? areas[0];
   const selectedStaff = staff.find((member) => member.id === selectedStaffId);
   const orderedAreas = useMemo(
@@ -43,7 +45,15 @@ export function SecurityChecks({
       })),
     [areas, checks]
   );
-  const historyByCategory = useMemo(() => buildHistoryByCategory(areas, checks), [areas, checks]);
+  const selectedDateChecks = useMemo(
+    () => checks.filter((check) => formatDateKey(new Date(check.checkedAt)) === selectedHistoryDateKey),
+    [checks, selectedHistoryDateKey]
+  );
+  const historyByCategory = useMemo(() => buildHistoryByCategory(areas, selectedDateChecks), [areas, selectedDateChecks]);
+  const dailyExpectations = useMemo(
+    () => buildDailyExpectations(areas, selectedDateChecks),
+    [areas, selectedDateChecks]
+  );
   const levelOneCompliance = useMemo(
     () => buildLevelOneCompliance(patients, areas, checks),
     [areas, checks, patients]
@@ -74,8 +84,8 @@ export function SecurityChecks({
       Alert.alert("Count needed", "Enter the counted total before saving this check.");
       return;
     }
-    if (isLevelOnePatientCheck(selectedArea) && !selectedPatientId) {
-      Alert.alert("Patient needed", "Select the patient who had the Level 1 check.");
+    if (isPatientSpecificSecurityCheck(selectedArea) && !selectedPatientId) {
+      Alert.alert("Patient needed", "Select the patient this security check relates to.");
       return;
     }
 
@@ -128,11 +138,21 @@ export function SecurityChecks({
             {wardName} | {selectedStaff?.name ?? "No staff selected"}
           </Text>
         </View>
-        <TouchableOpacity accessibilityRole="button" onPress={onBack} style={styles.backButton}>
-          <Text style={styles.backButtonText}>Back to observations</Text>
-        </TouchableOpacity>
+        <View style={styles.headerActions}>
+          <TouchableOpacity
+            accessibilityRole="button"
+            onPress={() => setViewMode(viewMode === "record" ? "history" : "record")}
+            style={styles.backButton}
+          >
+            <Text style={styles.backButtonText}>{viewMode === "record" ? "History" : "Record checks"}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity accessibilityRole="button" onPress={onBack} style={styles.backButton}>
+            <Text style={styles.backButtonText}>Back to observations</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
+      {viewMode === "record" ? (
       <View style={styles.split}>
         <View style={styles.areaList}>
           <Text style={styles.panelTitle}>Checkpoint status</Text>
@@ -181,12 +201,12 @@ export function SecurityChecks({
             <>
               <Text style={styles.selectedTitle}>{selectedArea.name}</Text>
               <Text style={styles.selectedMeta}>
-                {isLevelOnePatientCheck(selectedArea)
-                  ? "Record the patient, reason, and outcome for this Level 1 check."
+                {isPatientSpecificSecurityCheck(selectedArea)
+                  ? "Record the patient and outcome for this patient security check."
                   : selectedArea.requiresCount ? "This area needs a counted total." : "Record the check outcome."}
               </Text>
 
-              {isLevelOnePatientCheck(selectedArea) ? (
+              {isPatientSpecificSecurityCheck(selectedArea) ? (
                 <>
                   <Text style={styles.label}>Patient</Text>
                   <View style={styles.optionRow}>
@@ -204,21 +224,25 @@ export function SecurityChecks({
                     ))}
                   </View>
 
-                  <Text style={styles.label}>Reason</Text>
-                  <View style={styles.optionRow}>
-                    {levelOneTriggers.map((trigger) => (
-                      <TouchableOpacity
-                        accessibilityRole="button"
-                        key={trigger}
-                        onPress={() => setLevelOneTrigger(trigger)}
-                        style={[styles.optionButton, trigger === levelOneTrigger && styles.optionButtonActive]}
-                      >
-                        <Text style={[styles.optionText, trigger === levelOneTrigger && styles.optionTextActive]}>
-                          {trigger}
-                        </Text>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
+                  {isLevelOnePatientCheck(selectedArea) ? (
+                    <>
+                      <Text style={styles.label}>Reason</Text>
+                      <View style={styles.optionRow}>
+                        {levelOneTriggers.map((trigger) => (
+                          <TouchableOpacity
+                            accessibilityRole="button"
+                            key={trigger}
+                            onPress={() => setLevelOneTrigger(trigger)}
+                            style={[styles.optionButton, trigger === levelOneTrigger && styles.optionButtonActive]}
+                          >
+                            <Text style={[styles.optionText, trigger === levelOneTrigger && styles.optionTextActive]}>
+                              {trigger}
+                            </Text>
+                          </TouchableOpacity>
+                        ))}
+                      </View>
+                    </>
+                  ) : null}
                 </>
               ) : null}
 
@@ -312,28 +336,75 @@ export function SecurityChecks({
           )}
         </View>
       </View>
-
+      ) : (
       <View style={styles.historyPanel}>
-        <Text style={styles.panelTitle}>Security check history</Text>
+        <View style={styles.historyHeader}>
+          <View>
+            <Text style={styles.panelTitle}>Security check history</Text>
+            <Text style={styles.historyDateMeta}>{formatDateLabel(selectedHistoryDateKey)} | {selectedDateChecks.length} checks</Text>
+          </View>
+          <View style={styles.dateNav}>
+            <TouchableOpacity
+              accessibilityRole="button"
+              onPress={() => setSelectedHistoryDateKey(shiftDateKey(selectedHistoryDateKey, -1))}
+              style={styles.dateNavButton}
+            >
+              <Text style={styles.dateNavText}>Previous day</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              accessibilityRole="button"
+              onPress={() => setSelectedHistoryDateKey(formatDateKey(new Date()))}
+              style={styles.dateNavButton}
+            >
+              <Text style={styles.dateNavText}>Today</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              accessibilityRole="button"
+              onPress={() => setSelectedHistoryDateKey(shiftDateKey(selectedHistoryDateKey, 1))}
+              style={styles.dateNavButton}
+            >
+              <Text style={styles.dateNavText}>Next day</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+        {dailyExpectations.length > 0 ? (
+          <View style={styles.historyCategory}>
+            <Text style={styles.historyCategoryTitle}>Expected checks for selected day</Text>
+            {dailyExpectations.map((item) => (
+              <Text key={item.areaId} style={[styles.historyText, item.missed > 0 && styles.historyWarningText]}>
+                {item.name}: expected {item.expected}, recorded {item.recorded}
+                {item.missed > 0 ? `, missed ${item.missed}` : ", complete"}
+              </Text>
+            ))}
+          </View>
+        ) : null}
         {Object.entries(historyByCategory).map(([category, categoryChecks]) => (
           <View key={category} style={styles.historyCategory}>
             <Text style={styles.historyCategoryTitle}>{category}</Text>
-            {categoryChecks.slice(0, 5).map((check) => (
+            {categoryChecks.length === 0 ? (
+              <Text style={styles.historyText}>No checks recorded for this date.</Text>
+            ) : null}
+            {categoryChecks.map((check) => (
               <Text key={check.id} style={styles.historyText}>
                 {formatDateTime(check.checkedAt)} | {check.checkName} | {formatHistorySummary(check)}
               </Text>
             ))}
           </View>
         ))}
+        {selectedDateChecks.length === 0 ? (
+          <Text style={styles.empty}>No security checks recorded for {formatDateLabel(selectedHistoryDateKey)}.</Text>
+        ) : null}
         <View style={styles.historyCategory}>
-          <Text style={styles.historyCategoryTitle}>Level 1 monthly patient check</Text>
+          <Text style={styles.historyCategoryTitle}>Patient security checks this month</Text>
           {levelOneCompliance.map((item) => (
-            <Text key={item.patientId} style={[styles.historyText, !item.completed && styles.historyWarningText]}>
-              {item.patientName}: {item.completed ? `done ${formatDateTime(item.lastCheckedAt)}` : "not recorded in last month"}
+            <Text key={`${item.patientId}-${item.category}`} style={[styles.historyText, !item.completed && styles.historyWarningText]}>
+              {item.patientName} | {item.category}: {item.completed ? `done ${formatDateTime(item.lastCheckedAt)}` : "not recorded in last month"}
             </Text>
           ))}
         </View>
       </View>
+      )}
+
     </View>
   );
 
@@ -376,6 +447,16 @@ function isLevelOnePatientCheck(area: SecurityArea) {
   return area.category === "level_1_patient_search";
 }
 
+function isPatientSpecificSecurityCheck(area: SecurityArea) {
+  return area.expectedItems?.targetType === "patient" ||
+    area.category === "level_1_patient_search" ||
+    area.category === "level_1_room_locker_zone";
+}
+
+function isItemChecklistSecurityCheck(area: SecurityArea) {
+  return area.expectedItems?.targetType === "items" || Boolean(area.expectedItems?.checklist?.length);
+}
+
 function buildCheckNotes({
   notes,
   selectedArea,
@@ -394,19 +475,20 @@ function buildCheckNotes({
     return `Cutlery: knives ${resultDetails.cutlery.knives}/${expected?.knives ?? 0}, forks ${resultDetails.cutlery.forks}/${expected?.forks ?? 0}, spoons ${resultDetails.cutlery.spoons}/${expected?.spoons ?? 0} | ${notes || "Complete"}`;
   }
 
+  if (isPatientSpecificSecurityCheck(selectedArea)) {
+    const patientText = selectedPatient
+    ? `Patient: Room ${selectedPatient.roomNumber} ${selectedPatient.firstName} ${selectedPatient.surname} (${selectedPatient.hospitalNumber})`
+    : "Patient: not recorded";
+    const reasonText = isLevelOnePatientCheck(selectedArea) ? ` | Reason: ${trigger}` : "";
+    const checklistText = resultDetails.checklist?.length ? ` | Checklist ${resultDetails.completionPercent ?? 0}% complete` : "";
+    return `${patientText}${reasonText}${checklistText} | ${notes || "Complete"}`;
+  }
+
   if (resultDetails.checklist?.length) {
     return `Checklist ${resultDetails.completionPercent ?? 0}% complete | ${notes || "Complete"}`;
   }
 
-  if (!isLevelOnePatientCheck(selectedArea)) {
-    return notes || "Complete";
-  }
-
-  const patientText = selectedPatient
-    ? `Patient: Room ${selectedPatient.roomNumber} ${selectedPatient.firstName} ${selectedPatient.surname} (${selectedPatient.hospitalNumber})`
-    : "Patient: not recorded";
-  const noteText = notes || "Complete";
-  return `${patientText} | Reason: ${trigger} | ${noteText}`;
+  return notes || "Complete";
 }
 
 function buildResultDetails({
@@ -432,7 +514,7 @@ function buildResultDetails({
     };
   }
 
-  if (area.expectedItems?.checklist?.length) {
+  if (isItemChecklistSecurityCheck(area) && area.expectedItems?.checklist?.length) {
     const checklist = area.expectedItems.checklist.map((item) => {
       const result = checklistResults.find((entry) => entry.id === item.id);
       return {
@@ -445,6 +527,10 @@ function buildResultDetails({
     });
 
     return {
+      patientId: isPatientSpecificSecurityCheck(area) ? selectedPatient?.id : undefined,
+      patientName: isPatientSpecificSecurityCheck(area) && selectedPatient
+        ? `Room ${selectedPatient.roomNumber} ${selectedPatient.firstName} ${selectedPatient.surname}`
+        : undefined,
       checklist,
       completionPercent: calculateChecklistCompletion(checklist.map((item) => ({
         id: item.id,
@@ -461,6 +547,15 @@ function buildResultDetails({
         ? `Room ${selectedPatient.roomNumber} ${selectedPatient.firstName} ${selectedPatient.surname}`
         : undefined,
       trigger
+    };
+  }
+
+  if (isPatientSpecificSecurityCheck(area)) {
+    return {
+      patientId: selectedPatient?.id,
+      patientName: selectedPatient
+        ? `Room ${selectedPatient.roomNumber} ${selectedPatient.firstName} ${selectedPatient.surname}`
+        : undefined
     };
   }
 
@@ -491,15 +586,41 @@ function buildHistoryByCategory(areas: SecurityArea[], checks: SecurityCheck[]) 
   }, {});
 }
 
+function buildDailyExpectations(areas: SecurityArea[], checks: SecurityCheck[]) {
+  return areas
+    .map((area) => {
+      const expected = getExpectedDailyCheckCount(area);
+      const recorded = checks.filter((check) => check.areaId === area.id).length;
+      return {
+        areaId: area.id,
+        expected,
+        missed: Math.max(0, expected - recorded),
+        name: area.name,
+        recorded
+      };
+    })
+    .filter((item) => item.expected > 0);
+}
+
+function getExpectedDailyCheckCount(area: SecurityArea) {
+  if (area.active === false) return 0;
+  if (area.frequencyType === "per_meal") return 3;
+  if (area.frequencyType === "daily") return 1;
+  if (area.frequencyType === "per_shift") return 3;
+  return 0;
+}
+
 function buildLevelOneCompliance(patients: Patient[], areas: SecurityArea[], checks: SecurityCheck[]) {
-  const levelOneAreaIds = new Set(areas.filter(isLevelOnePatientCheck).map((area) => area.id));
+  const patientAreaEntries = areas
+    .filter(isPatientSpecificSecurityCheck)
+    .map((area) => ({ areaId: area.id, category: formatCategory(area) }));
   const monthAgo = Date.now() - 30 * 24 * 60 * 60 * 1000;
 
-  return patients.map((patient) => {
+  return patients.flatMap((patient) => patientAreaEntries.map(({ areaId, category }) => {
     const lastCheck = checks
       .filter(
         (check) =>
-          levelOneAreaIds.has(check.areaId) &&
+          check.areaId === areaId &&
           check.resultDetails?.patientId === patient.id &&
           new Date(check.checkedAt).getTime() >= monthAgo
       )
@@ -508,18 +629,19 @@ function buildLevelOneCompliance(patients: Patient[], areas: SecurityArea[], che
     return {
       patientId: patient.id,
       patientName: `Room ${patient.roomNumber} ${patient.firstName} ${patient.surname}`,
+      category,
       completed: Boolean(lastCheck),
       lastCheckedAt: lastCheck?.checkedAt
     };
-  });
+  }));
 }
 
 function formatCategory(area: SecurityArea | undefined) {
   if (area?.category === "cutlery") return "Cutlery";
   if (area?.category === "ward_security") return "Ward security";
   if (area?.category === "level_1_patient_search") return "Level 1 patient checks";
-  if (area?.category === "level_1_room_locker_zone") return "Room / locker / zone";
-  return "Other";
+  if (area?.category === "level_1_room_locker_zone") return "Patient room / locker / zone";
+  return area?.name ?? "Other";
 }
 
 function formatHistorySummary(check: SecurityCheck) {
@@ -540,6 +662,25 @@ function formatDateTime(value: string | undefined) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
   return date.toLocaleString([], { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
+}
+
+function formatDateKey(date: Date) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+}
+
+function shiftDateKey(dateKey: string, days: number) {
+  const date = new Date(`${dateKey}T12:00:00`);
+  if (Number.isNaN(date.getTime())) {
+    return formatDateKey(new Date());
+  }
+  date.setDate(date.getDate() + days);
+  return formatDateKey(date);
+}
+
+function formatDateLabel(dateKey: string) {
+  const date = new Date(`${dateKey}T12:00:00`);
+  if (Number.isNaN(date.getTime())) return dateKey;
+  return date.toLocaleDateString([], { day: "2-digit", month: "long", year: "numeric" });
 }
 
 function formatTime(value: string) {
@@ -602,6 +743,11 @@ const styles = StyleSheet.create({
     color: "#1f5262",
     fontSize: 13,
     fontWeight: "900"
+  },
+  headerActions: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: 8
   },
   split: {
     alignItems: "stretch",
@@ -829,6 +975,38 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     gap: 10,
     padding: 12
+  },
+  historyHeader: {
+    alignItems: "center",
+    flexDirection: "row",
+    justifyContent: "space-between",
+    gap: 10
+  },
+  historyDateMeta: {
+    color: "#607078",
+    fontSize: 12,
+    fontWeight: "800",
+    marginTop: -4
+  },
+  dateNav: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 6,
+    justifyContent: "flex-end"
+  },
+  dateNavButton: {
+    alignItems: "center",
+    borderColor: "#1f5262",
+    borderRadius: 6,
+    borderWidth: 1,
+    justifyContent: "center",
+    minHeight: 34,
+    paddingHorizontal: 9
+  },
+  dateNavText: {
+    color: "#1f5262",
+    fontSize: 11,
+    fontWeight: "900"
   },
   historyCategory: {
     backgroundColor: "#f8fafb",

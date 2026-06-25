@@ -251,6 +251,7 @@ export type SecurityCheckCategory =
   | "level_1_room_locker_zone"
   | "custom";
 export type SecurityCheckFrequency = "per_shift" | "per_meal" | "daily" | "weekly" | "weekly_ad_hoc" | "monthly";
+export type SecurityCheckTargetType = "ward" | "patient" | "items";
 
 export type SecurityArea = {
   id: string;
@@ -265,6 +266,7 @@ export type SecurityArea = {
 };
 
 export type SecurityExpectedItems = {
+  targetType?: SecurityCheckTargetType;
   cutlery?: {
     knives: number;
     forks: number;

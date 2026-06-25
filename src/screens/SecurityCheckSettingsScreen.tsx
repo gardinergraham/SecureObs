@@ -5,6 +5,7 @@ import type {
   SecurityArea,
   SecurityCheckCategory,
   SecurityCheckFrequency,
+  SecurityCheckTargetType,
   SecurityExpectedItems,
   StaffMember,
   Ward
@@ -24,8 +25,13 @@ const categoryOptions: Array<{ value: SecurityCheckCategory; label: string }> = 
   { value: "cutlery", label: "Cutlery checks" },
   { value: "ward_security", label: "Ward security" },
   { value: "level_1_patient_search", label: "Level 1 patient check" },
-  { value: "level_1_room_locker_zone", label: "Room / locker / zone" },
+  { value: "level_1_room_locker_zone", label: "Patient room / locker / zone" },
   { value: "custom", label: "Custom" }
+];
+const targetTypeOptions: Array<{ value: SecurityCheckTargetType; label: string }> = [
+  { value: "ward", label: "Ward check" },
+  { value: "patient", label: "Patient specific" },
+  { value: "items", label: "Item checklist" }
 ];
 
 const standardChecks: Array<Pick<SecurityArea, "name" | "category" | "frequencyType" | "frequencyMinutes" | "requiresCount">> = [
@@ -51,7 +57,7 @@ const standardChecks: Array<Pick<SecurityArea, "name" | "category" | "frequencyT
     requiresCount: false
   },
   {
-    name: "Room / locker / zone checks",
+    name: "Patient room / locker / zone checks",
     category: "level_1_room_locker_zone",
     frequencyType: "per_shift",
     frequencyMinutes: 8 * 60,
@@ -89,6 +95,7 @@ export function SecurityCheckSettingsScreen({
   const [editingAreaId, setEditingAreaId] = useState("");
   const [name, setName] = useState("");
   const [category, setCategory] = useState<SecurityCheckCategory>("custom");
+  const [targetType, setTargetType] = useState<SecurityCheckTargetType>("ward");
   const [frequencyType, setFrequencyType] = useState<SecurityCheckFrequency>("per_shift");
   const [requiresCount, setRequiresCount] = useState(false);
   const [cutleryKnives, setCutleryKnives] = useState("");
@@ -102,6 +109,7 @@ export function SecurityCheckSettingsScreen({
     setEditingAreaId(area.id);
     setName(area.name);
     setCategory(area.category ?? "custom");
+    setTargetType(inferTargetType(area));
     setFrequencyType(area.frequencyType ?? inferFrequencyType(area.frequencyMinutes));
     setRequiresCount(area.requiresCount);
     setCutleryKnives(String(area.expectedItems?.cutlery?.knives ?? ""));
@@ -119,6 +127,7 @@ export function SecurityCheckSettingsScreen({
     setEditingAreaId("");
     setName("");
     setCategory("custom");
+    setTargetType("ward");
     setFrequencyType("per_shift");
     setRequiresCount(false);
     setCutleryKnives("");
@@ -144,7 +153,7 @@ export function SecurityCheckSettingsScreen({
       frequencyType,
       frequencyMinutes: frequency.minutes,
       requiresCount,
-      expectedItems: buildExpectedItems(category, cutleryKnives, cutleryForks, cutlerySpoons, checklistDraft),
+      expectedItems: buildExpectedItems(category, targetType, cutleryKnives, cutleryForks, cutlerySpoons, checklistDraft),
       active
     };
 
@@ -253,10 +262,34 @@ export function SecurityCheckSettingsScreen({
                 accessibilityRole="button"
                 disabled={!canEdit}
                 key={option.value}
-                onPress={() => setCategory(option.value)}
+                onPress={() => {
+                  setCategory(option.value);
+                  setTargetType(defaultTargetTypeForCategory(option.value));
+                }}
                 style={[styles.optionButton, category === option.value && styles.optionButtonActive, !canEdit && styles.disabledControl]}
               >
                 <Text style={[styles.optionText, category === option.value && styles.optionTextActive]}>{option.label}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+
+          <Text style={styles.label}>Check applies to</Text>
+          <View style={styles.optionRow}>
+            {targetTypeOptions.map((option) => (
+              <TouchableOpacity
+                accessibilityRole="button"
+                disabled={!canEdit || category === "cutlery"}
+                key={option.value}
+                onPress={() => setTargetType(option.value)}
+                style={[
+                  styles.optionButton,
+                  targetType === option.value && styles.optionButtonActive,
+                  (!canEdit || category === "cutlery") && styles.disabledControl
+                ]}
+              >
+                <Text style={[styles.optionText, targetType === option.value && styles.optionTextActive]}>
+                  {option.label}
+                </Text>
               </TouchableOpacity>
             ))}
           </View>
@@ -296,7 +329,7 @@ export function SecurityCheckSettingsScreen({
             </View>
           ) : null}
 
-          {category === "ward_security" || category === "level_1_room_locker_zone" ? (
+          {targetType === "items" ? (
             <View style={styles.configPanel}>
               <Text style={styles.label}>Checklist items</Text>
               {checklistDraft.map((item, index) => (
@@ -404,6 +437,17 @@ function inferFrequencyType(frequencyMinutes: number): SecurityCheckFrequency {
   return "per_shift";
 }
 
+function inferTargetType(area: SecurityArea): SecurityCheckTargetType {
+  if (area.expectedItems?.targetType) return area.expectedItems.targetType;
+  return defaultTargetTypeForCategory(area.category);
+}
+
+function defaultTargetTypeForCategory(category: SecurityCheckCategory | undefined): SecurityCheckTargetType {
+  if (category === "cutlery" || category === "ward_security") return "items";
+  if (category === "level_1_patient_search" || category === "level_1_room_locker_zone") return "patient";
+  return "ward";
+}
+
 function getFrequencyOption(frequencyType: SecurityCheckFrequency) {
   return frequencyOptions.find((option) => option.value === frequencyType) ?? {
     value: "per_shift" as const,
@@ -423,6 +467,7 @@ function formatFrequency(frequencyType: SecurityCheckFrequency | undefined, freq
 
 function buildExpectedItems(
   category: SecurityCheckCategory,
+  targetType: SecurityCheckTargetType,
   knives: string,
   forks: string,
   spoons: string,
@@ -430,6 +475,7 @@ function buildExpectedItems(
 ): SecurityExpectedItems {
   if (category === "cutlery") {
     return {
+      targetType: "items",
       cutlery: {
         knives: parseCount(knives),
         forks: parseCount(forks),
@@ -438,8 +484,9 @@ function buildExpectedItems(
     };
   }
 
-  if (category === "ward_security" || category === "level_1_room_locker_zone") {
+  if (targetType === "items") {
     return {
+      targetType,
       checklist: checklistDraft
         .filter((item) => item.name.trim())
         .map((item) => ({
@@ -450,21 +497,26 @@ function buildExpectedItems(
     };
   }
 
-  return {};
+  return { targetType };
 }
 
 function defaultExpectedItemsForCategory(category: SecurityCheckCategory | undefined): SecurityExpectedItems {
   if (category === "cutlery") {
-    return { cutlery: { knives: 12, forks: 12, spoons: 8 } };
+    return { targetType: "items", cutlery: { knives: 12, forks: 12, spoons: 8 } };
   }
 
   if (category === "ward_security") {
     return {
+      targetType: "items",
       checklist: defaultChecklistItems.map((name) => ({ id: createItemId(name), name, expectedCount: 1 }))
     };
   }
 
-  return {};
+  if (category === "level_1_patient_search" || category === "level_1_room_locker_zone") {
+    return { targetType: "patient" };
+  }
+
+  return { targetType: "ward" };
 }
 
 function parseCount(value: string) {
