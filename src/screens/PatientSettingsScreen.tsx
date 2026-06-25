@@ -1,22 +1,27 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { Alert, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+import * as Print from "expo-print";
 
 import type {
   EnhancedObservationPlan,
   ObservationLevel,
   Patient,
+  PatientFormRecord,
+  PatientFormSection,
+  PatientFormSectionRisk,
   StaffMember,
   StaffRatio,
   TesoEpisode,
   TesoReason
 } from "../types/domain";
-import { hasStaffRole } from "../utils/staffRole";
+import { hasAdminAccess, hasStaffRole } from "../utils/staffRole";
 
 type TesoObservationLevel = Exclude<ObservationLevel, "Intermittent">;
 
 const enhancedObservationLevels: TesoObservationLevel[] = ["General observation", "Eyesight", "Within arms length"];
 const ratios: StaffRatio[] = ["1:1", "2:1", "3:1", "4:1", "5:1", "6:1"];
 const reviewFrequencyOptions = [15, 30, 60, 120, 240];
+const riskOptions: PatientFormSectionRisk[] = ["Low", "Medium", "High", "Not assessed"];
 const reasons: TesoReason[] = [
   "Risk to self",
   "Risk to others",
@@ -26,6 +31,22 @@ const reasons: TesoReason[] = [
   "Physical health",
   "Other"
 ];
+const workplaceRiskAssessmentTemplate = {
+  id: "workplace-environment-risk-assessment-v1",
+  title: "Risk assessment - workplace environment",
+  reference: "Form No. 1",
+  description: "Service user's property or workplace environment",
+  sections: [
+    "Moving safely around the property or workplace environment",
+    "Security and emergencies",
+    "Electricity and electrical appliances",
+    "Gas, heating and fire lighting facilities",
+    "Cleaning, washing and laundering facilities",
+    "Kitchen, food handling and meals",
+    "Medication",
+    "Garden and exterior features"
+  ]
+};
 
 type TesoDraft = {
   observationLevel: TesoObservationLevel | "";
@@ -55,7 +76,8 @@ export function PatientSettingsScreen({
   const canEdit =
     hasStaffRole(selectedStaff, "nurse") ||
     hasStaffRole(selectedStaff, "manager") ||
-    hasStaffRole(selectedStaff, "doctor");
+    hasStaffRole(selectedStaff, "doctor") ||
+    hasAdminAccess(selectedStaff);
   const orderedPatients = useMemo(
     () => [...patients].sort((a, b) => a.roomNumber - b.roomNumber),
     [patients]
@@ -64,6 +86,10 @@ export function PatientSettingsScreen({
   const [tesoDraft, setTesoDraft] = useState<TesoDraft>(() => createDefaultDraft());
   const [activeCarePlanDraft, setActiveCarePlanDraft] = useState("");
   const [endReason, setEndReason] = useState("");
+  const [formSections, setFormSections] = useState<PatientFormSection[]>(() => createDefaultFormSections());
+  const [formReviewDate, setFormReviewDate] = useState("");
+  const [serviceUserSignature, setServiceUserSignature] = useState("");
+  const [staffSignature, setStaffSignature] = useState("");
   const detailScrollRef = useRef<ScrollView>(null);
   const selectedPatient = orderedPatients.find((patient) => patient.id === selectedPatientId) ?? orderedPatients[0];
   const hasActiveTeso = Boolean(
@@ -80,6 +106,10 @@ export function PatientSettingsScreen({
   useEffect(() => {
     setTesoDraft(createDefaultDraft());
     setEndReason("");
+    setFormSections(createDefaultFormSections());
+    setFormReviewDate("");
+    setServiceUserSignature("");
+    setStaffSignature("");
   }, [selectedPatientId]);
 
   useEffect(() => {
@@ -188,6 +218,64 @@ export function PatientSettingsScreen({
       tesoHistory
     });
     setEndReason("");
+  };
+
+  const updateFormSection = (sectionId: string, updates: Partial<PatientFormSection>) => {
+    setFormSections((currentSections) =>
+      currentSections.map((section) => (section.id === sectionId ? { ...section, ...updates } : section))
+    );
+  };
+
+  const savePatientForm = (status: PatientFormRecord["status"]) => {
+    if (!selectedPatient || !canEdit) {
+      return;
+    }
+
+    if (status === "Completed" && (!serviceUserSignature.trim() || !staffSignature.trim())) {
+      Alert.alert("Signatures needed", "Add the service user and staff signatures before completing this form.");
+      return;
+    }
+
+    const formRecord = createPatientFormRecord({
+      completedBy: selectedStaff?.name ?? "Unknown staff",
+      reviewDate: formReviewDate.trim(),
+      sections: formSections,
+      serviceUserSignature: serviceUserSignature.trim(),
+      staffSignature: staffSignature.trim(),
+      status
+    });
+
+    updatePatient({
+      ...selectedPatient,
+      patientForms: [formRecord, ...(selectedPatient.patientForms ?? [])]
+    });
+
+    Alert.alert(
+      status === "Completed" ? "Form completed" : "Draft saved",
+      `${workplaceRiskAssessmentTemplate.title} saved for ${selectedPatient.firstName} ${selectedPatient.surname}.`
+    );
+  };
+
+  const printRiskAssessment = async (formRecord?: PatientFormRecord) => {
+    if (!selectedPatient) {
+      return;
+    }
+
+    try {
+      await Print.printAsync({
+        html: buildRiskAssessmentHtml({
+          formRecord,
+          patient: selectedPatient,
+          sections: formRecord?.sections ?? formSections,
+          selectedStaffName: selectedStaff?.name ?? "",
+          serviceUserSignature: formRecord?.serviceUserSignature ?? serviceUserSignature,
+          staffSignature: formRecord?.staffSignature ?? staffSignature,
+          reviewDate: formRecord?.reviewDate ?? formReviewDate
+        })
+      });
+    } catch (error) {
+      Alert.alert("Unable to print", error instanceof Error ? error.message : "The print dialog could not be opened.");
+    }
   };
 
   return (
@@ -597,6 +685,137 @@ export function PatientSettingsScreen({
                   </View>
                 )}
               </View>
+
+              <View style={styles.formsPanel}>
+                <View style={styles.formHeaderRow}>
+                  <View style={styles.formHeaderText}>
+                    <Text style={styles.panelTitle}>Forms and risk assessments</Text>
+                    <Text style={styles.infoTextCompact}>
+                      {workplaceRiskAssessmentTemplate.reference} | {workplaceRiskAssessmentTemplate.description}
+                    </Text>
+                  </View>
+                  <TouchableOpacity
+                    accessibilityRole="button"
+                    onPress={() => void printRiskAssessment()}
+                    style={styles.printButton}
+                  >
+                    <Text style={styles.printButtonText}>Print blank/current</Text>
+                  </TouchableOpacity>
+                </View>
+
+                <View style={styles.formTemplateCard}>
+                  <Text style={styles.actionTitle}>{workplaceRiskAssessmentTemplate.title}</Text>
+                  <Text style={styles.actionMeta}>
+                    Assess each hazard area as Low, Medium or High. Add notes, actions, review date and signatures.
+                  </Text>
+
+                  {formSections.map((section) => (
+                    <View key={section.id} style={styles.formSectionCard}>
+                      <Text style={styles.formSectionTitle}>{section.title}</Text>
+                      <OptionRow
+                        disabled={!canEdit}
+                        options={riskOptions}
+                        selected={section.risk}
+                        onSelect={(risk) => updateFormSection(section.id, { risk: risk as PatientFormSectionRisk })}
+                      />
+                      <TextInput placeholderTextColor="#6f7f87"
+                        editable={canEdit}
+                        multiline
+                        onChangeText={(notes) => updateFormSection(section.id, { notes })}
+                        placeholder="Notes / hazards identified"
+                        style={[styles.input, styles.formNotesInput, !canEdit && styles.disabledControl]}
+                        textAlignVertical="top"
+                        value={section.notes}
+                      />
+                      <TextInput placeholderTextColor="#6f7f87"
+                        editable={canEdit}
+                        multiline
+                        onChangeText={(actions) => updateFormSection(section.id, { actions })}
+                        placeholder="Actions required / controls in place"
+                        style={[styles.input, styles.formNotesInput, !canEdit && styles.disabledControl]}
+                        textAlignVertical="top"
+                        value={section.actions}
+                      />
+                    </View>
+                  ))}
+
+                  <Text style={styles.label}>Review date</Text>
+                  <TextInput placeholderTextColor="#6f7f87"
+                    editable={canEdit}
+                    onChangeText={setFormReviewDate}
+                    placeholder="e.g. 25/07/2026"
+                    style={[styles.input, !canEdit && styles.disabledControl]}
+                    value={formReviewDate}
+                  />
+
+                  <View style={styles.signatureRow}>
+                    <View style={styles.signatureColumn}>
+                      <Text style={styles.label}>Service user signature</Text>
+                      <TextInput placeholderTextColor="#6f7f87"
+                        editable={canEdit}
+                        onChangeText={setServiceUserSignature}
+                        placeholder="Type name or signature confirmation"
+                        style={[styles.input, !canEdit && styles.disabledControl]}
+                        value={serviceUserSignature}
+                      />
+                    </View>
+                    <View style={styles.signatureColumn}>
+                      <Text style={styles.label}>Staff signature</Text>
+                      <TextInput placeholderTextColor="#6f7f87"
+                        editable={canEdit}
+                        onChangeText={setStaffSignature}
+                        placeholder={selectedStaff?.name ?? "Staff name"}
+                        style={[styles.input, !canEdit && styles.disabledControl]}
+                        value={staffSignature}
+                      />
+                    </View>
+                  </View>
+
+                  <View style={styles.formActionRow}>
+                    <TouchableOpacity
+                      accessibilityRole="button"
+                      disabled={!canEdit}
+                      onPress={() => savePatientForm("Draft")}
+                      style={[styles.secondaryFormButton, !canEdit && styles.disabledControl]}
+                    >
+                      <Text style={styles.secondaryFormButtonText}>Save draft</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      accessibilityRole="button"
+                      disabled={!canEdit}
+                      onPress={() => savePatientForm("Completed")}
+                      style={[styles.updateCarePlanButton, styles.formPrimaryButton, !canEdit && styles.disabledControl]}
+                    >
+                      <Text style={styles.updateCarePlanButtonText}>Sign and complete</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+
+                <Text style={styles.label}>Form history</Text>
+                {(selectedPatient.patientForms ?? []).length === 0 ? (
+                  <Text style={styles.infoText}>No patient forms have been saved yet.</Text>
+                ) : (
+                  <View style={styles.formHistoryList}>
+                    {(selectedPatient.patientForms ?? []).map((form) => (
+                      <View key={form.id} style={styles.formHistoryRow}>
+                        <View style={styles.formHistoryText}>
+                          <Text style={styles.formHistoryTitle}>{form.title}</Text>
+                          <Text style={styles.staffLookupMeta}>
+                            {form.status} | {formatDateTime(form.completedAt)} | {form.completedBy}
+                          </Text>
+                        </View>
+                        <TouchableOpacity
+                          accessibilityRole="button"
+                          onPress={() => void printRiskAssessment(form)}
+                          style={styles.printSmallButton}
+                        >
+                          <Text style={styles.printSmallButtonText}>Print</Text>
+                        </TouchableOpacity>
+                      </View>
+                    ))}
+                  </View>
+                )}
+              </View>
             </>
           ) : (
             <Text style={styles.infoText}>No patient selected.</Text>
@@ -666,6 +885,45 @@ function createDefaultDraft(): TesoDraft {
     otherReason: "",
     carePlan: "",
     reviewFrequencyMinutes: 60
+  };
+}
+
+function createDefaultFormSections(): PatientFormSection[] {
+  return workplaceRiskAssessmentTemplate.sections.map((title, index) => ({
+    id: `section-${index + 1}`,
+    title,
+    risk: "Not assessed",
+    notes: "",
+    actions: ""
+  }));
+}
+
+function createPatientFormRecord({
+  completedBy,
+  reviewDate,
+  sections,
+  serviceUserSignature,
+  staffSignature,
+  status
+}: {
+  completedBy: string;
+  reviewDate: string;
+  sections: PatientFormSection[];
+  serviceUserSignature: string;
+  staffSignature: string;
+  status: PatientFormRecord["status"];
+}): PatientFormRecord {
+  return {
+    id: `patient-form-${Date.now()}`,
+    templateId: workplaceRiskAssessmentTemplate.id,
+    title: workplaceRiskAssessmentTemplate.title,
+    status,
+    completedAt: new Date().toISOString(),
+    completedBy,
+    reviewDate,
+    serviceUserSignature,
+    staffSignature,
+    sections
   };
 }
 
@@ -759,6 +1017,103 @@ function formatDateTime(value: string | undefined) {
     hour: "2-digit",
     minute: "2-digit"
   });
+}
+
+function buildRiskAssessmentHtml({
+  formRecord,
+  patient,
+  reviewDate,
+  sections,
+  selectedStaffName,
+  serviceUserSignature,
+  staffSignature
+}: {
+  formRecord?: PatientFormRecord;
+  patient: Patient;
+  reviewDate: string;
+  sections: PatientFormSection[];
+  selectedStaffName: string;
+  serviceUserSignature: string;
+  staffSignature: string;
+}) {
+  const rows = sections
+    .map(
+      (section, index) => `
+        <tr>
+          <td>${index + 1}. ${escapeHtml(section.title)}</td>
+          <td>${escapeHtml(section.risk)}</td>
+          <td>${escapeHtml(section.notes || "")}</td>
+          <td>${escapeHtml(section.actions || "")}</td>
+        </tr>
+      `
+    )
+    .join("");
+  const completedLabel = formRecord ? `${formRecord.status} ${formatDateTime(formRecord.completedAt)}` : "Blank/current draft";
+
+  return `
+    <!doctype html>
+    <html>
+      <head>
+        <meta charset="utf-8" />
+        <style>
+          body { color: #17252b; font-family: Arial, sans-serif; font-size: 12px; line-height: 1.35; padding: 24px; }
+          h1 { font-size: 18px; margin: 0 0 4px; text-align: center; text-transform: uppercase; }
+          h2 { font-size: 14px; margin: 20px 0 8px; }
+          .meta { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 18px; margin: 18px 0; }
+          .box { border: 1px solid #8fa1a8; min-height: 28px; padding: 7px; }
+          table { border-collapse: collapse; margin-top: 12px; width: 100%; }
+          th, td { border: 1px solid #8fa1a8; padding: 7px; text-align: left; vertical-align: top; }
+          th { background: #e7efed; font-weight: 700; }
+          .signatures { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-top: 24px; }
+          .signature-line { border-bottom: 1px solid #17252b; min-height: 28px; padding-top: 12px; }
+          .small { color: #53646b; font-size: 11px; }
+        </style>
+      </head>
+      <body>
+        <h1>${escapeHtml(workplaceRiskAssessmentTemplate.title)}</h1>
+        <p class="small" style="text-align:center">${escapeHtml(workplaceRiskAssessmentTemplate.reference)} | ${escapeHtml(workplaceRiskAssessmentTemplate.description)} | ${escapeHtml(completedLabel)}</p>
+        <div class="meta">
+          <div><strong>Service user</strong><div class="box">${escapeHtml(`${patient.firstName} ${patient.surname}`)}</div></div>
+          <div><strong>Hospital/reference number</strong><div class="box">${escapeHtml(patient.hospitalNumber)}</div></div>
+          <div><strong>Room</strong><div class="box">${patient.roomNumber}</div></div>
+          <div><strong>Completed by</strong><div class="box">${escapeHtml(formRecord?.completedBy ?? selectedStaffName)}</div></div>
+          <div><strong>Date reviewed</strong><div class="box">${escapeHtml(reviewDate)}</div></div>
+          <div><strong>Status</strong><div class="box">${escapeHtml(formRecord?.status ?? "Current draft")}</div></div>
+        </div>
+        <h2>Risk assessment checklist</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>Hazard area</th>
+              <th>Risk</th>
+              <th>Notes / hazards identified</th>
+              <th>Actions required / controls</th>
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
+        <div class="signatures">
+          <div>
+            <strong>Service user signature</strong>
+            <div class="signature-line">${escapeHtml(serviceUserSignature)}</div>
+          </div>
+          <div>
+            <strong>Staff signature</strong>
+            <div class="signature-line">${escapeHtml(staffSignature)}</div>
+          </div>
+        </div>
+      </body>
+    </html>
+  `;
+}
+
+function escapeHtml(value: string) {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
 }
 
 const styles = StyleSheet.create({
@@ -1137,6 +1492,137 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 22,
     marginTop: 12
+  },
+  infoTextCompact: {
+    color: "#607078",
+    fontSize: 12,
+    fontWeight: "700",
+    lineHeight: 18
+  },
+  formsPanel: {
+    backgroundColor: "#ffffff",
+    borderColor: "#d8e0e3",
+    borderRadius: 8,
+    borderWidth: StyleSheet.hairlineWidth,
+    marginTop: 12,
+    padding: 12
+  },
+  formHeaderRow: {
+    alignItems: "flex-start",
+    flexDirection: "row",
+    gap: 10,
+    justifyContent: "space-between"
+  },
+  formHeaderText: {
+    flex: 1
+  },
+  printButton: {
+    alignItems: "center",
+    borderColor: "#1f5262",
+    borderRadius: 6,
+    borderWidth: 1,
+    justifyContent: "center",
+    minHeight: 40,
+    paddingHorizontal: 10
+  },
+  printButtonText: {
+    color: "#1f5262",
+    fontSize: 12,
+    fontWeight: "900"
+  },
+  formTemplateCard: {
+    backgroundColor: "#f8fafb",
+    borderColor: "#d8e0e3",
+    borderRadius: 8,
+    borderWidth: StyleSheet.hairlineWidth,
+    marginTop: 12,
+    padding: 12
+  },
+  formSectionCard: {
+    backgroundColor: "#ffffff",
+    borderColor: "#d8e0e3",
+    borderRadius: 6,
+    borderWidth: 1,
+    marginTop: 10,
+    padding: 10
+  },
+  formSectionTitle: {
+    color: "#18262c",
+    fontSize: 13,
+    fontWeight: "900",
+    marginBottom: 8
+  },
+  formNotesInput: {
+    lineHeight: 18,
+    marginTop: 8,
+    minHeight: 72,
+    paddingTop: 9
+  },
+  signatureRow: {
+    flexDirection: "row",
+    gap: 10
+  },
+  signatureColumn: {
+    flex: 1
+  },
+  formActionRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10,
+    marginTop: 12
+  },
+  secondaryFormButton: {
+    alignItems: "center",
+    borderColor: "#1f5262",
+    borderRadius: 6,
+    borderWidth: 1,
+    justifyContent: "center",
+    minHeight: 44,
+    paddingHorizontal: 12
+  },
+  secondaryFormButtonText: {
+    color: "#1f5262",
+    fontSize: 13,
+    fontWeight: "900"
+  },
+  formPrimaryButton: {
+    marginTop: 0
+  },
+  formHistoryList: {
+    borderColor: "#d8e0e3",
+    borderRadius: 6,
+    borderWidth: 1,
+    overflow: "hidden"
+  },
+  formHistoryRow: {
+    alignItems: "center",
+    borderTopColor: "#edf1f2",
+    borderTopWidth: StyleSheet.hairlineWidth,
+    flexDirection: "row",
+    gap: 10,
+    justifyContent: "space-between",
+    padding: 10
+  },
+  formHistoryText: {
+    flex: 1
+  },
+  formHistoryTitle: {
+    color: "#18262c",
+    fontSize: 13,
+    fontWeight: "900"
+  },
+  printSmallButton: {
+    alignItems: "center",
+    backgroundColor: "#edf7f4",
+    borderRadius: 6,
+    justifyContent: "center",
+    minHeight: 34,
+    paddingHorizontal: 10
+  },
+  printSmallButtonText: {
+    color: "#1f5262",
+    fontSize: 12,
+    fontWeight: "900"
   },
   disabledControl: {
     opacity: 0.45

@@ -151,6 +151,29 @@ export type TesoEpisode = {
   endedReason?: string;
 };
 
+export type PatientFormSectionRisk = "Low" | "Medium" | "High" | "Not assessed";
+
+export type PatientFormSection = {
+  id: string;
+  title: string;
+  risk: PatientFormSectionRisk;
+  notes: string;
+  actions: string;
+};
+
+export type PatientFormRecord = {
+  id: string;
+  templateId: string;
+  title: string;
+  status: "Draft" | "Completed" | "Printed";
+  completedAt: string;
+  completedBy: string;
+  reviewDate: string;
+  serviceUserSignature: string;
+  staffSignature: string;
+  sections: PatientFormSection[];
+};
+
 export type Patient = {
   id: string;
   patientNumber: number;
@@ -172,6 +195,7 @@ export type Patient = {
   archived?: boolean;
   enhancedObservation?: EnhancedObservationPlan;
   tesoHistory?: TesoEpisode[];
+  patientForms?: PatientFormRecord[];
 };
 
 export type Observation = {

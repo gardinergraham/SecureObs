@@ -19,6 +19,7 @@ begin
     long_term_seclusion bit not null default 0,
     allergies nvarchar(max) not null default '',
     adverse_drug_reactions nvarchar(max) not null default '',
+    patient_forms nvarchar(max) not null default '[]',
     archived bit not null default 0,
     created_at datetimeoffset not null default sysdatetimeoffset(),
     updated_at datetimeoffset not null default sysdatetimeoffset()

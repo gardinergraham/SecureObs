@@ -15,6 +15,7 @@ create table if not exists patients (
   on_off_ward text not null default 'On ward',
   seclusion boolean not null default false,
   long_term_seclusion boolean not null default false,
+  patient_forms jsonb not null default '[]'::jsonb,
   archived boolean not null default false,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()

@@ -30,6 +30,7 @@ const patientSchema = z.object({
   archived: z.boolean().default(false),
   enhancedObservation: z.record(z.string(), z.unknown()).optional(),
   tesoHistory: z.array(z.record(z.string(), z.unknown())).default([]),
+  patientForms: z.array(z.record(z.string(), z.unknown())).default([]),
   actorStaffId: z.string().optional(),
   actorStaffCode: z.string().optional()
 });
@@ -61,6 +62,7 @@ router.get("/", async (request, response, next) => {
           adverse_drug_reactions as "adverseDrugReactions",
           enhanced_observation as "enhancedObservation",
           teso_history as "tesoHistory",
+          patient_forms as "patientForms",
           archived
         from patients
         where organisation_id = $1
@@ -101,7 +103,8 @@ router.post("/", requireStaffRole(["nurse", "manager", "doctor", "super_admin"])
           allergies,
           adverse_drug_reactions as "adverseDrugReactions",
           enhanced_observation as "enhancedObservation",
-          teso_history as "tesoHistory"
+          teso_history as "tesoHistory",
+          patient_forms as "patientForms"
         from patients
         where organisation_id = $1 and id = $2
       `,
@@ -114,6 +117,7 @@ router.post("/", requireStaffRole(["nurse", "manager", "doctor", "super_admin"])
           adverseDrugReactions?: string;
           enhancedObservation?: unknown;
           tesoHistory?: unknown[];
+          patientForms?: unknown[];
         }
       | undefined;
 
@@ -123,8 +127,8 @@ router.post("/", requireStaffRole(["nurse", "manager", "doctor", "super_admin"])
           id, organisation_id, patient_number, hospital_number, first_name, surname, ward_id, room_number,
           observation_level, latest_observation_place, latest_observation_time, latest_observed_by,
           latest_presentation, on_off_ward, seclusion, long_term_seclusion, archived,
-          allergies, adverse_drug_reactions, enhanced_observation, teso_history
-        ) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20::jsonb,$21::jsonb)
+          allergies, adverse_drug_reactions, enhanced_observation, teso_history, patient_forms
+        ) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20::jsonb,$21::jsonb,$22::jsonb)
         on conflict (id) do update set
           patient_number = excluded.patient_number,
           hospital_number = excluded.hospital_number,
@@ -144,6 +148,7 @@ router.post("/", requireStaffRole(["nurse", "manager", "doctor", "super_admin"])
           adverse_drug_reactions = excluded.adverse_drug_reactions,
           enhanced_observation = excluded.enhanced_observation,
           teso_history = excluded.teso_history,
+          patient_forms = excluded.patient_forms,
           archived = excluded.archived,
           updated_at = now()
         returning
@@ -166,6 +171,7 @@ router.post("/", requireStaffRole(["nurse", "manager", "doctor", "super_admin"])
           adverse_drug_reactions as "adverseDrugReactions",
           enhanced_observation as "enhancedObservation",
           teso_history as "tesoHistory",
+          patient_forms as "patientForms",
           archived
       `,
       [
@@ -189,7 +195,8 @@ router.post("/", requireStaffRole(["nurse", "manager", "doctor", "super_admin"])
         patient.allergies,
         patient.adverseDrugReactions,
         JSON.stringify(patient.enhancedObservation ?? null),
-        JSON.stringify(patient.tesoHistory ?? [])
+        JSON.stringify(patient.tesoHistory ?? []),
+        JSON.stringify(patient.patientForms ?? [])
       ]
     );
 
@@ -230,6 +237,7 @@ async function recordPatientAuditEvents({
     adverseDrugReactions?: string;
     enhancedObservation?: unknown;
     tesoHistory?: unknown[];
+    patientForms?: unknown[];
   };
 }) {
   const actor = auditActorFromBody(requestBody);
@@ -303,6 +311,20 @@ async function recordPatientAuditEvents({
         previous: existingPatient.enhancedObservation ?? null,
         next: patient.enhancedObservation ?? null,
         activeEpisode: patient.tesoHistory?.find((episode) => !episode.endedAt) ?? null
+      }
+    });
+  }
+
+  if (JSON.stringify(existingPatient.patientForms ?? []) !== JSON.stringify(patient.patientForms ?? [])) {
+    const newestForm = patient.patientForms?.[0] ?? null;
+    await recordAuditEvent({
+      ...baseEvent,
+      eventType: "patient.form.update",
+      details: {
+        patientId: patient.id,
+        formTitle: newestForm?.title ?? "Patient form",
+        status: newestForm?.status ?? "Updated",
+        completedBy: newestForm?.completedBy ?? null
       }
     });
   }
