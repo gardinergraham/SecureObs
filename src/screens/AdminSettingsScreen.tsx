@@ -83,6 +83,7 @@ export function AdminSettingsScreen({
       securityChecksEnabled: true,
       medicationChartEnabled: true,
       staffRotaEnabled: true,
+      sessionTimeoutMinutes: 15,
       rotaShiftCount: 3,
       rotaShifts: [
         { id: `${createId("ward", trimmedName)}-shift-1`, startsAt: "07:00", endsAt: "15:00" },

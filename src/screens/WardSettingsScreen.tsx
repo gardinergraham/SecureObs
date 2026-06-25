@@ -6,6 +6,7 @@ import { hasStaffRole, normaliseStaffRole } from "../utils/staffRole";
 
 const shiftCountOptions = [1, 2, 3, 4];
 const breakDurationOptions = [15, 30, 60];
+const sessionTimeoutOptions = [5, 10, 15, 30, 60];
 const defaultRotaShifts = [
   { id: "shift-1", startsAt: "07:00", endsAt: "15:00" },
   { id: "shift-2", startsAt: "13:30", endsAt: "23:00" },
@@ -115,6 +116,11 @@ export function WardSettingsScreen({
   const updateBreakDuration = (breakDurationMinutes: number) => {
     if (!selectedWard || !canEditWardSettings) return;
     onUpdateWardRotaSettings({ ...selectedWard, breakDurationMinutes });
+  };
+
+  const updateSessionTimeout = (sessionTimeoutMinutes: number) => {
+    if (!selectedWard || !canEditWardSettings) return;
+    onUpdateWardRotaSettings({ ...selectedWard, sessionTimeoutMinutes });
   };
 
   const selectStaffForEditing = (member: StaffMember) => {
@@ -453,6 +459,35 @@ export function WardSettingsScreen({
           >
             <Text style={styles.stepperText}>+5</Text>
           </TouchableOpacity>
+        </View>
+
+        <Text style={styles.settingLabel}>Staff session timeout</Text>
+        <Text style={styles.meta}>
+          If the tablet is left untouched, the signed-in staff member is locked out after this time.
+        </Text>
+        <View style={styles.optionRow}>
+          {sessionTimeoutOptions.map((minutes) => (
+            <TouchableOpacity
+              accessibilityRole="button"
+              disabled={!selectedWard || !canEditWardSettings}
+              key={minutes}
+              onPress={() => updateSessionTimeout(minutes)}
+              style={[
+                styles.optionButton,
+                selectedWard?.sessionTimeoutMinutes === minutes && styles.optionButtonActive,
+                !canEditWardSettings && styles.disabledControl
+              ]}
+            >
+              <Text
+                style={[
+                  styles.optionText,
+                  selectedWard?.sessionTimeoutMinutes === minutes && styles.optionTextActive
+                ]}
+              >
+                {minutes === 60 ? "1 hour" : `${minutes} min`}
+              </Text>
+            </TouchableOpacity>
+          ))}
         </View>
 
         <TouchableOpacity

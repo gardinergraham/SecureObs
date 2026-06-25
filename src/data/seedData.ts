@@ -48,6 +48,7 @@ export const seedData: {
       securityChecksEnabled: true,
       medicationChartEnabled: true,
       staffRotaEnabled: true,
+      sessionTimeoutMinutes: 15,
       rotaShiftCount: 3,
       rotaShifts: [
         { id: "ward-1-shift-1", startsAt: "07:00", endsAt: "15:00" },
@@ -68,6 +69,7 @@ export const seedData: {
       securityChecksEnabled: true,
       medicationChartEnabled: false,
       staffRotaEnabled: false,
+      sessionTimeoutMinutes: 15,
       rotaShiftCount: 3,
       rotaShifts: [
         { id: "ward-2-shift-1", startsAt: "07:00", endsAt: "15:00" },
@@ -88,6 +90,7 @@ export const seedData: {
       securityChecksEnabled: false,
       medicationChartEnabled: true,
       staffRotaEnabled: true,
+      sessionTimeoutMinutes: 15,
       rotaShiftCount: 2,
       rotaShifts: [
         { id: "ward-3-shift-1", startsAt: "08:00", endsAt: "20:00" },

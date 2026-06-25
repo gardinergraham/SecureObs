@@ -45,6 +45,7 @@ export type Ward = {
   securityChecksEnabled: boolean;
   medicationChartEnabled: boolean;
   staffRotaEnabled: boolean;
+  sessionTimeoutMinutes: number;
   rotaShiftCount: number;
   rotaShifts: RotaShift[];
   breakDurationMinutes: number;

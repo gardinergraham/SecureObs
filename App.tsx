@@ -1,5 +1,5 @@
-import React, { useEffect, useMemo, useState } from "react";
-import { Alert, SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Alert, AppState, SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { StatusBar } from "expo-status-bar";
 
 import { AdminSettingsScreen } from "./src/screens/AdminSettingsScreen";
@@ -52,6 +52,7 @@ import {
   savePatient as persistPatient,
   updateMedicationPrescription as persistMedicationPrescriptionUpdate
 } from "./src/services/api";
+import { clearAuthSession } from "./src/services/authSession";
 import {
   clearSyncQueue,
   flushSyncQueue,
@@ -129,7 +130,9 @@ export default function App() {
   const selectedStaffCanPrescribe = Boolean(activeStaff?.canPrescribe || hasStaffRole(activeStaff, "doctor"));
   const [selectedSiteId, setSelectedSiteId] = useState("");
   const [selectedWardId, setSelectedWardId] = useState("");
+  const selectedWard = wards.find((ward) => ward.id === selectedWardId);
   const [selectedPatientId, setSelectedPatientId] = useState(seedData.patients[0]?.id ?? "");
+  const lastActivityAtRef = useRef(Date.now());
   const [syncQueueState, setSyncQueueState] = useState<SyncQueueState>({
     pendingCount: 0,
     isReady: false,
@@ -349,7 +352,14 @@ export default function App() {
     [patients, selectedWardId]
   );
 
-  const handleSelectStaff = (staffId: string) => {
+  const handleSelectStaff = async (staffId: string) => {
+    if (!staffId) {
+      await clearAuthSession();
+      selectStaffSession(undefined);
+      setScreen("home");
+      return;
+    }
+
     const staff = staffMembers.find((item) => item.id === staffId);
     selectStaffSession(staff);
   };
@@ -398,6 +408,63 @@ export default function App() {
       cancelled = true;
     };
   }, [selectedStaffId, patients, wards]);
+
+  const resetActivityTimer = useCallback(() => {
+    lastActivityAtRef.current = Date.now();
+  }, []);
+
+  const lockInactiveStaffSession = useCallback(async () => {
+    if (!selectedStaffId) {
+      return;
+    }
+
+    await clearAuthSession();
+    setSelectedStaffId("");
+    setSelectedSiteId("");
+    setSelectedWardId("");
+    setSelectedPatientId("");
+    setScreen("home");
+    Alert.alert("Session locked", "The staff session was locked after inactivity. Sign in again to continue.");
+  }, [selectedStaffId]);
+
+  useEffect(() => {
+    if (!selectedStaffId) {
+      return;
+    }
+
+    lastActivityAtRef.current = Date.now();
+    const timeoutMs = Math.max(1, selectedWard?.sessionTimeoutMinutes ?? 15) * 60 * 1000;
+    const timer = setInterval(() => {
+      if (Date.now() - lastActivityAtRef.current >= timeoutMs) {
+        void lockInactiveStaffSession();
+      }
+    }, 10000);
+
+    return () => {
+      clearInterval(timer);
+    };
+  }, [lockInactiveStaffSession, selectedStaffId, selectedWard?.sessionTimeoutMinutes]);
+
+  useEffect(() => {
+    if (!selectedStaffId) {
+      return;
+    }
+
+    const subscription = AppState.addEventListener("change", (state) => {
+      if (state !== "active") {
+        return;
+      }
+
+      const timeoutMs = Math.max(1, selectedWard?.sessionTimeoutMinutes ?? 15) * 60 * 1000;
+      if (Date.now() - lastActivityAtRef.current >= timeoutMs) {
+        void lockInactiveStaffSession();
+      }
+    });
+
+    return () => {
+      subscription.remove();
+    };
+  }, [lockInactiveStaffSession, selectedStaffId, selectedWard?.sessionTimeoutMinutes]);
 
   const handleReadStaffCardData = async (cardData: string) => {
     const parsedCard = parseStaffCardData(cardData);
@@ -731,7 +798,7 @@ export default function App() {
   };
 
   return (
-    <SafeAreaView style={styles.shell}>
+    <SafeAreaView onTouchStart={resetActivityTimer} style={styles.shell}>
       <StatusBar style="dark" />
       <View style={styles.header}>
         <View>
