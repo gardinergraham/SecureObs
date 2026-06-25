@@ -21,5 +21,6 @@ insert into security_areas (
 values
   ('area-ward-1-cutlery', '00000000-0000-0000-0000-000000000001', 'ward-1', 'Cutlery checks', 360, true, 'cutlery', 'per_meal', true),
   ('area-ward-1-security', '00000000-0000-0000-0000-000000000001', 'ward-1', 'Ward security checks', 480, false, 'ward_security', 'per_shift', true),
-  ('area-ward-1-level-1-room-locker-zone', '00000000-0000-0000-0000-000000000001', 'ward-1', 'Level 1 / room / locker / zone checks', 480, false, 'level_1_room_locker_zone', 'per_shift', true)
+  ('area-ward-1-level-1-patient-search', '00000000-0000-0000-0000-000000000001', 'ward-1', 'Level 1 patient checks', 10080, false, 'level_1_patient_search', 'weekly_ad_hoc', true),
+  ('area-ward-1-room-locker-zone', '00000000-0000-0000-0000-000000000001', 'ward-1', 'Room / locker / zone checks', 480, false, 'level_1_room_locker_zone', 'per_shift', true)
 on conflict (id) do nothing;

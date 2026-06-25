@@ -1,11 +1,14 @@
 import React, { useMemo, useState } from "react";
 import { Alert, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 
-import type { SecurityArea, SecurityCheck, StaffMember } from "../types/domain";
+import type { Patient, SecurityArea, SecurityCheck, StaffMember } from "../types/domain";
+
+const levelOneTriggers = ["Weekly check", "Leaving ward", "Returning to ward", "Ad hoc / clinical reason"];
 
 type SecurityChecksProps = {
   areas: SecurityArea[];
   checks: SecurityCheck[];
+  patients: Patient[];
   selectedStaffId: string;
   staff: StaffMember[];
   wardName: string;
@@ -16,6 +19,7 @@ type SecurityChecksProps = {
 export function SecurityChecks({
   areas,
   checks,
+  patients,
   selectedStaffId,
   staff,
   wardName,
@@ -23,6 +27,8 @@ export function SecurityChecks({
   onCreateCheck
 }: SecurityChecksProps) {
   const [selectedAreaId, setSelectedAreaId] = useState(areas[0]?.id ?? "");
+  const [selectedPatientId, setSelectedPatientId] = useState("");
+  const [levelOneTrigger, setLevelOneTrigger] = useState(levelOneTriggers[0] ?? "Weekly check");
   const [notes, setNotes] = useState("");
   const [countedTotal, setCountedTotal] = useState("");
   const selectedArea = areas.find((area) => area.id === selectedAreaId) ?? areas[0];
@@ -46,22 +52,37 @@ export function SecurityChecks({
       Alert.alert("Count needed", "Enter the counted total before saving this check.");
       return;
     }
+    if (isLevelOnePatientCheck(selectedArea) && !selectedPatientId) {
+      Alert.alert("Patient needed", "Select the patient who had the Level 1 check.");
+      return;
+    }
 
     const checkedBy = selectedStaff?.name ?? "Unknown";
     const checkedAt = new Date().toISOString();
+    const selectedPatient = patients.find((patient) => patient.id === selectedPatientId);
+    const outcomeNotes = buildCheckNotes({
+      notes: notes.trim(),
+      selectedArea,
+      selectedPatient,
+      trigger: levelOneTrigger
+    });
     const check: SecurityCheck = {
       id: `security-${Date.now()}`,
       areaId: selectedArea.id,
-      checkName: selectedArea.requiresCount ? `${selectedArea.name} count` : `${selectedArea.name} check`,
+      checkName: isLevelOnePatientCheck(selectedArea)
+        ? `${selectedArea.name} - ${levelOneTrigger}`
+        : selectedArea.requiresCount ? `${selectedArea.name} count` : `${selectedArea.name} check`,
       checkedBy,
       checkedAt,
-      notes: notes.trim() || "Complete",
+      notes: outcomeNotes,
       countedTotal: selectedArea.requiresCount ? parsedCount : undefined
     };
 
     onCreateCheck(check);
     setNotes("");
     setCountedTotal("");
+    setSelectedPatientId("");
+    setLevelOneTrigger(levelOneTriggers[0] ?? "Weekly check");
     Alert.alert("Security check saved", `${selectedArea.name} recorded by ${checkedBy}.`);
   };
 
@@ -127,8 +148,46 @@ export function SecurityChecks({
             <>
               <Text style={styles.selectedTitle}>{selectedArea.name}</Text>
               <Text style={styles.selectedMeta}>
-                {selectedArea.requiresCount ? "This area needs a counted total." : "Record the check outcome."}
+                {isLevelOnePatientCheck(selectedArea)
+                  ? "Record the patient, reason, and outcome for this Level 1 check."
+                  : selectedArea.requiresCount ? "This area needs a counted total." : "Record the check outcome."}
               </Text>
+
+              {isLevelOnePatientCheck(selectedArea) ? (
+                <>
+                  <Text style={styles.label}>Patient</Text>
+                  <View style={styles.optionRow}>
+                    {patients.map((patient) => (
+                      <TouchableOpacity
+                        accessibilityRole="button"
+                        key={patient.id}
+                        onPress={() => setSelectedPatientId(patient.id)}
+                        style={[styles.optionButton, patient.id === selectedPatientId && styles.optionButtonActive]}
+                      >
+                        <Text style={[styles.optionText, patient.id === selectedPatientId && styles.optionTextActive]}>
+                          Room {patient.roomNumber} | {patient.firstName} {patient.surname}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+
+                  <Text style={styles.label}>Reason</Text>
+                  <View style={styles.optionRow}>
+                    {levelOneTriggers.map((trigger) => (
+                      <TouchableOpacity
+                        accessibilityRole="button"
+                        key={trigger}
+                        onPress={() => setLevelOneTrigger(trigger)}
+                        style={[styles.optionButton, trigger === levelOneTrigger && styles.optionButtonActive]}
+                      >
+                        <Text style={[styles.optionText, trigger === levelOneTrigger && styles.optionTextActive]}>
+                          {trigger}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </>
+              ) : null}
 
               {selectedArea.requiresCount ? (
                 <>
@@ -188,6 +247,32 @@ function getSecurityTiming(area: SecurityArea, latestCheck: SecurityCheck | unde
   return { label: `${minutes}m`, state: "ok" as const };
 }
 
+function isLevelOnePatientCheck(area: SecurityArea) {
+  return area.category === "level_1_patient_search";
+}
+
+function buildCheckNotes({
+  notes,
+  selectedArea,
+  selectedPatient,
+  trigger
+}: {
+  notes: string;
+  selectedArea: SecurityArea;
+  selectedPatient?: Patient;
+  trigger: string;
+}) {
+  if (!isLevelOnePatientCheck(selectedArea)) {
+    return notes || "Complete";
+  }
+
+  const patientText = selectedPatient
+    ? `Patient: Room ${selectedPatient.roomNumber} ${selectedPatient.firstName} ${selectedPatient.surname} (${selectedPatient.hospitalNumber})`
+    : "Patient: not recorded";
+  const noteText = notes || "Complete";
+  return `${patientText} | Reason: ${trigger} | ${noteText}`;
+}
+
 function formatTime(value: string) {
   const date = new Date(value);
 
@@ -206,6 +291,7 @@ function formatFrequency(area: SecurityArea) {
   if (area.frequencyType === "per_meal") return "Per meal";
   if (area.frequencyType === "daily") return "Daily";
   if (area.frequencyType === "weekly") return "Weekly";
+  if (area.frequencyType === "weekly_ad_hoc") return "Weekly + ad hoc";
   if (area.frequencyType === "monthly") return "Monthly";
   return `Every ${area.frequencyMinutes}m`;
 }
@@ -347,6 +433,33 @@ const styles = StyleSheet.create({
     fontWeight: "900",
     marginBottom: 6,
     marginTop: 14
+  },
+  optionRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    marginBottom: 6
+  },
+  optionButton: {
+    alignItems: "center",
+    borderColor: "#c7d2d6",
+    borderRadius: 6,
+    borderWidth: 1,
+    justifyContent: "center",
+    minHeight: 38,
+    paddingHorizontal: 10
+  },
+  optionButtonActive: {
+    backgroundColor: "#1f5262",
+    borderColor: "#1f5262"
+  },
+  optionText: {
+    color: "#30434a",
+    fontSize: 12,
+    fontWeight: "900"
+  },
+  optionTextActive: {
+    color: "#ffffff"
   },
   input: {
     backgroundColor: "#f8fafb",

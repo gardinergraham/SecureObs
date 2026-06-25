@@ -3,6 +3,7 @@ import { Alert, StyleSheet, Text, TextInput, TouchableOpacity, View } from "reac
 
 import { createObservation } from "../services/api";
 import type { Observation, Patient, PatientLocation, PatientPresentation, StaffMember } from "../types/domain";
+import type { MissedObservation } from "../types/domain";
 
 const locations: PatientLocation[] = [
   "Side room",
@@ -15,28 +16,33 @@ const locations: PatientLocation[] = [
   "LOA"
 ];
 const presentations: PatientPresentation[] = ["Awake", "Asleep"];
+const missedObservationReasons = ["Attending another incident", "Staff shortage", "Clinical emergency", "Other"];
 
 type EnhancedObservationScreenProps = {
   observations: Observation[];
+  missedObservations: MissedObservation[];
   patients: Patient[];
   staff: StaffMember[];
   selectedStaffId: string;
   onBack: () => void;
+  onMissedObservationSaved: (missedObservation: MissedObservation) => void;
   onObservationSaved: (observation: Observation) => void;
   onUpdatePatient: (patient: Patient) => void;
 };
 
 export function EnhancedObservationScreen({
   observations,
+  missedObservations,
   patients,
   staff,
   selectedStaffId,
   onBack,
+  onMissedObservationSaved,
   onObservationSaved,
   onUpdatePatient
 }: EnhancedObservationScreenProps) {
   const enhancedPatients = useMemo(
-    () => patients.filter((patient) => patient.observationLevel !== "Intermittent"),
+    () => patients.filter((patient) => patient.enhancedObservation || patient.observationLevel !== "Intermittent"),
     [patients]
   );
   const [selectedPatientId, setSelectedPatientId] = useState(enhancedPatients[0]?.id ?? "");
@@ -46,6 +52,8 @@ export function EnhancedObservationScreen({
   const [location, setLocation] = useState<PatientLocation>("Side room");
   const [presentation, setPresentation] = useState<PatientPresentation>("Awake");
   const [comments, setComments] = useState("");
+  const [missedReason, setMissedReason] = useState(missedObservationReasons[0] ?? "Other");
+  const [missedDetails, setMissedDetails] = useState("");
   const selectedEnhancedObservations = useMemo(
     () =>
       observations
@@ -53,6 +61,33 @@ export function EnhancedObservationScreen({
         .sort((a, b) => b.observedAt.localeCompare(a.observedAt)),
     [observations, selectedPatient?.id]
   );
+  const selectedTesoDueAt = selectedPatient
+    ? getTesoDueAt(selectedPatient, selectedEnhancedObservations)
+    : undefined;
+  const selectedTesoTiming =
+    selectedPatient && selectedTesoDueAt
+      ? getTesoTiming(selectedPatient, selectedEnhancedObservations, now)
+      : undefined;
+  const selectedTesoMissedObservationValidated = Boolean(
+    selectedPatient &&
+      selectedTesoDueAt &&
+      missedObservations.some(
+        (missedObservation) =>
+          missedObservation.patientId === selectedPatient.id &&
+          missedObservation.source === "Enhanced/TESO" &&
+          new Date(missedObservation.dueAt).getTime() === new Date(selectedTesoDueAt).getTime()
+      )
+  );
+  const tesoGeneralObservationOverdue =
+    selectedPatient?.observationLevel === "General observation" &&
+    selectedTesoTiming?.status === "overdue" &&
+    !selectedTesoMissedObservationValidated;
+  const selectedTesoMissedObservations = missedObservations
+    .filter(
+      (missedObservation) =>
+        missedObservation.patientId === selectedPatient?.id && missedObservation.source === "Enhanced/TESO"
+    )
+    .slice(0, 3);
 
   useEffect(() => {
     const timer = setInterval(() => setNow(Date.now()), 1000);
@@ -83,6 +118,14 @@ export function EnhancedObservationScreen({
       return;
     }
 
+    if (tesoGeneralObservationOverdue) {
+      Alert.alert(
+        "Missed TESO observation needs recording",
+        "Record the missed TESO observation reason before saving the new TESO general observation."
+      );
+      return;
+    }
+
     const observedAt = new Date().toISOString();
     const assignedNames =
       selectedPatient.enhancedObservation?.assignedStaffIds
@@ -107,6 +150,38 @@ export function EnhancedObservationScreen({
     onObservationSaved(observation);
     setComments("");
     Alert.alert("Enhanced observation saved", `${selectedPatient.firstName} ${selectedPatient.surname} checked.`);
+  };
+
+  const saveMissedTesoObservation = () => {
+    if (!selectedPatient || !selectedStaff || !selectedTesoDueAt) {
+      return;
+    }
+
+    const assignedNames =
+      selectedPatient.enhancedObservation?.assignedStaffIds
+        .map((staffId) => staff.find((member) => member.id === staffId)?.name)
+        .filter(Boolean)
+        .join(", ") || selectedStaff.name;
+
+    const missedObservation: MissedObservation = {
+      id: `missed-teso-observation-${Date.now()}`,
+      patientId: selectedPatient.id,
+      patientName: `${selectedPatient.firstName} ${selectedPatient.surname}`,
+      wardId: selectedPatient.wardId,
+      source: "Enhanced/TESO",
+      dueAt: selectedTesoDueAt,
+      recordedAt: new Date().toISOString(),
+      allocatedStaffId: selectedPatient.enhancedObservation?.assignedStaffIds[0] ?? selectedStaff.id,
+      allocatedStaffName: assignedNames,
+      recordedByStaffId: selectedStaff.id,
+      recordedByName: selectedStaff.name,
+      reason: missedReason,
+      details: missedDetails
+    };
+
+    onMissedObservationSaved(missedObservation);
+    setMissedDetails("");
+    Alert.alert("Missed TESO observation recorded", `${missedObservation.patientName} was recorded as missed.`);
   };
 
   return (
@@ -145,6 +220,11 @@ export function EnhancedObservationScreen({
                 <Text style={styles.patientMeta}>
                   {patient.observationLevel} | {patient.enhancedObservation?.staffRatio ?? "1:1"}
                 </Text>
+                {patient.observationLevel === "General observation" ? (
+                  <Text style={styles.lastObservationText}>
+                    TESO interval {patient.enhancedObservation?.reviewFrequencyMinutes ?? 60}m
+                  </Text>
+                ) : null}
                 <Text style={styles.lastObservationText}>
                   Last {formatObservationTime(patient.latestObservationTime)} | {patient.latestObservationPlace} |{" "}
                   {patient.latestPresentation}
@@ -169,6 +249,31 @@ export function EnhancedObservationScreen({
                 </View>
                 <Text style={styles.ratioBadge}>{selectedPatient.enhancedObservation?.staffRatio ?? "1:1"}</Text>
               </View>
+
+              {selectedPatient.observationLevel === "General observation" ? (
+                <View
+                  style={[
+                    styles.tesoTimingPanel,
+                    selectedTesoTiming?.status === "overdue" && styles.tesoTimingPanelOverdue
+                  ]}
+                >
+                  <View>
+                    <Text style={styles.tesoTimingTitle}>TESO general observation</Text>
+                    <Text style={styles.tesoTimingMeta}>
+                      Every {selectedPatient.enhancedObservation?.reviewFrequencyMinutes ?? 60}m |{" "}
+                      Due {selectedTesoDueAt ? formatObservationTime(selectedTesoDueAt) : "--:--"}
+                    </Text>
+                  </View>
+                  <Text
+                    style={[
+                      styles.tesoTimingBadge,
+                      selectedTesoTiming?.status === "overdue" && styles.tesoTimingBadgeOverdue
+                    ]}
+                  >
+                    {selectedTesoTiming?.label ?? "Not scheduled"}
+                  </Text>
+                </View>
+              ) : null}
 
               {selectedPatient.enhancedObservation?.carePlan ? (
                 <View style={styles.carePlanPanel}>
@@ -215,9 +320,57 @@ export function EnhancedObservationScreen({
                 value={comments}
               />
 
-              <TouchableOpacity accessibilityRole="button" onPress={saveEnhancedEntry} style={styles.saveButton}>
-                <Text style={styles.saveButtonText}>Save enhanced entry</Text>
+              <TouchableOpacity
+                accessibilityRole="button"
+                disabled={tesoGeneralObservationOverdue}
+                onPress={saveEnhancedEntry}
+                style={[styles.saveButton, tesoGeneralObservationOverdue && styles.disabledSaveButton]}
+              >
+                <Text style={styles.saveButtonText}>
+                  {tesoGeneralObservationOverdue ? "Record missed TESO observation first" : "Save enhanced entry"}
+                </Text>
               </TouchableOpacity>
+
+              {selectedPatient.observationLevel === "General observation" && selectedTesoTiming?.status === "overdue" ? (
+                <View style={styles.missedPanel}>
+                  <Text style={styles.missedTitle}>
+                    {selectedTesoMissedObservationValidated
+                      ? "Missed TESO observation validated"
+                      : "Record missed TESO observation"}
+                  </Text>
+                  <Text style={styles.missedMeta}>
+                    Due {selectedTesoDueAt ? formatObservationTime(selectedTesoDueAt) : "--:--"} | Source Enhanced/TESO
+                  </Text>
+                  <OptionRow options={missedObservationReasons} selected={missedReason} onSelect={setMissedReason} />
+                  <TextInput placeholderTextColor="#6f7f87"
+                    multiline
+                    numberOfLines={3}
+                    onChangeText={setMissedDetails}
+                    placeholder="Add detail, incident reference or staffing context"
+                    style={styles.notes}
+                    value={missedDetails}
+                  />
+                  {selectedTesoMissedObservationValidated ? (
+                    <Text style={styles.missedValidatedText}>Reason recorded for this overdue TESO observation.</Text>
+                  ) : (
+                    <TouchableOpacity accessibilityRole="button" onPress={saveMissedTesoObservation} style={styles.missedButton}>
+                      <Text style={styles.missedButtonText}>Record missed TESO observation</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+              ) : null}
+
+              {selectedTesoMissedObservations.length > 0 ? (
+                <View style={styles.missedHistory}>
+                  <Text style={styles.missedTitle}>Recent missed TESO observations</Text>
+                  {selectedTesoMissedObservations.map((missedObservation) => (
+                    <Text key={missedObservation.id} style={styles.missedHistoryText}>
+                      {formatObservationDate(missedObservation.dueAt)} {formatObservationTime(missedObservation.dueAt)} |{" "}
+                      {missedObservation.reason} | {missedObservation.recordedByName}
+                    </Text>
+                  ))}
+                </View>
+              ) : null}
 
               <ObservationHistory
                 emptyText="No enhanced observations saved for this patient yet."
@@ -309,6 +462,50 @@ function locationFromPatient(place: string): PatientLocation {
   }
 
   return "Side room";
+}
+
+function getTesoDueAt(patient: Patient, observations: Observation[]) {
+  if (patient.observationLevel !== "General observation") {
+    return undefined;
+  }
+
+  const intervalMinutes = patient.enhancedObservation?.reviewFrequencyMinutes ?? 60;
+  const latestObservation = observations[0];
+  const baseline = latestObservation?.observedAt ?? patient.enhancedObservation?.startedAt;
+  if (!baseline) {
+    return undefined;
+  }
+
+  const baselineTime = new Date(baseline).getTime();
+  if (Number.isNaN(baselineTime)) {
+    return undefined;
+  }
+
+  return new Date(baselineTime + intervalMinutes * 60 * 1000).toISOString();
+}
+
+function getTesoTiming(patient: Patient, observations: Observation[], now: number) {
+  const dueAt = getTesoDueAt(patient, observations);
+  if (!dueAt) {
+    return undefined;
+  }
+
+  const dueTime = new Date(dueAt).getTime();
+  if (Number.isNaN(dueTime)) {
+    return undefined;
+  }
+
+  const minutes = Math.round((dueTime - now) / 60000);
+  if (minutes < 0) {
+    return { label: `${Math.abs(minutes)}m overdue`, status: "overdue" as const };
+  }
+  if (minutes === 0) {
+    return { label: "Due now", status: "due" as const };
+  }
+  if (minutes <= 5) {
+    return { label: `Due in ${minutes}m`, status: "soon" as const };
+  }
+  return { label: `Due in ${minutes}m`, status: "ok" as const };
 }
 
 function formatObservationTime(value: string) {
@@ -527,6 +724,46 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     lineHeight: 19
   },
+  tesoTimingPanel: {
+    alignItems: "center",
+    backgroundColor: "#edf7f4",
+    borderColor: "#b9d8ca",
+    borderRadius: 8,
+    borderWidth: 1,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: 12,
+    padding: 12
+  },
+  tesoTimingPanelOverdue: {
+    backgroundColor: "#fff0ee",
+    borderColor: "#d78b82"
+  },
+  tesoTimingTitle: {
+    color: "#18262c",
+    fontSize: 14,
+    fontWeight: "900"
+  },
+  tesoTimingMeta: {
+    color: "#607078",
+    fontSize: 12,
+    fontWeight: "800",
+    marginTop: 3
+  },
+  tesoTimingBadge: {
+    backgroundColor: "#dcead7",
+    borderRadius: 6,
+    color: "#253e2c",
+    fontSize: 13,
+    fontWeight: "900",
+    overflow: "hidden",
+    paddingHorizontal: 10,
+    paddingVertical: 6
+  },
+  tesoTimingBadgeOverdue: {
+    backgroundColor: "#c43d35",
+    color: "#ffffff"
+  },
   label: {
     color: "#31454d",
     fontSize: 13,
@@ -579,10 +816,62 @@ const styles = StyleSheet.create({
     marginTop: 16,
     minHeight: 50
   },
+  disabledSaveButton: {
+    opacity: 0.45
+  },
   saveButtonText: {
     color: "#ffffff",
     fontSize: 16,
     fontWeight: "900"
+  },
+  missedPanel: {
+    backgroundColor: "#fff8e8",
+    borderColor: "#e4b75f",
+    borderRadius: 8,
+    borderWidth: 1,
+    gap: 8,
+    marginTop: 12,
+    padding: 12
+  },
+  missedTitle: {
+    color: "#62430f",
+    fontSize: 14,
+    fontWeight: "900"
+  },
+  missedMeta: {
+    color: "#7b5a1a",
+    fontSize: 12,
+    fontWeight: "800"
+  },
+  missedButton: {
+    alignItems: "center",
+    backgroundColor: "#9a5c00",
+    borderRadius: 6,
+    justifyContent: "center",
+    minHeight: 42
+  },
+  missedButtonText: {
+    color: "#ffffff",
+    fontSize: 13,
+    fontWeight: "900"
+  },
+  missedValidatedText: {
+    color: "#315748",
+    fontSize: 12,
+    fontWeight: "900"
+  },
+  missedHistory: {
+    borderColor: "#ead8a7",
+    borderRadius: 8,
+    borderWidth: 1,
+    gap: 6,
+    marginTop: 12,
+    padding: 10
+  },
+  missedHistoryText: {
+    color: "#604817",
+    fontSize: 12,
+    fontWeight: "800"
   },
   historyPanel: {
     borderTopColor: "#d8e0e3",

@@ -44,8 +44,8 @@ const securityAreaSchema = z.object({
   name: z.string().min(1),
   frequencyMinutes: z.number().int().positive(),
   requiresCount: z.boolean().default(false),
-  category: z.enum(["cutlery", "ward_security", "level_1_room_locker_zone", "custom"]).default("custom"),
-  frequencyType: z.enum(["per_shift", "per_meal", "daily", "weekly", "monthly"]).default("per_shift"),
+  category: z.enum(["cutlery", "ward_security", "level_1_patient_search", "level_1_room_locker_zone", "custom"]).default("custom"),
+  frequencyType: z.enum(["per_shift", "per_meal", "daily", "weekly", "weekly_ad_hoc", "monthly"]).default("per_shift"),
   active: z.boolean().default(true),
   actorStaffId: z.string().optional(),
   actorStaffCode: z.string().optional()

@@ -88,6 +88,7 @@ const missedObservationSchema = z.object({
   patientId: z.string().min(1),
   patientName: z.string().min(1),
   wardId: z.string().min(1),
+  source: z.string().default("General observations"),
   dueAt: z.string().datetime(),
   recordedAt: z.string().datetime(),
   allocatedStaffId: z.string().optional(),
@@ -646,6 +647,7 @@ router.get("/missed-observations", async (request, response, next) => {
           patient_id as "patientId",
           patient_name as "patientName",
           ward_id as "wardId",
+          source,
           due_at as "dueAt",
           recorded_at as "recordedAt",
           allocated_staff_id as "allocatedStaffId",
@@ -688,15 +690,16 @@ router.post("/missed-observations", async (request, response, next) => {
     const result = await pool.query(
       `
         insert into missed_observations (
-          id, organisation_id, patient_id, patient_name, ward_id, due_at, recorded_at,
+          id, organisation_id, patient_id, patient_name, ward_id, source, due_at, recorded_at,
           allocated_staff_id, allocated_staff_name, recorded_by_staff_id, recorded_by_name, reason, details
-        ) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
+        ) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
         on conflict (id) do nothing
         returning
           id,
           patient_id as "patientId",
           patient_name as "patientName",
           ward_id as "wardId",
+          source,
           due_at as "dueAt",
           recorded_at as "recordedAt",
           allocated_staff_id as "allocatedStaffId",
@@ -712,6 +715,7 @@ router.post("/missed-observations", async (request, response, next) => {
         missedObservation.patientId,
         missedObservation.patientName,
         missedObservation.wardId,
+        missedObservation.source,
         missedObservation.dueAt,
         missedObservation.recordedAt,
         missedObservation.allocatedStaffId ?? null,
@@ -733,6 +737,7 @@ router.post("/missed-observations", async (request, response, next) => {
       details: {
         patientId: missedObservation.patientId,
         patientName: missedObservation.patientName,
+        source: missedObservation.source,
         reason: missedObservation.reason
       }
     });

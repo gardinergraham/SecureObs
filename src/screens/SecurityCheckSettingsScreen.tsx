@@ -15,13 +15,15 @@ const frequencyOptions: Array<{ value: SecurityCheckFrequency; label: string; mi
   { value: "per_meal", label: "Per meal", minutes: 6 * 60 },
   { value: "daily", label: "Daily", minutes: 24 * 60 },
   { value: "weekly", label: "Weekly", minutes: 7 * 24 * 60 },
+  { value: "weekly_ad_hoc", label: "Weekly + ad hoc", minutes: 7 * 24 * 60 },
   { value: "monthly", label: "Monthly", minutes: 30 * 24 * 60 }
 ];
 
 const categoryOptions: Array<{ value: SecurityCheckCategory; label: string }> = [
   { value: "cutlery", label: "Cutlery checks" },
   { value: "ward_security", label: "Ward security" },
-  { value: "level_1_room_locker_zone", label: "Level 1 / room / locker / zone" },
+  { value: "level_1_patient_search", label: "Level 1 patient check" },
+  { value: "level_1_room_locker_zone", label: "Room / locker / zone" },
   { value: "custom", label: "Custom" }
 ];
 
@@ -41,7 +43,14 @@ const standardChecks: Array<Pick<SecurityArea, "name" | "category" | "frequencyT
     requiresCount: false
   },
   {
-    name: "Level 1 / room / locker / zone checks",
+    name: "Level 1 patient checks",
+    category: "level_1_patient_search",
+    frequencyType: "weekly_ad_hoc",
+    frequencyMinutes: 7 * 24 * 60,
+    requiresCount: false
+  },
+  {
+    name: "Room / locker / zone checks",
     category: "level_1_room_locker_zone",
     frequencyType: "per_shift",
     frequencyMinutes: 8 * 60,

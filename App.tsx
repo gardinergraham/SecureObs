@@ -794,11 +794,13 @@ export default function App() {
           />
         ) : screen === "enhanced" ? (
           <EnhancedObservationScreen
+            missedObservations={missedObservations}
             observations={observations}
             patients={wardPatients}
             selectedStaffId={selectedStaffId}
             staff={staffMembers}
             onBack={() => setScreen("observations")}
+            onMissedObservationSaved={handleCreateMissedObservation}
             onObservationSaved={handleObservationSaved}
             onUpdatePatient={handleUpdatePatient}
           />
@@ -890,6 +892,7 @@ export default function App() {
           <SecurityChecks
             areas={securityAreas.filter((area) => area.wardId === selectedWardId && area.active !== false)}
             checks={securityChecks}
+            patients={wardPatients}
             selectedStaffId={selectedStaffId}
             staff={staffMembers}
             wardName={wards.find((ward) => ward.id === selectedWardId)?.name ?? "Ward"}

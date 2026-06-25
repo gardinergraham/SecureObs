@@ -12,8 +12,9 @@ import type {
 } from "../types/domain";
 import { hasStaffRole } from "../utils/staffRole";
 
-const observationLevels: ObservationLevel[] = ["Intermittent", "Eyesight", "Within arms length"];
-const enhancedObservationLevels: Array<Exclude<ObservationLevel, "Intermittent">> = ["Eyesight", "Within arms length"];
+type TesoObservationLevel = Exclude<ObservationLevel, "Intermittent">;
+
+const enhancedObservationLevels: TesoObservationLevel[] = ["General observation", "Eyesight", "Within arms length"];
 const ratios: StaffRatio[] = ["1:1", "2:1", "3:1", "4:1", "5:1", "6:1"];
 const reviewFrequencyOptions = [15, 30, 60, 120, 240];
 const reasons: TesoReason[] = [
@@ -27,7 +28,7 @@ const reasons: TesoReason[] = [
 ];
 
 type TesoDraft = {
-  observationLevel: Exclude<ObservationLevel, "Intermittent"> | "";
+  observationLevel: TesoObservationLevel | "";
   staffRatio: StaffRatio;
   reasons: TesoReason[];
   otherReason: string;
@@ -290,7 +291,7 @@ export function PatientSettingsScreen({
                     options={enhancedObservationLevels}
                     selected={selectedPatient.observationLevel}
                     onSelect={(level) => {
-                      const observationLevel = level as Exclude<ObservationLevel, "Intermittent">;
+                      const observationLevel = level as TesoObservationLevel;
                       updatePatient(syncActiveTesoEpisode({ ...selectedPatient, observationLevel }));
                     }}
                   />
@@ -482,7 +483,7 @@ export function PatientSettingsScreen({
                     onSelect={(observationLevel) =>
                       setTesoDraft((currentDraft) => ({
                         ...currentDraft,
-                        observationLevel: observationLevel as Exclude<ObservationLevel, "Intermittent">
+                        observationLevel: observationLevel as TesoObservationLevel
                       }))
                     }
                   />
@@ -690,7 +691,7 @@ function createTesoEpisode({
   endedReason
 }: {
   plan: ReturnType<typeof createDefaultPlan>;
-  observationLevel: Exclude<ObservationLevel, "Intermittent">;
+  observationLevel: TesoObservationLevel;
   episodeId: string;
   endedAt?: string;
   endedReason?: string;

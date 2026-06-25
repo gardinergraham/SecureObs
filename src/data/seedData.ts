@@ -467,6 +467,16 @@ export const seedData: {
       category: "cutlery",
       frequencyType: "per_meal",
       active: true
+    },
+    {
+      id: "area-3",
+      wardId: "ward-1",
+      name: "Level 1 patient checks",
+      frequencyMinutes: 7 * 24 * 60,
+      requiresCount: false,
+      category: "level_1_patient_search",
+      frequencyType: "weekly_ad_hoc",
+      active: true
     }
   ],
   securityChecks: [

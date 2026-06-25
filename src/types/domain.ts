@@ -1,4 +1,4 @@
-export type ObservationLevel = "Eyesight" | "Within arms length" | "Intermittent";
+export type ObservationLevel = "Eyesight" | "Within arms length" | "General observation" | "Intermittent";
 export type RotaRole = "General observations" | "Enhanced/TESO" | "Security checks" | "Break";
 export type StaffRatio = "1:1" | "2:1" | "3:1" | "4:1" | "5:1" | "6:1";
 export type TesoReason =
@@ -178,6 +178,7 @@ export type MissedObservation = {
   patientId: string;
   patientName: string;
   wardId: string;
+  source?: ObservationSource;
   dueAt: string;
   recordedAt: string;
   allocatedStaffId?: string;
@@ -243,8 +244,13 @@ export type PatientIncompatibility = {
   reason: string;
 };
 
-export type SecurityCheckCategory = "cutlery" | "ward_security" | "level_1_room_locker_zone" | "custom";
-export type SecurityCheckFrequency = "per_shift" | "per_meal" | "daily" | "weekly" | "monthly";
+export type SecurityCheckCategory =
+  | "cutlery"
+  | "ward_security"
+  | "level_1_patient_search"
+  | "level_1_room_locker_zone"
+  | "custom";
+export type SecurityCheckFrequency = "per_shift" | "per_meal" | "daily" | "weekly" | "weekly_ad_hoc" | "monthly";
 
 export type SecurityArea = {
   id: string;

@@ -119,13 +119,18 @@ export function WardDashboard({
       missedObservations.some(
         (missedObservation) =>
           missedObservation.patientId === selectedPatient.id &&
+          (missedObservation.source ?? "General observations") === "General observations" &&
           new Date(missedObservation.dueAt).getTime() === new Date(selectedPatientDueAt).getTime()
       )
   );
   const mustValidateMissedObservation =
     selectedPatientTiming?.status === "overdue" && !selectedPatientMissedObservationValidated;
   const selectedPatientMissedObservations = missedObservations
-    .filter((missedObservation) => missedObservation.patientId === selectedPatient?.id)
+    .filter(
+      (missedObservation) =>
+        missedObservation.patientId === selectedPatient?.id &&
+        (missedObservation.source ?? "General observations") === "General observations"
+    )
     .slice(0, 3);
 
   const orderedPatients = useMemo(() => {
@@ -220,6 +225,7 @@ export function WardDashboard({
       patientId: selectedPatient.id,
       patientName: `${selectedPatient.firstName} ${selectedPatient.surname}`,
       wardId: selectedWard.id,
+      source: "General observations",
       dueAt: selectedPatientDueAt,
       recordedAt: new Date().toISOString(),
       allocatedStaffId: selectedStaff.id,
@@ -640,6 +646,8 @@ function observationLevelStyle(level: Patient["observationLevel"]) {
       return styles.armsLengthPill;
     case "Intermittent":
       return styles.intermittentPill;
+    case "General observation":
+      return styles.generalObservationPill;
   }
 }
 
@@ -1094,6 +1102,9 @@ const styles = StyleSheet.create({
   },
   intermittentPill: {
     backgroundColor: "#ddebd6"
+  },
+  generalObservationPill: {
+    backgroundColor: "#e6f1f7"
   },
   obsPillText: {
     color: "#16262c",
