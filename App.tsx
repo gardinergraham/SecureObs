@@ -24,6 +24,7 @@ import {
   createMedicationAdministration as persistMedicationAdministration,
   createMedicationPrescription as persistMedicationPrescription,
   createNews2Reading as persistNews2Reading,
+  saveOrganisationSettings as persistOrganisationSettings,
   createSite as persistSite,
   createStaffMember as persistStaffMember,
   createSecurityCheck as persistSecurityCheck,
@@ -37,6 +38,7 @@ import {
   loadMissedObservations,
   loadNews2Readings,
   loadObservations,
+  loadOrganisationSettings,
   loadPatients,
   loadRotaAssignments,
   loadSecurityChecks,
@@ -66,13 +68,14 @@ import {
 } from "./src/services/syncQueue";
 import { parseStaffCardData } from "./src/utils/nfcStaffCard";
 import { readNfcTextPayload } from "./src/utils/nfcReader";
-import { hasStaffRole } from "./src/utils/staffRole";
+import { hasAdminAccess, hasStaffRole } from "./src/utils/staffRole";
 import type {
   MedicationAdministration,
   MissedObservation,
   MedicationPrescription,
   News2Reading,
   Observation,
+  OrganisationSettings,
   Patient,
   PatientLocation,
   PatientPresentation,
@@ -86,6 +89,10 @@ import type {
 } from "./src/types/domain";
 
 const defaultOrganisationId = "00000000-0000-0000-0000-000000000001";
+const defaultOrganisationSettings: OrganisationSettings = {
+  organisationId: defaultOrganisationId,
+  nfcStaffCodeFormat: "passcode={STAFFCODE}"
+};
 
 type AppScreen =
   | "home"
@@ -125,6 +132,7 @@ export default function App() {
   const [missedObservations, setMissedObservations] = useState<MissedObservation[]>([]);
   const [wards, setWards] = useState<Ward[]>(seedData.wards);
   const [sites, setSites] = useState<Site[]>(seedData.sites);
+  const [organisationSettings, setOrganisationSettings] = useState<OrganisationSettings>(defaultOrganisationSettings);
   const [staffMembers, setStaffMembers] = useState<StaffMember[]>(seedData.staff);
   const [selectedStaffId, setSelectedStaffId] = useState("");
   const selectedStaff = staffMembers.find((staff) => staff.id === selectedStaffId);
@@ -172,7 +180,8 @@ export default function App() {
           medicationAdministrationResult,
           missedObservationResult,
           rotaAssignmentResult,
-          staffShiftAssignmentResult
+          staffShiftAssignmentResult,
+          organisationSettingsResult
         ] = await Promise.all([
           loadSites(organisationId),
           loadStaff(organisationId),
@@ -186,7 +195,8 @@ export default function App() {
           loadMedicationAdministrations(organisationId),
           loadMissedObservations(organisationId, selectedWardId || undefined),
           loadRotaAssignments(organisationId, selectedWardId || undefined),
-          loadStaffShiftAssignments(organisationId, selectedWardId || undefined)
+          loadStaffShiftAssignments(organisationId, selectedWardId || undefined),
+          loadOrganisationSettings(organisationId)
         ]);
         setSites(siteResult.sites);
         setStaffMembers((currentStaff) => mergeById(staffResult.staff, currentStaff));
@@ -223,6 +233,7 @@ export default function App() {
         setStaffShiftAssignments((currentAssignments) =>
           mergeById(staffShiftAssignmentResult.staffShiftAssignments, currentAssignments)
         );
+        setOrganisationSettings(organisationSettingsResult.settings);
       } catch (error) {
         console.warn("Unable to load backend data", error);
       }
@@ -315,7 +326,7 @@ export default function App() {
       return [];
     }
 
-    if (selectedStaff.staffCode === "GardinerG") {
+    if (hasAdminAccess(selectedStaff)) {
       return sites;
     }
 
@@ -332,7 +343,7 @@ export default function App() {
       wards.filter(
         (ward) =>
           ward.siteId === selectedSiteId &&
-          (selectedStaff?.staffCode === "GardinerG" || selectedStaff?.allowedWardIds.includes(ward.id))
+          (hasAdminAccess(selectedStaff) || selectedStaff?.allowedWardIds.includes(ward.id))
       ),
     [selectedSiteId, selectedStaff, wards]
   );
@@ -342,7 +353,7 @@ export default function App() {
       return [];
     }
 
-    if (selectedStaff.staffCode === "GardinerG") {
+    if (hasAdminAccess(selectedStaff)) {
       return wards;
     }
 
@@ -375,7 +386,7 @@ export default function App() {
       return;
     }
 
-    const staffCanSeeAll = staff.staffCode === "GardinerG";
+    const staffCanSeeAll = hasAdminAccess(staff);
     const firstWard = wards.find((ward) =>
       staffCanSeeAll
         ? true
@@ -469,7 +480,7 @@ export default function App() {
   }, [lockInactiveStaffSession, selectedStaffId, selectedWard?.sessionTimeoutMinutes]);
 
   const handleReadStaffCardData = async (cardData: string) => {
-    const parsedCard = parseStaffCardData(cardData);
+    const parsedCard = parseStaffCardData(cardData, organisationSettings.nfcStaffCodeFormat);
 
     if (!parsedCard) {
       return "No STAFFCODE found on that card data.";
@@ -627,7 +638,7 @@ export default function App() {
       persistSite({ ...site, organisationId: selectedStaff?.organisationId })
     );
     setSites((currentSites) => upsertSite(currentSites, savedSite ?? site));
-    if (selectedStaff?.staffCode === "GardinerG") {
+    if (hasAdminAccess(selectedStaff)) {
       setSelectedSiteId((savedSite ?? site).id);
     }
   };
@@ -637,9 +648,24 @@ export default function App() {
       persistWard({ ...ward, organisationId: selectedStaff?.organisationId })
     );
     setWards((currentWards) => upsertWard(currentWards, savedWard ?? ward));
-    if (selectedStaff?.staffCode === "GardinerG") {
+    if (hasAdminAccess(selectedStaff)) {
       setSelectedWardId((savedWard ?? ward).id);
     }
+  };
+
+  const handleUpdateOrganisationSettings = async (settings: OrganisationSettings) => {
+    const nextSettings = {
+      ...settings,
+      organisationId: selectedStaff?.organisationId ?? defaultOrganisationId
+    };
+    const result = await persistOrQueue("organisation settings", () =>
+      persistOrganisationSettings({
+        ...nextSettings,
+        actorStaffId: selectedStaff?.id,
+        actorStaffCode: selectedStaff?.staffCode
+      })
+    );
+    setOrganisationSettings(result?.settings ?? nextSettings);
   };
 
   const handleCreateStaffMember = async (staff: StaffMember) => {
@@ -859,6 +885,7 @@ export default function App() {
           />
         ) : screen === "adminSettings" ? (
           <AdminSettingsScreen
+            organisationSettings={organisationSettings}
             sites={sites}
             wards={wards}
             onBack={() => setScreen("home")}
@@ -866,6 +893,7 @@ export default function App() {
             onCreateSite={handleCreateSite}
             onCreateStaff={handleCreateStaffMember}
             onCreateWard={handleCreateWard}
+            onUpdateOrganisationSettings={handleUpdateOrganisationSettings}
           />
         ) : screen === "auditLog" ? (
           <AuditLogScreen
@@ -935,7 +963,7 @@ export default function App() {
           />
         ) : screen === "patientManagement" ? (
           <PatientManagementScreen
-            patients={patients.filter((patient) => selectedStaff?.staffCode === "GardinerG" || selectedStaff?.allowedWardIds.includes(patient.wardId))}
+            patients={patients.filter((patient) => hasAdminAccess(selectedStaff) || selectedStaff?.allowedWardIds.includes(patient.wardId))}
             selectedStaffId={selectedStaffId}
             selectedWardId={selectedWardId}
             staff={staffMembers}

@@ -48,7 +48,7 @@ begin
     key_number int null,
     staff_code nvarchar(100) not null,
     display_name nvarchar(255) not null,
-    role nvarchar(50) not null check (role in ('nurse', 'hcf', 'security', 'manager', 'doctor')),
+    role nvarchar(50) not null check (role in ('nurse', 'hcf', 'ot', 'security', 'manager', 'doctor', 'super_admin')),
     designation nvarchar(255) null,
     can_prescribe bit not null default 0,
     employment_type nvarchar(50) not null default 'permanent',

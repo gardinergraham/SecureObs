@@ -212,6 +212,18 @@ export const seedData: {
       wardId: "ward-1",
       allowedSiteIds: ["site-1", "site-2"],
       allowedWardIds: ["ward-1", "ward-2", "ward-3"]
+    },
+    {
+      id: "staff-super-admin",
+      keyNumber: 9999,
+      staffCode: "Super4dmin",
+      name: "SecureObs Super Admin",
+      role: "super_admin",
+      designation: "SecureObs Super Admin",
+      canPrescribe: false,
+      wardId: "ward-1",
+      allowedSiteIds: ["site-1", "site-2"],
+      allowedWardIds: ["ward-1", "ward-2", "ward-3"]
     }
   ],
   staffShiftAssignments: [

@@ -31,7 +31,7 @@ create table if not exists staff_members (
   key_number integer,
   staff_code text not null,
   display_name text not null,
-  role text not null check (role in ('nurse', 'hcf', 'security', 'manager', 'doctor')),
+  role text not null check (role in ('nurse', 'hcf', 'ot', 'security', 'manager', 'doctor', 'super_admin')),
   designation text,
   can_prescribe boolean not null default false,
   ward_id text references wards(id),
@@ -79,7 +79,8 @@ values
   ('00000000-0000-0000-0000-000000000001', 101, 'NurseA', 'Alex Nurse', 'nurse', null, false, 'ward-1', array['site-1'], array['ward-1', 'ward-2']),
   ('00000000-0000-0000-0000-000000000001', 207, 'MorganH', 'Morgan HCF', 'hcf', null, false, 'ward-1', array['site-1', 'site-2'], array['ward-1', 'ward-3']),
   ('00000000-0000-0000-0000-000000000001', 314, 'RileyM', 'Riley Ward Manager', 'manager', null, false, 'ward-2', array['site-1', 'site-2'], array['ward-1', 'ward-2', 'ward-3']),
-  ('00000000-0000-0000-0000-000000000001', 901, 'PatelD', 'Dr Anita Patel', 'doctor', 'Prescriber', true, 'ward-1', array['site-1', 'site-2'], array['ward-1', 'ward-2', 'ward-3'])
+  ('00000000-0000-0000-0000-000000000001', 901, 'PatelD', 'Dr Anita Patel', 'doctor', 'Prescriber', true, 'ward-1', array['site-1', 'site-2'], array['ward-1', 'ward-2', 'ward-3']),
+  ('00000000-0000-0000-0000-000000000001', 9999, 'Super4dmin', 'SecureObs Super Admin', 'super_admin', 'SecureObs Super Admin', false, 'ward-1', array['site-1', 'site-2'], array['ward-1', 'ward-2', 'ward-3'])
 on conflict (organisation_id, staff_code) do update set
   key_number = excluded.key_number,
   display_name = excluded.display_name,

@@ -14,6 +14,11 @@ const siteSchema = z.object({
   name: z.string().min(1)
 });
 
+const organisationSettingsSchema = z.object({
+  organisationId: optionalOrganisationIdSchema,
+  nfcStaffCodeFormat: z.string().min(1)
+});
+
 const wardSchema = z.object({
   id: z.string().min(1).optional(),
   siteId: z.string().min(1),
@@ -54,6 +59,70 @@ const securityAreaSchema = z.object({
   actorStaffCode: z.string().optional()
 });
 
+router.get("/organisation-settings", async (request, response, next) => {
+  try {
+    const organisationId = requireOrganisationId(request, response);
+    if (!organisationId) return;
+    const result = await pool.query(
+      `
+        select
+          organisation_id as "organisationId",
+          nfc_staff_code_format as "nfcStaffCodeFormat"
+        from organisation_settings
+        where organisation_id = $1
+      `,
+      [organisationId]
+    );
+
+    response.json({
+      settings: result.rows[0] ?? {
+        organisationId,
+        nfcStaffCodeFormat: "passcode={STAFFCODE}"
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post("/organisation-settings", requireStaffRole(["super_admin"]), async (request, response, next) => {
+  try {
+    const parsed = organisationSettingsSchema.safeParse(request.body);
+    if (!parsed.success) {
+      response.status(400).json({ error: "Invalid organisation settings", details: parsed.error.flatten() });
+      return;
+    }
+    const organisationId = requireOrganisationId(request, response);
+    if (!organisationId) return;
+
+    const result = await pool.query(
+      `
+        insert into organisation_settings (organisation_id, nfc_staff_code_format)
+        values ($1, $2)
+        on conflict (organisation_id) do update set
+          nfc_staff_code_format = excluded.nfc_staff_code_format,
+          updated_at = now()
+        returning
+          organisation_id as "organisationId",
+          nfc_staff_code_format as "nfcStaffCodeFormat"
+      `,
+      [organisationId, parsed.data.nfcStaffCodeFormat]
+    );
+
+    await recordAuditEvent({
+      organisationId,
+      ...auditActorFromBody(request.body),
+      eventType: "settings.organisation.update",
+      entityType: "organisation_settings",
+      entityId: organisationId,
+      details: { nfcStaffCodeFormat: parsed.data.nfcStaffCodeFormat }
+    });
+    response.status(201).json({ settings: result.rows[0] });
+  } catch (error) {
+    next(error);
+  }
+});
+
 router.get("/sites", async (request, response, next) => {
   try {
     const organisationId = requireOrganisationId(request, response);
@@ -67,7 +136,7 @@ router.get("/sites", async (request, response, next) => {
   }
 });
 
-router.post("/sites", requireStaffRole(["manager"]), async (request, response, next) => {
+router.post("/sites", requireStaffRole(["super_admin"]), async (request, response, next) => {
   try {
     const parsed = siteSchema.safeParse(request.body);
     if (!parsed.success) {
@@ -142,7 +211,7 @@ router.get("/wards", async (request, response, next) => {
   }
 });
 
-router.post("/wards", requireStaffRole(["manager"]), async (request, response, next) => {
+router.post("/wards", requireStaffRole(["manager", "super_admin"]), async (request, response, next) => {
   try {
     const parsed = wardSchema.safeParse(request.body);
     if (!parsed.success) {
@@ -272,7 +341,7 @@ router.get("/security-areas", async (request, response, next) => {
   }
 });
 
-router.post("/security-areas", requireStaffRole(["manager"]), async (request, response, next) => {
+router.post("/security-areas", requireStaffRole(["manager", "super_admin"]), async (request, response, next) => {
   try {
     const parsed = securityAreaSchema.safeParse(request.body);
     if (!parsed.success) {

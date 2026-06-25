@@ -1,4 +1,4 @@
-export type StaffRole = "nurse" | "hcf" | "ot" | "security" | "manager" | "doctor";
+export type StaffRole = "nurse" | "hcf" | "ot" | "security" | "manager" | "doctor" | "super_admin";
 export type EmploymentType = "permanent" | "bank";
 
 export type StaffMemberRecord = {

@@ -3,4 +3,4 @@ alter table staff_members
 
 alter table staff_members
   add constraint staff_members_role_check
-  check (role in ('nurse', 'hcf', 'ot', 'security', 'manager', 'doctor'));
+  check (role in ('nurse', 'hcf', 'ot', 'security', 'manager', 'doctor', 'super_admin'));

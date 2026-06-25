@@ -2,7 +2,7 @@ import React, { useMemo, useState } from "react";
 import { StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 
 import type { Site, StaffMember, Ward } from "../types/domain";
-import { hasStaffRole } from "../utils/staffRole";
+import { hasAdminAccess, hasStaffRole } from "../utils/staffRole";
 
 type HomeScreenProps = {
   sites: Site[];
@@ -63,8 +63,8 @@ export function HomeScreen({
   const selectedSite = sites.find((site) => site.id === selectedSiteId);
   const hasStaffSession = Boolean(selectedStaff);
   const canStart = Boolean(selectedStaff && selectedSite && selectedWard);
-  const canOpenAdminSettings = selectedStaff?.staffCode === "GardinerG";
-  const canEditWardSettings = hasStaffRole(selectedStaff, "manager");
+  const canOpenAdminSettings = hasAdminAccess(selectedStaff);
+  const canEditWardSettings = hasStaffRole(selectedStaff, "manager") || hasAdminAccess(selectedStaff);
   const sessionMeta = useMemo(() => {
     const staffLabel = selectedStaff ? `${selectedStaff.name} (${selectedStaff.staffCode})` : "No staff";
     const siteLabel = selectedSite?.name ?? "No site";

@@ -2,7 +2,7 @@ import React, { useMemo, useState } from "react";
 import { Alert, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 
 import type { ObservationLevel, Patient, StaffMember, Ward } from "../types/domain";
-import { hasStaffRole } from "../utils/staffRole";
+import { hasAdminAccess, hasStaffRole } from "../utils/staffRole";
 
 const observationLevels: ObservationLevel[] = ["Intermittent", "Eyesight", "Within arms length"];
 
@@ -35,7 +35,7 @@ export function PatientManagementScreen({
 }: PatientManagementScreenProps) {
   const selectedStaff = staff.find((member) => member.id === selectedStaffId);
   const selectedWard = wards.find((ward) => ward.id === selectedWardId);
-  const canManagePatients = hasStaffRole(selectedStaff, "manager") || selectedStaff?.staffCode === "GardinerG";
+  const canManagePatients = hasStaffRole(selectedStaff, "manager") || hasAdminAccess(selectedStaff);
   const [selectedPatientId, setSelectedPatientId] = useState("");
   const [draft, setDraft] = useState<PatientDraft>(() => createDraft());
   const [targetWardId, setTargetWardId] = useState(selectedWardId);

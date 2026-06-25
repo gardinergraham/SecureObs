@@ -34,6 +34,11 @@ export type Site = {
   name: string;
 };
 
+export type OrganisationSettings = {
+  organisationId: string;
+  nfcStaffCodeFormat: string;
+};
+
 export type Ward = {
   id: string;
   siteId: string;
@@ -85,7 +90,7 @@ export type StaffMember = {
   keyNumber: number;
   staffCode: string;
   name: string;
-  role: "nurse" | "hcf" | "ot" | "security" | "manager" | "doctor";
+  role: "nurse" | "hcf" | "ot" | "security" | "manager" | "doctor" | "super_admin";
   designation?: string;
   canPrescribe?: boolean;
   employmentType?: "permanent" | "bank";

@@ -14,4 +14,4 @@ end;
 
 alter table dbo.staff_members
   add constraint ck_staff_members_role
-  check (role in ('nurse', 'hcf', 'ot', 'security', 'manager', 'doctor'));
+  check (role in ('nurse', 'hcf', 'ot', 'security', 'manager', 'doctor', 'super_admin'));

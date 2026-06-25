@@ -7,7 +7,7 @@ import { pool } from "../db/pool.js";
 import { optionalOrganisationIdSchema, requireOrganisationId } from "./organisation.js";
 
 const router = Router();
-const anyWardStaff = ["nurse", "hcf", "ot", "security", "manager", "doctor"] as const;
+const anyWardStaff = ["nurse", "hcf", "ot", "security", "manager", "doctor", "super_admin"] as const;
 
 const observationSchema = z.object({
   id: z.string().min(1).optional(),
@@ -975,7 +975,7 @@ router.delete("/staff-shift-assignments/:id", requireStaffRole(["nurse", "manage
   }
 });
 
-router.get("/audit-events", requireStaffRole(["manager"]), async (request, response, next) => {
+router.get("/audit-events", requireStaffRole(["super_admin"]), async (request, response, next) => {
   try {
     const organisationId = requireOrganisationId(request, response);
     if (!organisationId) return;

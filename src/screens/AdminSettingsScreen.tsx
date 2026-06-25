@@ -1,12 +1,13 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Alert, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 
-import type { ServiceType, Site, StaffMember, Ward } from "../types/domain";
+import type { OrganisationSettings, ServiceType, Site, StaffMember, Ward } from "../types/domain";
 
 const serviceTypes: ServiceType[] = ["High secure hospital", "Medium secure hospital", "Care home"];
 const intervals = [5, 10, 15, 30, 60];
 
 type AdminSettingsScreenProps = {
+  organisationSettings: OrganisationSettings;
   sites: Site[];
   wards: Ward[];
   onBack: () => void;
@@ -14,16 +15,19 @@ type AdminSettingsScreenProps = {
   onCreateSite: (site: Site) => Promise<void>;
   onCreateStaff: (staff: StaffMember) => Promise<void>;
   onCreateWard: (ward: Ward) => Promise<void>;
+  onUpdateOrganisationSettings: (settings: OrganisationSettings) => Promise<void>;
 };
 
 export function AdminSettingsScreen({
+  organisationSettings,
   sites,
   wards,
   onBack,
   onOpenAuditLog,
   onCreateSite,
   onCreateStaff,
-  onCreateWard
+  onCreateWard,
+  onUpdateOrganisationSettings
 }: AdminSettingsScreenProps) {
   const [siteName, setSiteName] = useState("");
   const [selectedSiteId, setSelectedSiteId] = useState(sites[0]?.id ?? "");
@@ -32,11 +36,16 @@ export function AdminSettingsScreen({
   const [managerStaffCode, setManagerStaffCode] = useState("");
   const [serviceType, setServiceType] = useState<ServiceType>("Care home");
   const [observationIntervalMinutes, setObservationIntervalMinutes] = useState(15);
+  const [nfcStaffCodeFormat, setNfcStaffCodeFormat] = useState(organisationSettings.nfcStaffCodeFormat);
   const [isSaving, setIsSaving] = useState(false);
   const selectedSiteWards = useMemo(
     () => wards.filter((ward) => ward.siteId === selectedSiteId),
     [selectedSiteId, wards]
   );
+
+  useEffect(() => {
+    setNfcStaffCodeFormat(organisationSettings.nfcStaffCodeFormat);
+  }, [organisationSettings.nfcStaffCodeFormat]);
 
   const saveSite = async () => {
     const trimmedName = siteName.trim();
@@ -121,6 +130,25 @@ export function AdminSettingsScreen({
     }
   };
 
+  const saveOrganisationSettings = async () => {
+    const trimmedFormat = nfcStaffCodeFormat.trim();
+    if (!trimmedFormat.includes("{STAFFCODE}")) {
+      Alert.alert("NFC format invalid", "Include {STAFFCODE} where the staff code appears, for example passcode={STAFFCODE}.");
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      await onUpdateOrganisationSettings({
+        ...organisationSettings,
+        nfcStaffCodeFormat: trimmedFormat
+      });
+      Alert.alert("NFC format saved", "Staff card parsing has been updated.");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   return (
     <View style={styles.screen}>
       <View style={styles.header}>
@@ -145,6 +173,29 @@ export function AdminSettingsScreen({
         </View>
         <Text style={styles.auditButtonArrow}>Open</Text>
       </TouchableOpacity>
+
+      <View style={styles.panel}>
+        <Text style={styles.panelTitle}>NFC staff card format</Text>
+        <Text style={styles.meta}>
+          Use {"{STAFFCODE}"} where the staff code appears. Existing fallback formats and plain STAFFCODE still work.
+        </Text>
+        <TextInput placeholderTextColor="#6f7f87"
+          autoCapitalize="none"
+          onChangeText={setNfcStaffCodeFormat}
+          placeholder="passcode={STAFFCODE}"
+          style={styles.input}
+          value={nfcStaffCodeFormat}
+        />
+        <Text style={styles.listMeta}>Examples: passcode={"{STAFFCODE}"} | staffCode={"{STAFFCODE}"} | secureobs:{"{STAFFCODE}"}</Text>
+        <TouchableOpacity
+          accessibilityRole="button"
+          disabled={isSaving}
+          onPress={saveOrganisationSettings}
+          style={[styles.primaryButton, isSaving && styles.disabledButton]}
+        >
+          <Text style={styles.primaryButtonText}>Save NFC format</Text>
+        </TouchableOpacity>
+      </View>
 
       <View style={styles.split}>
         <View style={styles.panel}>

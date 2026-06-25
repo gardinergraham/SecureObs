@@ -9,6 +9,7 @@ import type {
   MedicationPrescription,
   News2Reading,
   Observation,
+  OrganisationSettings,
   Patient,
   RotaAssignment,
   SecurityArea,
@@ -199,6 +200,17 @@ export async function saveSecurityArea(area: OrganisationScoped<SecurityArea> & 
   return saveQueuedRequest<{ securityArea: SecurityArea }>("security area", "/api/config/security-areas", {
     method: "POST",
     body: JSON.stringify(area)
+  });
+}
+
+export async function loadOrganisationSettings(organisationId?: string) {
+  return request<{ settings: OrganisationSettings }>(withOrganisationId("/api/config/organisation-settings", organisationId));
+}
+
+export async function saveOrganisationSettings(settings: OrganisationScoped<OrganisationSettings> & ActorScoped) {
+  return saveQueuedRequest<{ settings: OrganisationSettings }>("organisation settings", "/api/config/organisation-settings", {
+    method: "POST",
+    body: JSON.stringify(settings)
   });
 }
 

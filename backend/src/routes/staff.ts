@@ -45,7 +45,7 @@ const staffMemberSchema = z.object({
   name: z.string().min(1),
   role: z.preprocess(
     (value) => (typeof value === "string" ? value.toLowerCase() : value),
-    z.enum(["nurse", "hcf", "ot", "security", "manager", "doctor"])
+    z.enum(["nurse", "hcf", "ot", "security", "manager", "doctor", "super_admin"])
   ),
   designation: z.string().optional(),
   canPrescribe: z.boolean().default(false),
@@ -83,7 +83,7 @@ router.get("/session", async (request: AuthenticatedRequest, response, next) => 
   }
 });
 
-router.post("/", requireStaffRole(["manager", "nurse"]), async (request, response, next) => {
+router.post("/", requireStaffRole(["manager", "nurse", "super_admin"]), async (request, response, next) => {
   try {
     const parsed = staffMemberSchema.safeParse(request.body);
 
@@ -94,6 +94,12 @@ router.post("/", requireStaffRole(["manager", "nurse"]), async (request, respons
 
     const organisationId = requireOrganisationId(request, response);
     if (!organisationId) return;
+    const auth = (request as AuthenticatedRequest).auth;
+    if (parsed.data.role === "super_admin" && auth?.staff.role !== "super_admin") {
+      response.status(403).json({ error: "Only SecureObs admin can create or update SecureObs admin users" });
+      return;
+    }
+
     if (parsed.data.employmentType === "bank") {
       if (!parsed.data.accessStartsAt || !parsed.data.accessExpiresAt) {
         response.status(400).json({ error: "Bank/agency staff need a start and end access time" });

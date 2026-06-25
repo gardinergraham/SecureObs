@@ -76,7 +76,7 @@ router.get("/", async (request, response, next) => {
   }
 });
 
-router.post("/", requireStaffRole(["nurse", "manager", "doctor"]), async (request, response, next) => {
+router.post("/", requireStaffRole(["nurse", "manager", "doctor", "super_admin"]), async (request, response, next) => {
   try {
     const parsed = patientSchema.safeParse(request.body);
 

@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { Alert, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 
 import type { StaffMember, Ward } from "../types/domain";
-import { hasStaffRole, normaliseStaffRole } from "../utils/staffRole";
+import { hasAdminAccess, hasStaffRole, normaliseStaffRole } from "../utils/staffRole";
 
 const shiftCountOptions = [1, 2, 3, 4];
 const breakDurationOptions = [15, 30, 60];
@@ -42,7 +42,7 @@ export function WardSettingsScreen({
 }: WardSettingsScreenProps) {
   const selectedWard = wards.find((ward) => ward.id === selectedWardId);
   const selectedStaff = staff.find((member) => member.id === selectedStaffId);
-  const canEditWardSettings = hasStaffRole(selectedStaff, "manager");
+  const canEditWardSettings = hasStaffRole(selectedStaff, "manager") || hasAdminAccess(selectedStaff);
   const [newStaffName, setNewStaffName] = useState("");
   const [newStaffCode, setNewStaffCode] = useState("");
   const [newStaffRole, setNewStaffRole] = useState<StaffMember["role"]>("nurse");
@@ -220,7 +220,7 @@ export function WardSettingsScreen({
         <View>
           <Text style={styles.title}>Ward settings</Text>
           <Text style={styles.meta}>
-            {selectedWard?.name ?? "Select a ward"} | {canEditWardSettings ? "Manager access" : "Manager locked"}
+            {selectedWard?.name ?? "Select a ward"} | {canEditWardSettings ? "Manager/admin access" : "Manager locked"}
           </Text>
         </View>
         <TouchableOpacity accessibilityRole="button" onPress={onBack} style={styles.backButton}>
