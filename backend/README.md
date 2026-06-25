@@ -20,9 +20,17 @@ Required environment variables:
 - `DATABASE_URL` from the Railway Postgres service
 - `CORS_ORIGIN` set to the Expo/web client origin when needed
 - `DATA_PROVIDER=postgres` for the current Railway Postgres backend
+- `SESSION_SECRET` set to a long random value so staff sessions stay valid across deploys
+- `SESSION_TTL_MINUTES=720` for 12-hour staff sessions, or another trust-approved timeout
 - `PORT` is supplied by Railway automatically
 
 The mobile app should call this API. It should not connect directly to Postgres.
+
+## Staff Sessions
+
+`POST /api/staff/lookup` and `POST /api/staff/bank-pin-login` return a signed staff session as well as the staff record.
+The app stores that token locally and sends it as a bearer token on later API calls. `GET /api/staff/session` verifies
+the stored token and returns the current active staff member.
 
 ## Data Provider Layer
 

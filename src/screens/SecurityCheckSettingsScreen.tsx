@@ -299,6 +299,7 @@ export function SecurityCheckSettingsScreen({
               <Text style={styles.label}>Expected cutlery</Text>
               <View style={styles.threeColumnRow}>
                 <TextInput
+                  blurOnSubmit={false}
                   editable={canEdit}
                   keyboardType="number-pad"
                   onChangeText={setCutleryKnives}
@@ -308,6 +309,7 @@ export function SecurityCheckSettingsScreen({
                   value={cutleryKnives}
                 />
                 <TextInput
+                  blurOnSubmit={false}
                   editable={canEdit}
                   keyboardType="number-pad"
                   onChangeText={setCutleryForks}
@@ -317,6 +319,7 @@ export function SecurityCheckSettingsScreen({
                   value={cutleryForks}
                 />
                 <TextInput
+                  blurOnSubmit={false}
                   editable={canEdit}
                   keyboardType="number-pad"
                   onChangeText={setCutlerySpoons}
@@ -333,7 +336,7 @@ export function SecurityCheckSettingsScreen({
             <View style={styles.configPanel}>
               <Text style={styles.label}>Checklist items</Text>
               {checklistDraft.map((item, index) => (
-                <View key={`${item.name}-${index}`} style={styles.checklistConfigRow}>
+                <View key={`checklist-draft-${index}`} style={styles.checklistConfigRow}>
                   <TextInput
                     editable={canEdit}
                     onChangeText={(name) => updateChecklistDraft(index, { name })}
@@ -343,6 +346,7 @@ export function SecurityCheckSettingsScreen({
                     value={item.name}
                   />
                   <TextInput
+                    blurOnSubmit={false}
                     editable={canEdit}
                     keyboardType="number-pad"
                     onChangeText={(expectedCount) => updateChecklistDraft(index, { expectedCount })}

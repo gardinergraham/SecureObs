@@ -2,6 +2,7 @@ import cors from "cors";
 import express, { type ErrorRequestHandler } from "express";
 import helmet from "helmet";
 
+import { authenticateRequest } from "./auth.js";
 import { config } from "./config.js";
 import { activityRouter } from "./routes/activity.js";
 import { configRouter } from "./routes/config.js";
@@ -14,6 +15,7 @@ const app = express();
 app.use(helmet());
 app.use(cors({ origin: config.corsOrigin === "*" ? true : config.corsOrigin }));
 app.use(express.json({ limit: "1mb" }));
+app.use(authenticateRequest);
 
 app.use("/health", healthRouter);
 app.use("/api/staff", staffRouter);

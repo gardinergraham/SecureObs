@@ -42,6 +42,7 @@ import {
   loadSecurityChecks,
   loadStaffShiftAssignments,
   loadWards,
+  loadCurrentStaffSession,
   loadStaff,
   loginBankStaffByPin,
   lookupStaffByCode,
@@ -376,6 +377,27 @@ export default function App() {
     const firstPatient = patients.find((patient) => patient.wardId === firstWard?.id);
     setSelectedPatientId(firstPatient?.id ?? "");
   };
+
+  useEffect(() => {
+    if (selectedStaffId) {
+      return;
+    }
+
+    let cancelled = false;
+    void loadCurrentStaffSession()
+      .then((staff) => {
+        if (!staff || cancelled) return;
+        setStaffMembers((currentStaff) => upsertStaffByCode(currentStaff, staff));
+        selectStaffSession(staff);
+      })
+      .catch((error) => {
+        console.warn("Unable to restore staff session", error);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedStaffId, patients, wards]);
 
   const handleReadStaffCardData = async (cardData: string) => {
     const parsedCard = parseStaffCardData(cardData);

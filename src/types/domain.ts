@@ -97,6 +97,13 @@ export type StaffMember = {
   active?: boolean;
 };
 
+export type AuthSession = {
+  token: string;
+  expiresAt: string;
+  staffId: string;
+  organisationId: string;
+};
+
 export type AuditEvent = {
   id: string;
   actorStaffId?: string;

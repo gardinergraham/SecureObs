@@ -257,6 +257,7 @@ export function SecurityChecks({
                           {item} expected {selectedArea.expectedItems?.cutlery?.[item] ?? 0}
                         </Text>
                         <TextInput
+                          blurOnSubmit={false}
                           keyboardType="number-pad"
                           onChangeText={(value) => setCutleryCounts((current) => ({ ...current, [item]: value }))}
                           placeholder={String(selectedArea.expectedItems?.cutlery?.[item] ?? 0)}
@@ -271,10 +272,12 @@ export function SecurityChecks({
                 ) : (
                 <>
                   <Text style={styles.label}>Counted total</Text>
-                  <TextInput placeholderTextColor="#6f7f87"
+                  <TextInput
+                    blurOnSubmit={false}
                     keyboardType="number-pad"
                     onChangeText={setCountedTotal}
                     placeholder="Enter total"
+                    placeholderTextColor="#6f7f87"
                     style={styles.input}
                     value={countedTotal}
                   />
@@ -302,6 +305,7 @@ export function SecurityChecks({
                           <Text style={styles.checklistName}>{item.name}</Text>
                           <Text style={styles.checklistExpected}>Expected {item.expectedCount}</Text>
                           <TextInput
+                            blurOnSubmit={false}
                             keyboardType="number-pad"
                             onChangeText={(actualCount) => updateChecklistCount(item.id, actualCount)}
                             placeholder={String(item.expectedCount)}

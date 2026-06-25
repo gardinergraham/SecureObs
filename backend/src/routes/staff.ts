@@ -2,6 +2,7 @@ import { Router } from "express";
 import { z } from "zod";
 
 import { auditActorFromBody, recordAuditEvent } from "../audit.js";
+import { createStaffSession, requireAuthenticated, type AuthenticatedRequest } from "../auth.js";
 import { dataProvider } from "../data/provider.js";
 import { DuplicateStaffCodeError, StaffLookupAmbiguousError } from "../data/types.js";
 import { optionalOrganisationIdSchema, requireOrganisationId } from "./organisation.js";
@@ -48,6 +49,17 @@ router.get("/", async (request, response, next) => {
     const organisationId = requireOrganisationId(request, response);
     if (!organisationId) return;
     response.json({ staff: await dataProvider.staff.list(organisationId) });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.get("/session", async (request: AuthenticatedRequest, response, next) => {
+  try {
+    const auth = requireAuthenticated(request, response);
+    if (!auth) return;
+
+    response.json({ staff: auth.staff });
   } catch (error) {
     next(error);
   }
@@ -154,7 +166,7 @@ router.get("/by-code/:staffCode", async (request, response, next) => {
       return;
     }
 
-    response.json({ staff });
+    response.json({ staff, session: createStaffSession(staff) });
   } catch (error) {
     if (error instanceof StaffLookupAmbiguousError) {
       response.status(409).json({ error: error.message });
@@ -200,7 +212,7 @@ router.post("/lookup", async (request, response, next) => {
       entityId: staff.id,
       details: { staffCode: staff.staffCode, employmentType: staff.employmentType }
     });
-    response.json({ staff });
+    response.json({ staff, session: createStaffSession(staff) });
   } catch (error) {
     if (error instanceof StaffLookupAmbiguousError) {
       response.status(409).json({ error: error.message });
@@ -249,7 +261,7 @@ router.post("/bank-pin-login", async (request, response, next) => {
         accessExpiresAt: staff.accessExpiresAt ?? null
       }
     });
-    response.json({ staff });
+    response.json({ staff, session: createStaffSession(staff) });
   } catch (error) {
     if (error instanceof StaffLookupAmbiguousError) {
       response.status(409).json({ error: error.message });

@@ -1,7 +1,9 @@
 import { seedData } from "../data/seedData";
+import { clearAuthSession, getAuthSession, storeAuthSession } from "./authSession";
 import { configureSyncQueue, enqueueFailedRequest, flushSyncQueue, QueuedSyncError } from "./syncQueue";
 import type {
   AuditEvent,
+  AuthSession,
   MedicationAdministration,
   MissedObservation,
   MedicationPrescription,
@@ -27,15 +29,20 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     throw new Error("EXPO_PUBLIC_API_URL is not configured");
   }
 
+  const session = await getAuthSession();
   const response = await fetch(`${apiUrl}${path}`, {
     headers: {
       "Content-Type": "application/json",
+      ...(session?.token ? { Authorization: `Bearer ${session.token}` } : {}),
       ...init?.headers
     },
     ...init
   });
 
   if (!response.ok) {
+    if (response.status === 401) {
+      await clearAuthSession();
+    }
     const message = await readErrorMessage(response);
     throw new Error(message || `API request failed: ${response.status}`);
   }
@@ -116,17 +123,31 @@ export async function createObservationDirect(observation: OrganisationScoped<Om
 }
 
 export async function lookupStaffByCode(staffCode: string, organisationId?: string) {
-  return request<{ staff: StaffMember }>("/api/staff/lookup", {
+  const result = await request<{ staff: StaffMember; session?: AuthSession }>("/api/staff/lookup", {
     method: "POST",
     body: JSON.stringify({ staffCode, organisationId })
   });
+  await storeAuthSession(result.session);
+  return { staff: result.staff };
 }
 
 export async function loginBankStaffByPin(staffCode: string, loginPin: string, organisationId: string) {
-  return request<{ staff: StaffMember }>("/api/staff/bank-pin-login", {
+  const result = await request<{ staff: StaffMember; session?: AuthSession }>("/api/staff/bank-pin-login", {
     method: "POST",
     body: JSON.stringify({ staffCode, loginPin, organisationId })
   });
+  await storeAuthSession(result.session);
+  return { staff: result.staff };
+}
+
+export async function loadCurrentStaffSession() {
+  const session = await getAuthSession();
+  if (!session) {
+    return undefined;
+  }
+
+  const result = await request<{ staff: StaffMember }>("/api/staff/session");
+  return result.staff;
 }
 
 export async function createStaffMember(staff: StaffMember & ActorScoped) {

@@ -69,6 +69,21 @@ export const postgresStaffRepository: StaffRepository = {
     }
   },
 
+  async findActiveById(id, organisationId) {
+    const result = await pool.query(
+      staffSelectSql(`
+        where id = $1::uuid
+          and organisation_id = $2::uuid
+          and active = true
+          and (access_starts_at is null or access_starts_at <= now())
+          and (access_expires_at is null or access_expires_at > now())
+      `),
+      [id, organisationId]
+    );
+
+    return result.rows[0] ?? null;
+  },
+
   async findActiveByCode(staffCode, organisationId) {
     const result = await pool.query(
       staffSelectSql(`

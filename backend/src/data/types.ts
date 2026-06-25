@@ -23,6 +23,7 @@ export type StaffMemberRecord = {
 export type StaffRepository = {
   list(organisationId: string): Promise<StaffMemberRecord[]>;
   upsert(staff: StaffMemberRecord): Promise<StaffMemberRecord>;
+  findActiveById(id: string, organisationId: string): Promise<StaffMemberRecord | null>;
   findActiveByCode(staffCode: string, organisationId?: string): Promise<StaffMemberRecord | null>;
 };
 
