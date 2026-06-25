@@ -298,7 +298,13 @@ export function PatientAssessmentFormsScreen({
           ))}
         </View>
 
-        <ScrollView contentContainerStyle={styles.detailContent} keyboardShouldPersistTaps="handled" style={styles.detailPane}>
+        <ScrollView
+          contentContainerStyle={styles.detailContent}
+          keyboardShouldPersistTaps="handled"
+          nestedScrollEnabled
+          showsVerticalScrollIndicator
+          style={styles.detailPane}
+        >
           {selectedPatient ? (
             <>
               <View style={styles.patientHeader}>
@@ -677,10 +683,12 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     flex: 0.66,
     maxHeight: 720,
-    minWidth: 480,
-    padding: 14
+    minWidth: 480
   },
-  detailContent: { paddingBottom: 220 },
+  detailContent: {
+    padding: 14,
+    paddingBottom: 260
+  },
   panelTitle: { color: "#18262c", fontSize: 17, fontWeight: "900", marginBottom: 10 },
   patientHeader: {
     alignItems: "center",

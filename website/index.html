@@ -3,10 +3,10 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>SecureObs | Secure Observation Recording</title>
+    <title>SecureObs | Secure Ward Observation Platform</title>
     <meta
       name="description"
-      content="SecureObs supports secure ward observation recording, NEWS2, enhanced observations, staff rota cover, NFC staff login, and Trust-hosted data workflows."
+      content="SecureObs brings ward observations, TESO, NEWS2, medication records, rota cover, security checks, bank staff access, offline sync and audit governance into one practical tablet workflow."
     />
     <link rel="stylesheet" href="styles.css" />
   </head>
@@ -17,11 +17,11 @@
         <span>SecureObs</span>
       </a>
       <nav aria-label="Main navigation">
-        <a href="#features">Features</a>
-        <a href="#screenshots">Screenshots</a>
-        <a href="#security">Security</a>
+        <a href="#workflow">Workflow</a>
+        <a href="#screenshots">Screens</a>
+        <a href="#governance">Governance</a>
+        <a href="#deployment">Deployment</a>
         <a href="support.html">Support</a>
-        <a href="privacy.html">Privacy</a>
       </nav>
     </header>
 
@@ -29,187 +29,266 @@
       <section class="hero">
         <div class="hero-copy">
           <p class="eyebrow">Secure ward observation workflow</p>
-          <h1>Digital observations for secure clinical environments.</h1>
+          <h1>One practical tablet system for safer ward observations.</h1>
           <p class="lead">
-            SecureObs is being developed to support general observations, enhanced observations, NEWS2
-            recording, staff cover, security checks, and NFC staff identification in one ward-focused
-            Android app.
+            SecureObs brings general observations, TESO, NEWS2, medication records, security checks,
+            staff cover, bank staff access and audit governance into one simple ward workflow.
           </p>
           <div class="hero-actions">
-            <a class="primary-link" href="#features">View app features</a>
-            <a class="secondary-link" href="#security">Data security</a>
+            <a class="primary-link" href="#screenshots">See the app</a>
+            <a class="secondary-link" href="#governance">Governance built in</a>
+          </div>
+          <div class="proof-strip" aria-label="SecureObs capability highlights">
+            <span>NFC and PIN access</span>
+            <span>Offline sync queue</span>
+            <span>Immutable audit trail</span>
           </div>
         </div>
-        <div class="hero-image" aria-label="SecureObs tablet preview">
-          <img src="assets/secureobspad.png" alt="SecureObs shown on a tablet" />
+        <div class="hero-showcase" aria-label="SecureObs app screenshots">
+          <img
+            class="hero-main-shot"
+            src="assets/screenshots2/General_OBS.jpg"
+            alt="SecureObs general observations screen on a tablet"
+          />
+          <img
+            class="hero-float-shot"
+            src="assets/screenshots2/sign_In_Screen.jpg"
+            alt="SecureObs staff sign-in screen showing NFC and PIN access"
+          />
         </div>
       </section>
 
-      <section id="features" class="section">
+      <section id="workflow" class="section">
         <div class="section-heading">
-          <p class="eyebrow">What the app does</p>
-          <h2>Built around the ward observation workflow.</h2>
+          <p class="eyebrow">Built from real ward work</p>
+          <h2>Fast for staff. Structured for managers. Defensible for governance.</h2>
+          <p>
+            SecureObs is designed around repeated ward actions: identify staff, choose the patient, record
+            the check, see what is due, and keep a reliable record when the ward gets busy.
+          </p>
         </div>
         <div class="feature-grid">
           <article>
             <span class="feature-icon">01</span>
             <h3>General observations</h3>
-            <p>
-              Staff can select a patient, record location and presentation, save the check, and see overdue
-              intermittent observations clearly highlighted.
-            </p>
+            <p>Clear due times, patient status, NEWS2 summaries, recent missed observations and large touch targets for fast recording.</p>
           </article>
           <article>
             <span class="feature-icon">02</span>
-            <h3>NEWS2 recording</h3>
-            <p>
-              NEWS2 values are captured with Scale 1 and Scale 2 support, current score visibility, and
-              patient-level history for previous readings.
-            </p>
+            <h3>TESO and enhanced observations</h3>
+            <p>Start, review and end TESO episodes with reasons, observation level, ratio, seclusion status and plan of care history.</p>
           </article>
           <article>
             <span class="feature-icon">03</span>
-            <h3>Enhanced observations</h3>
-            <p>
-              Enhanced and TESO checks support dedicated patient workflows, staff assignment, presentation,
-              location, comments, and saved history.
-            </p>
+            <h3>Medication governance</h3>
+            <p>Regular, PRN, depot and rapid tranquillisation records with administration history, allergies, ADRs and prescribing controls.</p>
           </article>
           <article>
             <span class="feature-icon">04</span>
-            <h3>Staff rota cover</h3>
-            <p>
-              Ward managers can configure shift times, breaks, staff cover, handover overlaps, and rota gaps
-              so cover can be seen at a glance.
-            </p>
+            <h3>Security and care home checks</h3>
+            <p>Cutlery counts, room and locker checks, Level 1 checks, item-based security checks and printable patient assessment forms.</p>
           </article>
-        </div>
-      </section>
-
-      <section class="section split-section">
-        <div>
-          <p class="eyebrow">NFC staff login</p>
-          <h2>Tap a staff card to identify the clinician.</h2>
-          <p>
-            SecureObs can read NFC staff card data on Android EAS builds and use the staff code from the
-            card to select the matching staff member. Card values are treated as confidential identifiers
-            and are mapped to staff records inside the authorised system.
-          </p>
-        </div>
-        <div class="phone-shot">
-          <div class="phone-header">Start ward observations</div>
-          <div class="phone-row active">Staff member identified</div>
-          <div class="phone-card">
-            <span>NFC staff card demo</span>
-            <button type="button">Scan NFC card</button>
-            <small>Card accepted and matched to authorised staff access.</small>
-          </div>
-          <div class="phone-row">North Secure Hospital</div>
-          <div class="phone-row">Cedar Ward</div>
+          <article>
+            <span class="feature-icon">05</span>
+            <h3>Staff rota and cover</h3>
+            <p>Nurse in charge, medication nurse, enhanced observation cover, gaps, auto-assignment and shift-based staffing visibility.</p>
+          </article>
+          <article>
+            <span class="feature-icon">06</span>
+            <h3>Bank and agency staff</h3>
+            <p>Temporary PIN access, virtual NFC codes, start and end windows, ward access and auditable assignment history.</p>
+          </article>
+          <article>
+            <span class="feature-icon">07</span>
+            <h3>Offline resilience</h3>
+            <p>Failed saves queue locally, retry individually, show sync status and avoid losing checks when ward Wi-Fi drops.</p>
+          </article>
+          <article>
+            <span class="feature-icon">08</span>
+            <h3>Admin setup</h3>
+            <p>Sites, wards, feature switches, NFC formats, manager setup, session timeout and database-ready configuration.</p>
+          </article>
         </div>
       </section>
 
       <section id="screenshots" class="section screen-section">
         <div class="section-heading">
-          <p class="eyebrow">App screenshots</p>
-          <h2>Clear screens for repeated ward use.</h2>
+          <p class="eyebrow">Real tablet screens</p>
+          <h2>The interface is built for repeated use on busy wards.</h2>
           <p>
-            The Android tablet interface is designed around fast selection, large touch targets, clear
-            status colours, and side-by-side working views for ward teams.
+            These are live SecureObs screens: restrained, readable and practical, with the most important
+            clinical and operational status visible without hunting through menus.
           </p>
         </div>
+
+        <div class="screenshot-feature">
+          <article class="screenshot-card screenshot-card-wide screenshot-card-hero">
+            <img
+              src="assets/screenshots2/general_Obs_Screen.jpg"
+              alt="SecureObs general observations dashboard with patient due times"
+              loading="lazy"
+            />
+            <div>
+              <h3>Ward dashboard and general observations</h3>
+              <p>Due times, enhanced status, NEWS2 summaries, shift information, nurse in charge and medication nurse visibility.</p>
+            </div>
+          </article>
+          <article class="screenshot-card">
+            <img
+              src="assets/screenshots2/General_OBS.jpg"
+              alt="SecureObs observation recording screen with patient list and save check form"
+              loading="lazy"
+            />
+            <div>
+              <h3>Record a check</h3>
+              <p>Location, presentation, notes and recent missed observations sit beside the patient list.</p>
+            </div>
+          </article>
+        </div>
+
         <div class="screenshot-grid">
-          <article class="screenshot-card screenshot-card-wide">
+          <article class="screenshot-card">
             <img
-              src="assets/screenshots/general-observations.jpg"
-              alt="SecureObs general observations screen with patient list and save check form"
+              src="assets/screenshots2/Patient_Screen_Start_End_TESO.jpg"
+              alt="SecureObs patient settings screen for TESO review and care plan"
               loading="lazy"
             />
             <div>
-              <h3>General observations</h3>
-              <p>Patient list, NEWS2 summary, observation type, location, presentation, notes, and save check workflow.</p>
+              <h3>TESO start, review and end</h3>
+              <p>Observation level, seclusion, reasons, ratio, review frequency and plan of care in one clinical view.</p>
             </div>
           </article>
           <article class="screenshot-card">
             <img
-              src="assets/screenshots/news2-chart.jpg"
-              alt="SecureObs NEWS2 chart with physiological observations plotted over time"
-              loading="lazy"
-            />
-            <div>
-              <h3>NEWS2 chart</h3>
-              <p>NEWS2 entry and charting with respiration, SpO2, blood pressure, pulse, consciousness, and temperature.</p>
-            </div>
-          </article>
-          <article class="screenshot-card">
-            <img
-              src="assets/screenshots/enhanced-observations.jpg"
-              alt="SecureObs enhanced observations screen showing assigned staff and TESO entry form"
+              src="assets/screenshots2/Enhanced_Obs_Screen.jpg"
+              alt="SecureObs enhanced observation recording screen"
               loading="lazy"
             />
             <div>
               <h3>Enhanced observations</h3>
-              <p>Enhanced/TESO checks with assigned staff, presentation, current location, and entry notes.</p>
+              <p>Dedicated enhanced/TESO recording with assigned staff and patient-specific observation status.</p>
             </div>
           </article>
           <article class="screenshot-card">
             <img
-              src="assets/screenshots/patient-settings.jpg"
-              alt="SecureObs patient settings screen for observation level and TESO configuration"
+              src="assets/screenshots2/Medication_Prescribing.jpg"
+              alt="SecureObs medication prescribing screen"
               loading="lazy"
             />
             <div>
-              <h3>Patient Observation</h3>
-              <p>Record general observations, Recording where the patient is located andand notes needed. Recording an observation resets the observation timer so staff can see when the next check is due.</p>
+              <h3>Medication chart</h3>
+              <p>Prescribing, administration, omissions, PRN, depot and rapid tranquillisation workflows.</p>
             </div>
           </article>
           <article class="screenshot-card">
             <img
-              src="assets/screenshots/security-checks.jpg"
-              alt="SecureObs security checks screen showing checkpoint status and record check form"
+              src="assets/screenshots2/Meds_History.jpg"
+              alt="SecureObs medication history screen"
               loading="lazy"
             />
             <div>
-              <h3>TESO settings</h3>
-              <p>Create, Start and End a TESO recording Observation level, seclusion status, TESO ratios, and reasons for enhanced observation as well as a plan of care for the patient.</p>
+              <h3>Medication history</h3>
+              <p>See what was given, refused or omitted, with a stronger record for clinical review.</p>
             </div>
           </article>
-          <article class="screenshot-card screenshot-card-wide">
+          <article class="screenshot-card">
             <img
-              src="assets/screenshots/staff-rota-detail.jpg"
-              alt="SecureObs staff rota screen showing shift cover and role assignment"
+              src="assets/screenshots2/staff_Rota.jpg"
+              alt="SecureObs staff rota screen showing shift cover"
               loading="lazy"
             />
             <div>
-              <h3>Staff rota</h3>
-              <p>Time-ordered cover, handover overlap, gap visibility, and assignment by role or enhanced patient need.</p>
+              <h3>Staff rota and gaps</h3>
+              <p>Shift cover, assignment by role, medication nurse awareness and enhanced observation coverage.</p>
+            </div>
+          </article>
+          <article class="screenshot-card">
+            <img
+              src="assets/screenshots2/Agency_Staff_Setup.jpg"
+              alt="SecureObs bank and agency staff setup screen"
+              loading="lazy"
+            />
+            <div>
+              <h3>Bank and agency access</h3>
+              <p>Temporary staff can be given real-name access tied to a virtual NFC code and expiry window.</p>
+            </div>
+          </article>
+          <article class="screenshot-card">
+            <img
+              src="assets/screenshots2/security_Checks_Screen.jpg"
+              alt="SecureObs security checks screen with cutlery count"
+              loading="lazy"
+            />
+            <div>
+              <h3>Security checks</h3>
+              <p>Counted cutlery checks, ward checks, patient checks and configurable security tasks.</p>
+            </div>
+          </article>
+          <article class="screenshot-card">
+            <img
+              src="assets/screenshots2/Previous_Obs_History_Screen.jpg"
+              alt="SecureObs previous observations history screen"
+              loading="lazy"
+            />
+            <div>
+              <h3>History and missed observations</h3>
+              <p>Review general, enhanced and missed observations by date, patient and reason.</p>
             </div>
           </article>
         </div>
       </section>
 
-      <section id="security" class="section secure-band">
+      <section id="governance" class="section secure-band">
         <div>
-          <p class="eyebrow">Trust-hosted data model</p>
-          <h2>Designed so clinical data remains under Trust control.</h2>
+          <p class="eyebrow">Governance by design</p>
+          <h2>Simple on the ward, serious underneath.</h2>
           <p>
-            The production architecture is intended to use a secure backend API connected to SQL databases
-            hosted on the Trust's own servers. The Android app should communicate with that API over HTTPS
-            rather than connecting directly to SQL.
+            SecureObs is built for environments where the record matters. Staff access, failed sign-ins,
+            observations, medication actions, settings changes and patient form completion can all be tied
+            back to staff identity and time.
           </p>
         </div>
         <div class="security-list">
-          <p>Secure API layer between app and SQL database</p>
-          <p>Trust-controlled hosting and data retention</p>
-          <p>Role-based staff access by site and ward</p>
-          <p>NFC staff identification mapped to staff records</p>
-          <p>Audit-ready observation history for clinical review</p>
+          <p>NFC, STAFFCODE and PIN sign-in with lockout controls</p>
+          <p>Role permissions for nurses, HCF, OT, security, managers, doctors and super admin</p>
+          <p>Immutable audit events for access, observations, medications, TESO, settings and forms</p>
+          <p>Organisation and ward filtering for multi-site deployments</p>
+          <p>Offline queue with individual retry instead of throwing away pending work</p>
         </div>
+      </section>
+
+      <section id="deployment" class="section split-section">
+        <div>
+          <p class="eyebrow">Flexible deployment</p>
+          <h2>Postgres now, NHS SQL Server ready.</h2>
+          <p>
+            SecureObs can run with a managed backend and Postgres for homes or smaller services, while the
+            backend is being structured so NHS Trusts can connect to their own SQL Server data layer when
+            required.
+          </p>
+          <div class="deployment-points">
+            <span>Railway/Postgres backend</span>
+            <span>Future NHS SQL Server adapter</span>
+            <span>Configurable NFC staff code format</span>
+            <span>Site and ward feature switches</span>
+          </div>
+        </div>
+        <article class="screenshot-card deployment-shot">
+          <img
+            src="assets/screenshots2/sign_In_Screen.jpg"
+            alt="SecureObs sign-in and location screen"
+            loading="lazy"
+          />
+          <div>
+            <h3>Controlled access from the first screen</h3>
+            <p>Staff only see authorised sites and wards after sign-in, with separate handling for permanent and temporary staff.</p>
+          </div>
+        </article>
       </section>
     </main>
 
     <footer>
-      <span>SecureObs prototype</span>
+      <span>SecureObs</span>
       <span><a href="support.html">Support</a> · <a href="privacy.html">Privacy</a></span>
     </footer>
   </body>
