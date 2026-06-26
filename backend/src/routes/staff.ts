@@ -13,6 +13,7 @@ const router = Router();
 const failedAttemptLimit = 5;
 const failedAttemptWindowMinutes = 10;
 const lockoutMinutes = 10;
+const defaultFirstLoginPin = "1111";
 
 const staffLookupSchema = z.object({
   staffCode: z.string().min(1),
@@ -29,6 +30,11 @@ const staffPinLookupSchema = z.object({
   staffCode: z.string().min(1),
   loginPin: z.string().min(1),
   organisationId: z.string().uuid()
+});
+
+const changePinSchema = z.object({
+  currentPin: z.string().regex(/^\d{4,6}$/),
+  newPin: z.string().regex(/^\d{4,6}$/)
 });
 
 const unlockAccessSchema = z.object({
@@ -53,6 +59,7 @@ const staffMemberSchema = z.object({
   accessStartsAt: z.string().datetime().optional(),
   accessExpiresAt: z.string().datetime().optional(),
   loginPin: z.string().optional(),
+  loginPinMustChange: z.boolean().optional(),
   wardId: z.string().min(1),
   allowedSiteIds: z.array(z.string()).min(1),
   allowedWardIds: z.array(z.string()).min(1),
@@ -138,11 +145,13 @@ router.post("/", requireStaffRole(["manager", "nurse", "super_admin"]), async (r
       }
     }
 
+    const loginPinHash = getLoginPinHashForStaffSave(parsed.data);
     const staff = await dataProvider.staff.upsert({
       ...parsed.data,
       organisationId,
       loginPin: null,
-      loginPinHash: parsed.data.loginPin?.trim() ? hashPin(parsed.data.loginPin.trim()) : undefined
+      loginPinHash,
+      loginPinMustChange: loginPinHash ? Boolean(parsed.data.loginPinMustChange) || isDefaultFirstLoginPinHash(loginPinHash) : undefined
     });
     const actor = auditActorFromBody(request.body);
     await recordAuditEvent({
@@ -322,6 +331,65 @@ router.post("/pin-login", async (request, response, next) => {
       return;
     }
 
+    next(error);
+  }
+});
+
+router.post("/change-pin", async (request: AuthenticatedRequest, response, next) => {
+  try {
+    const auth = requireAuthenticated(request, response);
+    if (!auth) return;
+
+    const parsed = changePinSchema.safeParse(request.body);
+    if (!parsed.success) {
+      response.status(400).json({ error: "Enter a 4 to 6 digit current PIN and new PIN" });
+      return;
+    }
+
+    if (parsed.data.newPin === defaultFirstLoginPin) {
+      response.status(400).json({ error: "Choose a personal PIN instead of the default 1111" });
+      return;
+    }
+
+    if (parsed.data.currentPin === parsed.data.newPin) {
+      response.status(400).json({ error: "Choose a new PIN that is different from the current PIN" });
+      return;
+    }
+
+    const staff = await dataProvider.staff.findActiveById(auth.staff.id ?? "", auth.staff.organisationId);
+    if (!staff || !verifyPin(parsed.data.currentPin, staff)) {
+      await recordAuditEvent({
+        organisationId: auth.staff.organisationId,
+        actorStaffId: auth.staff.id,
+        actorStaffCode: auth.staff.staffCode,
+        eventType: "staff.pin_change",
+        entityType: "staff_member",
+        entityId: auth.staff.id ?? null,
+        outcome: "failure",
+        details: { reason: "current_pin_not_accepted" }
+      });
+      response.status(401).json({ error: "Current PIN was not accepted" });
+      return;
+    }
+
+    const updatedStaff = await dataProvider.staff.upsert({
+      ...staff,
+      loginPin: null,
+      loginPinHash: hashPin(parsed.data.newPin),
+      loginPinMustChange: false
+    });
+    await recordAuditEvent({
+      organisationId: updatedStaff.organisationId,
+      actorStaffId: updatedStaff.id,
+      actorStaffCode: updatedStaff.staffCode,
+      eventType: "staff.pin_change",
+      entityType: "staff_member",
+      entityId: updatedStaff.id ?? null,
+      details: { staffCode: updatedStaff.staffCode }
+    });
+
+    response.json({ staff: toPublicStaff(updatedStaff), session: createStaffSession(updatedStaff) });
+  } catch (error) {
     next(error);
   }
 });
@@ -853,6 +921,27 @@ function hashPin(pin: string) {
   const salt = crypto.randomBytes(16).toString("base64url");
   const hash = crypto.pbkdf2Sync(pin, salt, 120000, 32, "sha256").toString("base64url");
   return `pbkdf2_sha256$120000$${salt}$${hash}`;
+}
+
+function getLoginPinHashForStaffSave(staff: {
+  id?: string;
+  employmentType: "permanent" | "bank";
+  loginPin?: string;
+}) {
+  const trimmedPin = staff.loginPin?.trim();
+  if (trimmedPin) {
+    return hashPin(trimmedPin);
+  }
+
+  if (!staff.id && staff.employmentType === "permanent") {
+    return hashPin(defaultFirstLoginPin);
+  }
+
+  return undefined;
+}
+
+function isDefaultFirstLoginPinHash(loginPinHash: string) {
+  return verifyPin(defaultFirstLoginPin, { loginPin: null, loginPinHash });
 }
 
 function verifyPin(pin: string, staff: Pick<StaffMemberRecord, "loginPin" | "loginPinHash">) {

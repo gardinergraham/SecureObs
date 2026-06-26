@@ -39,6 +39,7 @@ create table if not exists staff_members (
   allowed_site_ids text[] not null default '{}',
   allowed_ward_ids text[] not null default '{}',
   active boolean not null default true,
+  login_pin_must_change boolean not null default false,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   unique (organisation_id, staff_code)

@@ -98,6 +98,7 @@ export type StaffMember = {
   accessStartsAt?: string;
   accessExpiresAt?: string;
   loginPin?: string;
+  loginPinMustChange?: boolean;
   wardId: string;
   allowedSiteIds: string[];
   allowedWardIds: string[];

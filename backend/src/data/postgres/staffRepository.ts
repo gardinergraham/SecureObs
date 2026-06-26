@@ -20,9 +20,9 @@ export const postgresStaffRepository: StaffRepository = {
         `
           insert into staff_members (
             organisation_id, key_number, staff_code, display_name, role, designation, can_prescribe,
-            employment_type, access_starts_at, access_expires_at, login_pin, login_pin_hash, ward_id, allowed_site_ids,
-            allowed_ward_ids, active
-          ) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
+            employment_type, access_starts_at, access_expires_at, login_pin, login_pin_hash, login_pin_must_change,
+            ward_id, allowed_site_ids, allowed_ward_ids, active
+          ) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)
           on conflict (organisation_id, staff_code) do update set
             key_number = excluded.key_number,
             display_name = excluded.display_name,
@@ -34,6 +34,10 @@ export const postgresStaffRepository: StaffRepository = {
             access_expires_at = excluded.access_expires_at,
             login_pin = case when excluded.login_pin_hash is not null then null else staff_members.login_pin end,
             login_pin_hash = coalesce(excluded.login_pin_hash, staff_members.login_pin_hash),
+            login_pin_must_change = case
+              when excluded.login_pin_hash is not null then excluded.login_pin_must_change
+              else staff_members.login_pin_must_change
+            end,
             ward_id = excluded.ward_id,
             allowed_site_ids = excluded.allowed_site_ids,
             allowed_ward_ids = excluded.allowed_ward_ids,
@@ -54,6 +58,7 @@ export const postgresStaffRepository: StaffRepository = {
           staff.accessExpiresAt ?? null,
           staff.loginPin ?? null,
           staff.loginPinHash ?? null,
+          staff.loginPinMustChange ?? false,
           staff.wardId,
           staff.allowedSiteIds,
           staff.allowedWardIds,
@@ -124,6 +129,7 @@ function staffSelectSql(suffix: string) {
       access_expires_at as "accessExpiresAt",
       login_pin as "loginPin",
       login_pin_hash as "loginPinHash",
+      login_pin_must_change as "loginPinMustChange",
       ward_id as "wardId",
       allowed_site_ids as "allowedSiteIds",
       allowed_ward_ids as "allowedWardIds",
@@ -148,6 +154,7 @@ const staffReturningSql = `
     access_expires_at as "accessExpiresAt",
     login_pin as "loginPin",
     login_pin_hash as "loginPinHash",
+    login_pin_must_change as "loginPinMustChange",
     ward_id as "wardId",
     allowed_site_ids as "allowedSiteIds",
     allowed_ward_ids as "allowedWardIds",

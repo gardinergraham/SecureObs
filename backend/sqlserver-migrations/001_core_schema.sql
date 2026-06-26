@@ -56,6 +56,7 @@ begin
     access_starts_at datetimeoffset null,
     access_expires_at datetimeoffset null,
     login_pin nvarchar(100) null,
+    login_pin_must_change bit not null default 0,
     ward_id nvarchar(100) null references dbo.wards(id),
     allowed_site_ids nvarchar(max) not null default '[]',
     allowed_ward_ids nvarchar(max) not null default '[]',

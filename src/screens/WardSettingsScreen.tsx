@@ -299,7 +299,7 @@ export function WardSettingsScreen({
             editable={canEditWardSettings}
             keyboardType="number-pad"
             onChangeText={setNewStaffLoginPin}
-            placeholder={editingStaffId ? "Set new PIN (optional)" : "Set staff PIN"}
+            placeholder={editingStaffId ? "Set new PIN (optional)" : "Initial PIN optional - default 1111"}
             secureTextEntry
             style={styles.input}
             value={newStaffLoginPin}

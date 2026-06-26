@@ -14,8 +14,8 @@ type HomeScreenProps = {
   onSelectStaff: (staffId: string) => void;
   onSelectSite: (siteId: string) => void;
   onSelectWard: (wardId: string) => void;
-  onReadStaffCardData: (cardData: string) => Promise<string>;
   onStaffPinLogin: (staffCode: string, loginPin: string) => Promise<string>;
+  onChangeStaffPin: (currentPin: string, newPin: string) => Promise<string>;
   onBankStaffPinLogin: (staffCode: string, loginPin: string) => Promise<string>;
   onUnlockStaffAccess: (lockedStaffCode: string, nurseInChargeStaffCode: string) => Promise<string>;
   onScanStaffCard: () => Promise<string>;
@@ -34,8 +34,8 @@ export function HomeScreen({
   onSelectStaff,
   onSelectSite,
   onSelectWard,
-  onReadStaffCardData,
   onStaffPinLogin,
+  onChangeStaffPin,
   onBankStaffPinLogin,
   onUnlockStaffAccess,
   onScanStaffCard,
@@ -43,11 +43,14 @@ export function HomeScreen({
   onOpenWardSettings,
   onStart
 }: HomeScreenProps) {
-  const [staffCardData, setStaffCardData] = useState("");
   const [staffCardMessage, setStaffCardMessage] = useState("");
   const [staffPinCode, setStaffPinCode] = useState("");
   const [staffPin, setStaffPin] = useState("");
   const [staffPinMessage, setStaffPinMessage] = useState("");
+  const [currentPin, setCurrentPin] = useState("");
+  const [newPin, setNewPin] = useState("");
+  const [confirmNewPin, setConfirmNewPin] = useState("");
+  const [changePinMessage, setChangePinMessage] = useState("");
   const [bankStaffCode, setBankStaffCode] = useState("");
   const [bankStaffPin, setBankStaffPin] = useState("");
   const [bankStaffMessage, setBankStaffMessage] = useState("");
@@ -56,15 +59,17 @@ export function HomeScreen({
   const [unlockMessage, setUnlockMessage] = useState("");
   const [isBankStaffSigningIn, setIsBankStaffSigningIn] = useState(false);
   const [isStaffPinSigningIn, setIsStaffPinSigningIn] = useState(false);
+  const [isChangingPin, setIsChangingPin] = useState(false);
   const [isUnlockingAccess, setIsUnlockingAccess] = useState(false);
   const [isScanningStaffCard, setIsScanningStaffCard] = useState(false);
   const selectedWard = wards.find((ward) => ward.id === selectedWardId);
   const selectedStaff = staff.find((member) => member.id === selectedStaffId);
   const selectedSite = sites.find((site) => site.id === selectedSiteId);
   const hasStaffSession = Boolean(selectedStaff);
-  const canStart = Boolean(selectedStaff && selectedSite && selectedWard);
-  const canOpenAdminSettings = hasAdminAccess(selectedStaff);
-  const canEditWardSettings = hasStaffRole(selectedStaff, "manager") || hasAdminAccess(selectedStaff);
+  const pinChangeRequired = Boolean(selectedStaff?.loginPinMustChange);
+  const canStart = Boolean(selectedStaff && selectedSite && selectedWard && !pinChangeRequired);
+  const canOpenAdminSettings = !pinChangeRequired && hasAdminAccess(selectedStaff);
+  const canEditWardSettings = !pinChangeRequired && (hasStaffRole(selectedStaff, "manager") || hasAdminAccess(selectedStaff));
   const sessionMeta = useMemo(() => {
     const staffLabel = selectedStaff ? `${selectedStaff.name} (${selectedStaff.staffCode})` : "No staff";
     const siteLabel = selectedSite?.name ?? "No site";
@@ -72,17 +77,6 @@ export function HomeScreen({
 
     return `${staffLabel} | ${siteLabel} | ${wardLabel}`;
   }, [selectedSite, selectedStaff, selectedWard]);
-
-  const readPastedCard = async () => {
-    setIsScanningStaffCard(true);
-    try {
-      setStaffCardMessage(await onReadStaffCardData(staffCardData));
-    } catch (error) {
-      setStaffCardMessage(error instanceof Error ? error.message : "Unable to use that card data.");
-    } finally {
-      setIsScanningStaffCard(false);
-    }
-  };
 
   const scanCard = async () => {
     setIsScanningStaffCard(true);
@@ -94,6 +88,35 @@ export function HomeScreen({
       setStaffCardMessage(error instanceof Error ? error.message : "Unable to read that NFC card.");
     } finally {
       setIsScanningStaffCard(false);
+    }
+  };
+
+  const changeOwnPin = async () => {
+    if (!currentPin.trim() || !newPin.trim() || !confirmNewPin.trim()) {
+      setChangePinMessage("Enter your current PIN and your new PIN twice.");
+      return;
+    }
+
+    if (!/^\d{4,6}$/.test(newPin.trim())) {
+      setChangePinMessage("Choose a 4 to 6 digit PIN.");
+      return;
+    }
+
+    if (newPin.trim() !== confirmNewPin.trim()) {
+      setChangePinMessage("The new PIN entries do not match.");
+      return;
+    }
+
+    setIsChangingPin(true);
+    try {
+      setChangePinMessage(await onChangeStaffPin(currentPin.trim(), newPin.trim()));
+      setCurrentPin("");
+      setNewPin("");
+      setConfirmNewPin("");
+    } catch (error) {
+      setChangePinMessage(error instanceof Error ? error.message : "Unable to update PIN.");
+    } finally {
+      setIsChangingPin(false);
     }
   };
 
@@ -174,6 +197,7 @@ export function HomeScreen({
               <Text style={styles.signedInMeta}>
                 {selectedStaff.staffCode} | {selectedStaff.role} | {selectedStaff.employmentType === "bank" ? "Bank/temp" : "Permanent"}
               </Text>
+              {pinChangeRequired ? <Text style={styles.pinRequiredText}>PIN change required before continuing.</Text> : null}
               <TouchableOpacity accessibilityRole="button" onPress={() => onSelectStaff("")} style={styles.secondaryButton}>
                 <Text style={styles.secondaryButtonText}>Sign out staff</Text>
               </TouchableOpacity>
@@ -194,23 +218,52 @@ export function HomeScreen({
                 <Text style={styles.scanButtonText}>{isScanningStaffCard ? "Scanning" : "Scan card"}</Text>
               </TouchableOpacity>
             </View>
-            <TextInput placeholderTextColor="#6f7f87"
-              autoCapitalize="none"
-              onChangeText={setStaffCardData}
-              placeholder="Enter STAFFCODE"
-              style={styles.cardInput}
-              value={staffCardData}
-            />
-            <TouchableOpacity
-              accessibilityRole="button"
-              disabled={isScanningStaffCard}
-              onPress={readPastedCard}
-              style={[styles.secondaryButton, isScanningStaffCard && styles.disabledOutline]}
-            >
-              <Text style={styles.secondaryButtonText}>Use STAFFCODE</Text>
-            </TouchableOpacity>
+            <Text style={styles.noticeText}>Use the physical staff card on NFC-enabled tablets. Use Staff PIN sign-in on tablets without NFC.</Text>
             {staffCardMessage ? <Text style={styles.cardMessage}>{staffCardMessage}</Text> : null}
           </View>
+
+          {pinChangeRequired ? (
+            <View style={styles.pinChangePanel}>
+              <Text style={styles.nfcTitle}>Choose a personal PIN</Text>
+              <Text style={styles.noticeText}>Your first login PIN is temporary. Choose a new 4 to 6 digit PIN before opening ward screens.</Text>
+              <TextInput placeholderTextColor="#6f7f87"
+                autoCapitalize="none"
+                keyboardType="number-pad"
+                onChangeText={setCurrentPin}
+                placeholder="Current PIN"
+                secureTextEntry
+                style={styles.cardInput}
+                value={currentPin}
+              />
+              <TextInput placeholderTextColor="#6f7f87"
+                autoCapitalize="none"
+                keyboardType="number-pad"
+                onChangeText={setNewPin}
+                placeholder="New PIN"
+                secureTextEntry
+                style={styles.cardInput}
+                value={newPin}
+              />
+              <TextInput placeholderTextColor="#6f7f87"
+                autoCapitalize="none"
+                keyboardType="number-pad"
+                onChangeText={setConfirmNewPin}
+                placeholder="Confirm new PIN"
+                secureTextEntry
+                style={styles.cardInput}
+                value={confirmNewPin}
+              />
+              <TouchableOpacity
+                accessibilityRole="button"
+                disabled={isChangingPin}
+                onPress={changeOwnPin}
+                style={[styles.scanButton, isChangingPin && styles.disabledButton]}
+              >
+                <Text style={styles.scanButtonText}>{isChangingPin ? "Saving" : "Update PIN"}</Text>
+              </TouchableOpacity>
+              {changePinMessage ? <Text style={styles.cardMessage}>{changePinMessage}</Text> : null}
+            </View>
+          ) : null}
 
           <View style={styles.nfcPanel}>
             <View style={styles.nfcHeader}>
@@ -357,7 +410,13 @@ export function HomeScreen({
       <View style={styles.menu}>
         <MenuTile
           disabled={!canStart}
-          meta={canStart ? "General, enhanced, NEWS2, medication and ward workflows" : "Select staff, site and ward"}
+          meta={
+            pinChangeRequired
+              ? "Update your temporary PIN first"
+              : canStart
+                ? "General, enhanced, NEWS2, medication and ward workflows"
+                : "Select staff, site and ward"
+          }
           title="Open ward workspace"
           tone="primary"
           onPress={onStart}
@@ -598,9 +657,22 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "800"
   },
+  pinRequiredText: {
+    color: "#8a5b00",
+    fontSize: 12,
+    fontWeight: "900"
+  },
   nfcPanel: {
     backgroundColor: "#f8fafb",
     borderColor: "#d8e0e3",
+    borderRadius: 8,
+    borderWidth: 1,
+    gap: 9,
+    padding: 12
+  },
+  pinChangePanel: {
+    backgroundColor: "#fff7df",
+    borderColor: "#e2b857",
     borderRadius: 8,
     borderWidth: 1,
     gap: 9,

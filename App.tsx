@@ -47,6 +47,7 @@ import {
   loadWards,
   loadCurrentStaffSession,
   loadStaff,
+  changeStaffPin,
   loginBankStaffByPin,
   loginStaffByPin,
   lookupStaffByCode,
@@ -529,6 +530,13 @@ export default function App() {
     return `Selected ${staff.name}.`;
   };
 
+  const handleChangeStaffPin = async (currentPin: string, newPin: string) => {
+    const { staff } = await changeStaffPin(currentPin, newPin);
+    setStaffMembers((currentStaff) => upsertStaffByCode(currentStaff, staff));
+    selectStaffSession(staff);
+    return "PIN updated. You can now continue.";
+  };
+
   const handleUnlockStaffAccess = async (lockedStaffCode: string, nurseInChargeStaffCode: string) => {
     const result = await unlockStaffAccess(
       lockedStaffCode,
@@ -876,8 +884,8 @@ export default function App() {
             onSelectStaff={handleSelectStaff}
             onSelectSite={handleSelectSite}
             onSelectWard={handleSelectWard}
-            onReadStaffCardData={handleReadStaffCardData}
             onStaffPinLogin={handleStaffPinLogin}
+            onChangeStaffPin={handleChangeStaffPin}
             onBankStaffPinLogin={handleBankStaffPinLogin}
             onUnlockStaffAccess={handleUnlockStaffAccess}
             onScanStaffCard={handleScanStaffCard}
