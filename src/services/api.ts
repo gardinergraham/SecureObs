@@ -159,6 +159,13 @@ export async function changeStaffPin(currentPin: string, newPin: string) {
   return { staff: result.staff };
 }
 
+export async function resetStaffPin(staffId: string) {
+  return request<{ staff: StaffMember }>("/api/staff/reset-pin", {
+    method: "POST",
+    body: JSON.stringify({ staffId })
+  });
+}
+
 export async function unlockStaffAccess(lockedStaffCode: string, nurseInChargeStaffCode: string, organisationId: string) {
   return request<{ ok: boolean; unlocked: boolean; message: string }>("/api/staff/unlock-access", {
     method: "POST",

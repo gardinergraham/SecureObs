@@ -26,6 +26,7 @@ type WardSettingsScreenProps = {
   onUpdateWardRotaSettings: (ward: Ward) => void;
   onOpenSecurityCheckSettings: () => void;
   onCreateStaff: (staff: StaffMember) => Promise<void>;
+  onResetStaffPin: (staffId: string) => Promise<void>;
 };
 
 export function WardSettingsScreen({
@@ -38,7 +39,8 @@ export function WardSettingsScreen({
   onUpdateWardRotaEnabled,
   onUpdateWardRotaSettings,
   onOpenSecurityCheckSettings,
-  onCreateStaff
+  onCreateStaff,
+  onResetStaffPin
 }: WardSettingsScreenProps) {
   const selectedWard = wards.find((ward) => ward.id === selectedWardId);
   const selectedStaff = staff.find((member) => member.id === selectedStaffId);
@@ -54,6 +56,7 @@ export function WardSettingsScreen({
   const [editingStaffId, setEditingStaffId] = useState("");
   const [staffSearch, setStaffSearch] = useState("");
   const [isSavingStaff, setIsSavingStaff] = useState(false);
+  const [isResettingPin, setIsResettingPin] = useState(false);
   const selectedSiteId = selectedWard?.siteId;
   const siteWardIds = wards.filter((ward) => ward.siteId === selectedSiteId).map((ward) => ward.id);
   const siteStaff = staff
@@ -212,6 +215,32 @@ export function WardSettingsScreen({
     } finally {
       setIsSavingStaff(false);
     }
+  };
+
+  const resetSelectedStaffPin = () => {
+    const staffMember = staff.find((member) => member.id === editingStaffId);
+    if (!staffMember || !canEditWardSettings) return;
+
+    Alert.alert(
+      "Reset staff PIN?",
+      `${staffMember.name} will use temporary PIN 1111 next time they sign in, then they must choose a new PIN.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Reset PIN",
+          style: "destructive",
+          onPress: async () => {
+            setIsResettingPin(true);
+            try {
+              await onResetStaffPin(staffMember.id);
+              Alert.alert("PIN reset", `${staffMember.name} can sign in with temporary PIN 1111.`);
+            } finally {
+              setIsResettingPin(false);
+            }
+          }
+        }
+      ]
+    );
   };
 
   return (
@@ -380,9 +409,21 @@ export function WardSettingsScreen({
             </Text>
           </TouchableOpacity>
           {editingStaffId ? (
-            <TouchableOpacity accessibilityRole="button" onPress={clearStaffDraft} style={styles.clearStaffButton}>
-              <Text style={styles.clearStaffButtonText}>Clear selection</Text>
-            </TouchableOpacity>
+            <View style={styles.staffActionRow}>
+              {staff.find((member) => member.id === editingStaffId)?.employmentType !== "bank" ? (
+                <TouchableOpacity
+                  accessibilityRole="button"
+                  disabled={!canEditWardSettings || isResettingPin}
+                  onPress={resetSelectedStaffPin}
+                  style={[styles.resetPinButton, (!canEditWardSettings || isResettingPin) && styles.disabledControl]}
+                >
+                  <Text style={styles.resetPinButtonText}>{isResettingPin ? "Resetting..." : "Reset PIN to 1111"}</Text>
+                </TouchableOpacity>
+              ) : null}
+              <TouchableOpacity accessibilityRole="button" onPress={clearStaffDraft} style={styles.clearStaffButton}>
+                <Text style={styles.clearStaffButtonText}>Clear selection</Text>
+              </TouchableOpacity>
+            </View>
           ) : null}
         </View>
 
@@ -825,13 +866,29 @@ const styles = StyleSheet.create({
     minHeight: 44
   },
   saveStaffButtonText: { color: "#ffffff", fontSize: 14, fontWeight: "900" },
+  staffActionRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8
+  },
+  resetPinButton: {
+    alignItems: "center",
+    borderColor: "#9f2d28",
+    borderRadius: 6,
+    borderWidth: 1,
+    justifyContent: "center",
+    minHeight: 38,
+    paddingHorizontal: 12
+  },
+  resetPinButtonText: { color: "#9f2d28", fontSize: 13, fontWeight: "900" },
   clearStaffButton: {
     alignItems: "center",
     borderColor: "#1f5262",
     borderRadius: 6,
     borderWidth: 1,
     justifyContent: "center",
-    minHeight: 38
+    minHeight: 38,
+    paddingHorizontal: 12
   },
   clearStaffButtonText: { color: "#1f5262", fontSize: 13, fontWeight: "900" },
   serviceSummary: {

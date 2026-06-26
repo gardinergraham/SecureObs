@@ -37,6 +37,10 @@ const changePinSchema = z.object({
   newPin: z.string().regex(/^\d{4,6}$/)
 });
 
+const resetPinSchema = z.object({
+  staffId: z.string().uuid()
+});
+
 const unlockAccessSchema = z.object({
   lockedStaffCode: z.string().min(1),
   nurseInChargeStaffCode: z.string().min(1),
@@ -389,6 +393,51 @@ router.post("/change-pin", async (request: AuthenticatedRequest, response, next)
     });
 
     response.json({ staff: toPublicStaff(updatedStaff), session: createStaffSession(updatedStaff) });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post("/reset-pin", requireStaffRole(["manager", "super_admin"]), async (request: AuthenticatedRequest, response, next) => {
+  try {
+    const auth = requireAuthenticated(request, response);
+    if (!auth) return;
+
+    const parsed = resetPinSchema.safeParse(request.body);
+    if (!parsed.success) {
+      response.status(400).json({ error: "Staff member is required" });
+      return;
+    }
+
+    const staff = await dataProvider.staff.findActiveById(parsed.data.staffId, auth.staff.organisationId);
+    if (!staff) {
+      response.status(404).json({ error: "Staff member not found" });
+      return;
+    }
+
+    if (staff.role === "super_admin" && auth.staff.role !== "super_admin") {
+      response.status(403).json({ error: "Only SecureObs admin can reset a SecureObs admin PIN" });
+      return;
+    }
+
+    const updatedStaff = await dataProvider.staff.upsert({
+      ...staff,
+      loginPin: null,
+      loginPinHash: hashPin(defaultFirstLoginPin),
+      loginPinMustChange: true
+    });
+
+    await recordAuditEvent({
+      organisationId: updatedStaff.organisationId,
+      actorStaffId: auth.staff.id,
+      actorStaffCode: auth.staff.staffCode,
+      eventType: "staff.pin_reset",
+      entityType: "staff_member",
+      entityId: updatedStaff.id ?? null,
+      details: { staffCode: updatedStaff.staffCode, resetToTemporaryPin: true }
+    });
+
+    response.json({ staff: toPublicStaff(updatedStaff) });
   } catch (error) {
     next(error);
   }

@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Alert, AppState, SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { Alert, AppState, Modal, SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { StatusBar } from "expo-status-bar";
 
 import { AdminSettingsScreen } from "./src/screens/AdminSettingsScreen";
@@ -55,18 +55,19 @@ import {
   saveSecurityArea as persistSecurityArea,
   saveStaffShiftAssignment as persistStaffShiftAssignment,
   savePatient as persistPatient,
+  resetStaffPin,
   unlockStaffAccess,
   updateMedicationPrescription as persistMedicationPrescriptionUpdate
 } from "./src/services/api";
 import { clearAuthSession } from "./src/services/authSession";
 import {
-  clearSyncQueue,
   flushSyncQueue,
   isQueuedSyncError,
   removeSyncQueueItem,
   restoreSyncQueue,
   subscribeToSyncQueue,
-  type SyncQueueState
+  type SyncQueueState,
+  type SyncQueueStateItem
 } from "./src/services/syncQueue";
 import { parseStaffCardData } from "./src/utils/nfcStaffCard";
 import { readNfcTextPayload } from "./src/utils/nfcReader";
@@ -152,6 +153,7 @@ export default function App() {
     isSyncing: false,
     items: []
   });
+  const [isSyncStatusVisible, setIsSyncStatusVisible] = useState(false);
 
   useEffect(() => {
     const unsubscribe = subscribeToSyncQueue(setSyncQueueState);
@@ -259,69 +261,24 @@ export default function App() {
   };
 
   const showSyncStatus = () => {
-    const oldestItem = syncQueueState.oldestItem;
-    const queuedItems = syncQueueState.items.slice(0, 8);
-    const uploadList =
-      queuedItems.length > 0
-        ? queuedItems
-            .map(
-              (item, index) =>
-                `${index + 1}. ${item.label}\nPath: ${item.path}\nAttempts: ${item.attempts}${
-                  item.lastError ? `\nIssue: ${item.lastError}` : ""
-                }`
-            )
-            .join("\n\n")
-        : undefined;
-    const details = [
-      syncStatusLabel(syncQueueState),
-      syncQueueState.lastError ? `Last error: ${syncQueueState.lastError}` : undefined,
-      uploadList ? `Waiting uploads:\n\n${uploadList}` : undefined,
-      syncQueueState.items.length > queuedItems.length
-        ? `${syncQueueState.items.length - queuedItems.length} more upload(s) waiting.`
-        : undefined
-    ]
-      .filter(Boolean)
-      .join("\n\n");
+    setIsSyncStatusVisible(true);
+  };
 
-    if (syncQueueState.pendingCount === 0) {
-      Alert.alert("Sync status", details || "No pending saves.");
-      return;
-    }
-
-    Alert.alert("Sync status", details, [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Retry all",
-        onPress: () => {
-          void flushSyncQueue();
-        }
-      },
-      {
-        text: oldestItem ? "Remove oldest" : "Clear pending",
-        style: "destructive",
-        onPress: () => {
-          if (oldestItem) {
-            Alert.alert(
-              "Remove this upload?",
-              `${oldestItem.label}\n${oldestItem.path}\n\nOnly remove this if it is known to be stale or already saved elsewhere.`,
-              [
-                { text: "Keep", style: "cancel" },
-                {
-                  text: "Remove",
-                  style: "destructive",
-                  onPress: () => {
-                    void removeSyncQueueItem(oldestItem.id);
-                  }
-                }
-              ]
-            );
-            return;
+  const confirmRemoveSyncItem = (item: SyncQueueStateItem) => {
+    Alert.alert(
+      "Remove this upload?",
+      `${item.label}\n${item.path}\n\nOnly remove this if it is known to be stale, invalid or already saved elsewhere.`,
+      [
+        { text: "Keep", style: "cancel" },
+        {
+          text: "Remove",
+          style: "destructive",
+          onPress: () => {
+            void removeSyncQueueItem(item.id);
           }
-
-          void clearSyncQueue();
         }
-      }
-    ]);
+      ]
+    );
   };
 
   const accessibleSites = useMemo(() => {
@@ -690,6 +647,11 @@ export default function App() {
     setStaffMembers((currentStaff) => upsertStaffByCode(currentStaff, result?.staff ?? staff));
   };
 
+  const handleResetStaffPin = async (staffId: string) => {
+    const result = await resetStaffPin(staffId);
+    setStaffMembers((currentStaff) => upsertStaffByCode(currentStaff, result.staff));
+  };
+
   const handleUpdatePatient = (updatedPatient: Patient) => {
     const previousPatient = patients.find((patient) => patient.id === updatedPatient.id);
     const tesoHasEnded =
@@ -923,6 +885,7 @@ export default function App() {
             onUpdateWardRotaSettings={handleUpdateWardRotaSettings}
             onOpenSecurityCheckSettings={() => setScreen("securityCheckSettings")}
             onCreateStaff={handleCreateStaffMember}
+            onResetStaffPin={handleResetStaffPin}
           />
         ) : screen === "securityCheckSettings" ? (
           <SecurityCheckSettingsScreen
@@ -1086,6 +1049,77 @@ export default function App() {
           />
         )}
       </ScrollView>
+      <Modal animationType="fade" transparent visible={isSyncStatusVisible}>
+        <View style={styles.modalBackdrop}>
+          <View style={styles.syncModal}>
+            <View style={styles.syncModalHeader}>
+              <View>
+                <Text style={styles.syncModalTitle}>Sync status</Text>
+                <Text style={styles.syncModalMeta}>{syncStatusLabel(syncQueueState)}</Text>
+              </View>
+              <TouchableOpacity
+                accessibilityRole="button"
+                onPress={() => setIsSyncStatusVisible(false)}
+                style={styles.syncCloseButton}
+              >
+                <Text style={styles.syncCloseButtonText}>Close</Text>
+              </TouchableOpacity>
+            </View>
+
+            {syncQueueState.lastError ? (
+              <View style={styles.syncIssueBanner}>
+                <Text style={styles.syncIssueText}>Last issue: {syncQueueState.lastError}</Text>
+              </View>
+            ) : null}
+
+            <View style={styles.syncActions}>
+              <TouchableOpacity
+                accessibilityRole="button"
+                disabled={syncQueueState.pendingCount === 0 || syncQueueState.isSyncing}
+                onPress={() => {
+                  void flushSyncQueue();
+                }}
+                style={[
+                  styles.syncPrimaryButton,
+                  (syncQueueState.pendingCount === 0 || syncQueueState.isSyncing) && styles.syncButtonDisabled
+                ]}
+              >
+                <Text style={styles.syncPrimaryButtonText}>{syncQueueState.isSyncing ? "Retrying" : "Retry all"}</Text>
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView style={styles.syncList} contentContainerStyle={styles.syncListContent}>
+              {syncQueueState.items.length === 0 ? (
+                <View style={styles.syncEmpty}>
+                  <Text style={styles.syncEmptyTitle}>No waiting uploads</Text>
+                  <Text style={styles.syncEmptyText}>Everything saved locally has reached the backend.</Text>
+                </View>
+              ) : (
+                syncQueueState.items.map((item, index) => (
+                  <View key={item.id} style={styles.syncItem}>
+                    <View style={styles.syncItemHeader}>
+                      <Text style={styles.syncItemTitle}>
+                        {index + 1}. {item.label}
+                      </Text>
+                      <Text style={styles.syncItemAttempts}>Attempts {item.attempts}</Text>
+                    </View>
+                    <Text style={styles.syncItemMeta}>Path: {item.path}</Text>
+                    <Text style={styles.syncItemMeta}>Queued: {formatSyncDate(item.createdAt)}</Text>
+                    {item.lastError ? <Text style={styles.syncItemError}>Issue: {item.lastError}</Text> : null}
+                    <TouchableOpacity
+                      accessibilityRole="button"
+                      onPress={() => confirmRemoveSyncItem(item)}
+                      style={styles.syncRemoveButton}
+                    >
+                      <Text style={styles.syncRemoveButtonText}>Remove this upload</Text>
+                    </TouchableOpacity>
+                  </View>
+                ))
+              )}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -1303,6 +1337,20 @@ function syncStatusLabel(state: SyncQueueState) {
   return state.lastSyncedAt ? "Synced" : "Ready";
 }
 
+function formatSyncDate(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+
+  return date.toLocaleString([], {
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    month: "short"
+  });
+}
+
 const styles = StyleSheet.create({
   shell: {
     flex: 1,
@@ -1348,5 +1396,162 @@ const styles = StyleSheet.create({
     minWidth: 820,
     padding: 14,
     paddingBottom: 112
+  },
+  modalBackdrop: {
+    alignItems: "center",
+    backgroundColor: "rgba(15, 28, 34, 0.52)",
+    flex: 1,
+    justifyContent: "center",
+    padding: 18
+  },
+  syncModal: {
+    backgroundColor: "#ffffff",
+    borderRadius: 8,
+    maxHeight: "86%",
+    maxWidth: 760,
+    padding: 18,
+    width: "100%"
+  },
+  syncModalHeader: {
+    alignItems: "center",
+    borderBottomColor: "#d9e0e3",
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    paddingBottom: 12
+  },
+  syncModalTitle: {
+    color: "#18262c",
+    fontSize: 22,
+    fontWeight: "900"
+  },
+  syncModalMeta: {
+    color: "#617078",
+    fontSize: 13,
+    fontWeight: "800",
+    marginTop: 3
+  },
+  syncCloseButton: {
+    borderColor: "#1f5262",
+    borderRadius: 6,
+    borderWidth: 1,
+    minHeight: 38,
+    justifyContent: "center",
+    paddingHorizontal: 12
+  },
+  syncCloseButtonText: {
+    color: "#1f5262",
+    fontSize: 12,
+    fontWeight: "900"
+  },
+  syncIssueBanner: {
+    backgroundColor: "#fff7df",
+    borderColor: "#e2b857",
+    borderRadius: 8,
+    borderWidth: 1,
+    marginTop: 12,
+    padding: 10
+  },
+  syncIssueText: {
+    color: "#6f4b00",
+    fontSize: 13,
+    fontWeight: "800"
+  },
+  syncActions: {
+    flexDirection: "row",
+    gap: 10,
+    marginTop: 12
+  },
+  syncPrimaryButton: {
+    alignItems: "center",
+    backgroundColor: "#1f5262",
+    borderRadius: 6,
+    minHeight: 40,
+    justifyContent: "center",
+    paddingHorizontal: 14
+  },
+  syncPrimaryButtonText: {
+    color: "#ffffff",
+    fontSize: 13,
+    fontWeight: "900"
+  },
+  syncButtonDisabled: {
+    opacity: 0.45
+  },
+  syncList: {
+    marginTop: 12
+  },
+  syncListContent: {
+    gap: 10,
+    paddingBottom: 4
+  },
+  syncEmpty: {
+    backgroundColor: "#f8fafb",
+    borderColor: "#d9e0e3",
+    borderRadius: 8,
+    borderWidth: 1,
+    padding: 14
+  },
+  syncEmptyTitle: {
+    color: "#18262c",
+    fontSize: 15,
+    fontWeight: "900"
+  },
+  syncEmptyText: {
+    color: "#617078",
+    fontSize: 13,
+    fontWeight: "800",
+    marginTop: 4
+  },
+  syncItem: {
+    backgroundColor: "#f8fafb",
+    borderColor: "#d9e0e3",
+    borderRadius: 8,
+    borderWidth: 1,
+    gap: 6,
+    padding: 12
+  },
+  syncItemHeader: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: 10,
+    justifyContent: "space-between"
+  },
+  syncItemTitle: {
+    color: "#18262c",
+    flex: 1,
+    fontSize: 15,
+    fontWeight: "900"
+  },
+  syncItemAttempts: {
+    color: "#617078",
+    fontSize: 12,
+    fontWeight: "900"
+  },
+  syncItemMeta: {
+    color: "#617078",
+    fontSize: 12,
+    fontWeight: "800"
+  },
+  syncItemError: {
+    color: "#8a2d2d",
+    fontSize: 12,
+    fontWeight: "900"
+  },
+  syncRemoveButton: {
+    alignItems: "center",
+    alignSelf: "flex-start",
+    borderColor: "#9f2d28",
+    borderRadius: 6,
+    borderWidth: 1,
+    marginTop: 4,
+    minHeight: 36,
+    justifyContent: "center",
+    paddingHorizontal: 12
+  },
+  syncRemoveButtonText: {
+    color: "#9f2d28",
+    fontSize: 12,
+    fontWeight: "900"
   }
 });
