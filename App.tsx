@@ -18,6 +18,7 @@ import { SecurityChecks } from "./src/screens/SecurityChecks";
 import { StaffCoverScreen } from "./src/screens/StaffCoverScreen";
 import { StaffRotaScreen } from "./src/screens/StaffRotaScreen";
 import { WardDashboard } from "./src/screens/WardDashboard";
+import { WardOverviewScreen } from "./src/screens/WardOverviewScreen";
 import { WardSettingsScreen } from "./src/screens/WardSettingsScreen";
 import { seedData } from "./src/data/seedData";
 import {
@@ -71,6 +72,7 @@ import {
 } from "./src/services/syncQueue";
 import { parseStaffCardData } from "./src/utils/nfcStaffCard";
 import { readNfcTextPayload } from "./src/utils/nfcReader";
+import { calculateNews2Score } from "./src/utils/news2";
 import { hasAdminAccess, hasStaffRole } from "./src/utils/staffRole";
 import type {
   MedicationAdministration,
@@ -99,6 +101,7 @@ const defaultOrganisationSettings: OrganisationSettings = {
 
 type AppScreen =
   | "home"
+  | "wardOverview"
   | "adminSettings"
   | "auditLog"
   | "observations"
@@ -118,6 +121,7 @@ type AppScreen =
 
 export default function App() {
   const [screen, setScreen] = useState<AppScreen>("home");
+  const [workspaceBackScreen, setWorkspaceBackScreen] = useState<"wardOverview" | "observations">("wardOverview");
   const [news2Readings, setNews2Readings] = useState<News2Reading[]>(() => createDemoNews2Readings(seedData.patients[0]?.id ?? ""));
   const [observations, setObservations] = useState<Observation[]>(seedData.observations);
   const [patients, setPatients] = useState<Patient[]>(() => createDemoPatients());
@@ -853,7 +857,7 @@ export default function App() {
             onScanStaffCard={handleScanStaffCard}
             onOpenAdminSettings={() => setScreen("adminSettings")}
             onOpenWardSettings={() => setScreen("wardSettings")}
-            onStart={() => setScreen("observations")}
+            onStart={() => setScreen("wardOverview")}
           />
         ) : screen === "adminSettings" ? (
           <AdminSettingsScreen
@@ -897,6 +901,41 @@ export default function App() {
             onBack={() => setScreen("wardSettings")}
             onSaveArea={handleSaveSecurityArea}
           />
+        ) : screen === "wardOverview" ? (
+          <WardOverviewScreen
+            news2Readings={news2Readings}
+            observations={observations}
+            patients={wardPatients}
+            securityAreas={securityAreas}
+            securityChecks={securityChecks}
+            selectedStaffId={selectedStaffId}
+            staff={staffMembers}
+            staffShiftAssignments={staffShiftAssignments}
+            syncPendingCount={syncQueueState.pendingCount}
+            ward={selectedWard}
+            onChangeStaffOrWard={() => setScreen("home")}
+            onOpenEnhanced={() => {
+              setWorkspaceBackScreen("wardOverview");
+              setScreen("enhanced");
+            }}
+            onOpenGeneralObservations={() => setScreen("observations")}
+            onOpenMedicationChart={() => {
+              setWorkspaceBackScreen("wardOverview");
+              setScreen("medicationChart");
+            }}
+            onOpenNews2={() => {
+              setWorkspaceBackScreen("wardOverview");
+              setScreen("news2");
+            }}
+            onOpenSecurityChecks={() => {
+              setWorkspaceBackScreen("wardOverview");
+              setScreen("securityChecks");
+            }}
+            onOpenStaffRota={() => {
+              setWorkspaceBackScreen("wardOverview");
+              setScreen("staffRota");
+            }}
+          />
         ) : screen === "observations" ? (
           <WardDashboard
             news2Readings={news2Readings}
@@ -910,14 +949,30 @@ export default function App() {
             staff={staffMembers}
             wards={siteWards}
             onBackToHome={() => setScreen("home")}
-            onOpenNews2={() => setScreen("news2")}
-            onOpenEnhanced={() => setScreen("enhanced")}
+            onOpenOverview={() => setScreen("wardOverview")}
+            onOpenNews2={() => {
+              setWorkspaceBackScreen("observations");
+              setScreen("news2");
+            }}
+            onOpenEnhanced={() => {
+              setWorkspaceBackScreen("observations");
+              setScreen("enhanced");
+            }}
             onOpenPatientSettings={() => setScreen("patientSettings")}
             onOpenPreviousObservations={() => setScreen("previousObservations")}
-            onOpenSecurityChecks={() => setScreen("securityChecks")}
-            onOpenMedicationChart={() => setScreen("medicationChart")}
+            onOpenSecurityChecks={() => {
+              setWorkspaceBackScreen("observations");
+              setScreen("securityChecks");
+            }}
+            onOpenMedicationChart={() => {
+              setWorkspaceBackScreen("observations");
+              setScreen("medicationChart");
+            }}
             onOpenPatientManagement={() => setScreen("patientManagement")}
-            onOpenStaffRota={() => setScreen("staffRota")}
+            onOpenStaffRota={() => {
+              setWorkspaceBackScreen("observations");
+              setScreen("staffRota");
+            }}
             onMissedObservationSaved={handleCreateMissedObservation}
             onObservationSaved={handleObservationSaved}
             onSelectPatient={setSelectedPatientId}
@@ -929,7 +984,7 @@ export default function App() {
             patients={wardPatients}
             selectedStaffId={selectedStaffId}
             staff={staffMembers}
-            onBack={() => setScreen("observations")}
+            onBack={() => setScreen(workspaceBackScreen)}
             onMissedObservationSaved={handleCreateMissedObservation}
             onObservationSaved={handleObservationSaved}
             onUpdatePatient={handleUpdatePatient}
@@ -971,7 +1026,7 @@ export default function App() {
             staffShiftAssignments={staffShiftAssignments}
             staff={staffMembers}
             wards={siteWards}
-            onBack={() => setScreen("observations")}
+            onBack={() => setScreen(workspaceBackScreen)}
             onCreateAssignment={handleCreateRotaAssignment}
             onOpenBankAgencyStaff={() => setScreen("bankAgencyStaff")}
             onOpenStaffCover={() => setScreen("staffCover")}
@@ -1006,7 +1061,7 @@ export default function App() {
             selectedPatientId={selectedPatientId}
             selectedStaffId={selectedStaffId}
             staff={staffMembers}
-            onBack={() => setScreen("observations")}
+            onBack={() => setScreen(workspaceBackScreen)}
             onCreateReading={handleCreateNews2Reading}
             onSelectPatient={setSelectedPatientId}
           />
@@ -1019,7 +1074,7 @@ export default function App() {
             selectedPatientId={selectedPatientId}
             selectedStaffId={selectedStaffId}
             staff={staffMembers}
-            onBack={() => setScreen("observations")}
+            onBack={() => setScreen(workspaceBackScreen)}
             onCreateAdministration={handleCreateMedicationAdministration}
             onCreatePrescription={handleCreateMedicationPrescription}
             onDiscontinuePrescription={handleDiscontinueMedicationPrescription}
@@ -1034,7 +1089,7 @@ export default function App() {
             selectedStaffId={selectedStaffId}
             staff={staffMembers}
             wardName={wards.find((ward) => ward.id === selectedWardId)?.name ?? "Ward"}
-            onBack={() => setScreen("observations")}
+            onBack={() => setScreen(workspaceBackScreen)}
             onCreateCheck={handleCreateSecurityCheck}
           />
         ) : (
@@ -1180,12 +1235,7 @@ function createDemoNews2Readings(patientId: string): News2Reading[] {
 
     return {
       ...reading,
-      totalScore:
-        scoreRespiration(reading.respirationRate) +
-        scoreSpo2Scale1(reading.spo2) +
-        scoreBp(reading.systolicBp) +
-        scorePulse(reading.pulse) +
-        scoreTemperature(reading.temperature)
+      totalScore: calculateNews2Score(reading)
     };
   });
 }
@@ -1281,40 +1331,6 @@ function applyLatestGeneralObservations(patients: Patient[], observations: Obser
       onOffWard
     };
   });
-}
-
-function scoreRespiration(value: number) {
-  if (value <= 8 || value >= 25) return 3;
-  if (value >= 21) return 2;
-  if (value >= 9 && value <= 11) return 1;
-  return 0;
-}
-
-function scoreSpo2Scale1(value: number) {
-  if (value <= 91) return 3;
-  if (value <= 93) return 2;
-  if (value <= 95) return 1;
-  return 0;
-}
-
-function scoreBp(value: number) {
-  if (value <= 90 || value >= 220) return 3;
-  if (value <= 100) return 2;
-  if (value <= 110) return 1;
-  return 0;
-}
-
-function scorePulse(value: number) {
-  if (value <= 40 || value >= 131) return 3;
-  if (value >= 111) return 2;
-  if ((value >= 41 && value <= 50) || (value >= 91 && value <= 110)) return 1;
-  return 0;
-}
-
-function scoreTemperature(value: number) {
-  if (value <= 35 || value >= 39.1) return 3;
-  if (value >= 38.1 || value <= 36) return 1;
-  return 0;
 }
 
 function syncStatusLabel(state: SyncQueueState) {

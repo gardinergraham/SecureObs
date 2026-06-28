@@ -2,15 +2,87 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 
 import type { News2Consciousness, News2Reading, Patient, Spo2Scale, StaffMember } from "../types/domain";
+import { calculateNews2Score } from "../utils/news2";
 
-const respiratoryBands = ["≥25", "21-24", "18-20", "15-17", "12-14", "9-11", "≤8"];
-const spo2Scale1Bands = ["≥96", "94-95", "92-93", "≤91"];
-const spo2Scale2Bands = ["≥97 on O₂", "95-96 on O₂", "93-94 on O₂", "≥93 air", "88-92", "86-87", "84-85", "≤83"];
-const oxygenBands = ["Air", "Oxygen"];
-const bpBands = ["≥220", "201-219", "181-200", "161-180", "141-160", "121-140", "111-120", "101-110", "91-100", "81-90", "71-80", "61-70", "51-60", "≤50"];
-const pulseBands = ["≥131", "121-130", "111-120", "101-110", "91-100", "81-90", "71-80", "61-70", "51-60", "41-50", "31-40", "≤30"];
-const consciousnessBands = ["Alert", "New confusion", "Voice", "Pain", "Unresponsive"];
-const temperatureBands = ["≥39.1", "38.1-39.0", "37.1-38.0", "36.1-37.0", "35.1-36.0", "≤35.0"];
+type News2Band = {
+  label: string;
+  score: 0 | 1 | 2 | 3;
+};
+
+const respiratoryBands: News2Band[] = [
+  { label: "≥25", score: 3 },
+  { label: "21-24", score: 2 },
+  { label: "18-20", score: 0 },
+  { label: "15-17", score: 0 },
+  { label: "12-14", score: 0 },
+  { label: "9-11", score: 1 },
+  { label: "≤8", score: 3 }
+];
+const spo2Scale1Bands: News2Band[] = [
+  { label: "≥96", score: 0 },
+  { label: "94-95", score: 1 },
+  { label: "92-93", score: 2 },
+  { label: "≤91", score: 3 }
+];
+const spo2Scale2Bands: News2Band[] = [
+  { label: "≥97 on O₂", score: 3 },
+  { label: "95-96 on O₂", score: 2 },
+  { label: "93-94 on O₂", score: 1 },
+  { label: "≥93 air", score: 0 },
+  { label: "88-92", score: 0 },
+  { label: "86-87", score: 1 },
+  { label: "84-85", score: 2 },
+  { label: "≤83", score: 3 }
+];
+const oxygenBands: News2Band[] = [
+  { label: "Air", score: 0 },
+  { label: "Oxygen", score: 2 }
+];
+const bpBands: News2Band[] = [
+  { label: "≥220", score: 3 },
+  { label: "201-219", score: 0 },
+  { label: "181-200", score: 0 },
+  { label: "161-180", score: 0 },
+  { label: "141-160", score: 0 },
+  { label: "121-140", score: 0 },
+  { label: "111-120", score: 0 },
+  { label: "101-110", score: 1 },
+  { label: "91-100", score: 2 },
+  { label: "81-90", score: 3 },
+  { label: "71-80", score: 3 },
+  { label: "61-70", score: 3 },
+  { label: "51-60", score: 3 },
+  { label: "≤50", score: 3 }
+];
+const pulseBands: News2Band[] = [
+  { label: "≥131", score: 3 },
+  { label: "121-130", score: 2 },
+  { label: "111-120", score: 2 },
+  { label: "101-110", score: 1 },
+  { label: "91-100", score: 1 },
+  { label: "81-90", score: 0 },
+  { label: "71-80", score: 0 },
+  { label: "61-70", score: 0 },
+  { label: "51-60", score: 0 },
+  { label: "41-50", score: 1 },
+  { label: "31-40", score: 3 },
+  { label: "≤30", score: 3 }
+];
+const consciousnessBands: News2Band[] = [
+  { label: "Alert", score: 0 },
+  { label: "New confusion", score: 3 },
+  { label: "Voice", score: 3 },
+  { label: "Pain", score: 3 },
+  { label: "Unresponsive", score: 3 }
+];
+const temperatureBands: News2Band[] = [
+  { label: "≥39.1", score: 2 },
+  { label: "38.1-39.0", score: 1 },
+  { label: "37.1-38.0", score: 0 },
+  { label: "36.1-37.0", score: 0 },
+  { label: "35.1-36.0", score: 1 },
+  { label: "≤35.0", score: 3 }
+];
 
 type News2ScreenProps = {
   patients: Patient[];
@@ -116,7 +188,7 @@ export function News2Screen({
             <NumberField label="Pulse" value={form.pulse} onChange={(value) => setForm({ ...form, pulse: value })} />
             <ToggleRow
               label="Consciousness"
-              options={consciousnessBands}
+              options={consciousnessBands.map((band) => band.label)}
               selected={form.consciousness}
               onSelect={(value) => setForm({ ...form, consciousness: value as News2Consciousness })}
             />
@@ -252,20 +324,20 @@ function News2Chart({ readings, scrollRef }: { readings: News2Reading[]; scrollR
 }
 
 type ChartSectionProps = {
-  bands: string[];
+  bands: News2Band[];
   readings: News2Reading[];
   getBand: (reading: News2Reading) => string;
   getValue: (reading: News2Reading) => string;
 };
 
-function ChartSectionLabels({ title, bands }: { title: string; bands: string[] }) {
+function ChartSectionLabels({ title, bands }: { title: string; bands: News2Band[] }) {
   return (
     <View style={styles.chartSectionLabels}>
       <View style={styles.sectionLabel}><Text style={styles.sectionText}>{title}</Text></View>
       <View>
-        {bands.map((band, bandIndex) => (
-          <View key={band} style={styles.bandRow}>
-            <View style={[styles.bandLabel, bandColourStyle(bandIndex, bands.length)]}><Text style={styles.bandText}>{band}</Text></View>
+        {bands.map((band) => (
+          <View key={band.label} style={styles.bandRow}>
+            <View style={[styles.bandLabel, bandColourStyle(band.score)]}><Text style={styles.bandText}>{band.label}</Text></View>
           </View>
         ))}
       </View>
@@ -276,11 +348,11 @@ function ChartSectionLabels({ title, bands }: { title: string; bands: string[] }
 function ChartSectionValues({ bands, readings, getBand, getValue }: ChartSectionProps) {
   return (
     <View>
-      {bands.map((band, bandIndex) => (
-        <View key={band} style={styles.bandRow}>
+      {bands.map((band) => (
+        <View key={band.label} style={styles.bandRow}>
             {readings.map((reading) => (
-              <View key={`${reading.id}-${band}`} style={[styles.readingCell, bandColourStyle(bandIndex, bands.length)]}>
-                {getBand(reading) === band ? <Text style={styles.pointText}>{getValue(reading)}</Text> : null}
+              <View key={`${reading.id}-${band.label}`} style={[styles.readingCell, bandColourStyle(band.score)]}>
+                {getBand(reading) === band.label ? <Text style={styles.pointText}>{getValue(reading)}</Text> : null}
               </View>
             ))}
         </View>
@@ -331,64 +403,6 @@ function buildReading(patientId: string, recordedBy: string, form: {
     ...reading,
     totalScore: calculateNews2Score(reading)
   };
-}
-
-function calculateNews2Score(reading: Omit<News2Reading, "totalScore">) {
-  return (
-    respirationScore(reading.respirationRate) +
-    spo2Score(reading.spo2, reading.spo2Scale, reading.onOxygen) +
-    (reading.onOxygen ? 2 : 0) +
-    bpScore(reading.systolicBp) +
-    pulseScore(reading.pulse) +
-    consciousnessScore(reading.consciousness) +
-    temperatureScore(reading.temperature)
-  );
-}
-
-function respirationScore(value: number) {
-  if (value <= 8 || value >= 25) return 3;
-  if (value >= 21) return 2;
-  if (value >= 9 && value <= 11) return 1;
-  return 0;
-}
-
-function spo2Score(value: number, scale: Spo2Scale, onOxygen: boolean) {
-  if (scale === "Scale 1") {
-    if (value <= 91) return 3;
-    if (value <= 93) return 2;
-    if (value <= 95) return 1;
-    return 0;
-  }
-
-  if (value <= 83 || (onOxygen && value >= 97)) return 3;
-  if (value <= 85 || (onOxygen && value >= 95)) return 2;
-  if (value <= 87 || (onOxygen && value >= 93)) return 1;
-  return 0;
-}
-
-function bpScore(value: number) {
-  if (value <= 90 || value >= 220) return 3;
-  if (value <= 100) return 2;
-  if (value <= 110) return 1;
-  return 0;
-}
-
-function pulseScore(value: number) {
-  if (value <= 40 || value >= 131) return 3;
-  if (value >= 111) return 2;
-  if ((value >= 41 && value <= 50) || (value >= 91 && value <= 110)) return 1;
-  return 0;
-}
-
-function consciousnessScore(value: News2Consciousness) {
-  return value === "Alert" ? 0 : 3;
-}
-
-function temperatureScore(value: number) {
-  if (value <= 35 || value >= 39.1) return 3;
-  if (value >= 38.1) return 1;
-  if (value >= 36.1) return 0;
-  return 1;
 }
 
 function respirationBand(value: number) {
@@ -473,10 +487,10 @@ function formatTime(value: string) {
   return new Date(value).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 }
 
-function bandColourStyle(index: number, total: number) {
-  if (index === 0 || index === total - 1) return styles.redBand;
-  if (index === 1 || index === total - 2) return styles.orangeBand;
-  if (index === 2 || index === total - 3) return styles.yellowBand;
+function bandColourStyle(score: News2Band["score"]) {
+  if (score === 3) return styles.redBand;
+  if (score === 2) return styles.orangeBand;
+  if (score === 1) return styles.yellowBand;
   return styles.whiteBand;
 }
 

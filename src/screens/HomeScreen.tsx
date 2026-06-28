@@ -417,7 +417,7 @@ export function HomeScreen({
                 ? "General, enhanced, NEWS2, medication and ward workflows"
                 : "Select staff, site and ward"
           }
-          title="Open ward workspace"
+          title="Open ward overview"
           tone="primary"
           onPress={onStart}
         />

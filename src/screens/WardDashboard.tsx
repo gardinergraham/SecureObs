@@ -43,6 +43,7 @@ type WardDashboardProps = {
   selectedWardId: string;
   selectedPatientId: string;
   onBackToHome: () => void;
+  onOpenOverview: () => void;
   onOpenNews2: () => void;
   onOpenEnhanced: () => void;
   onOpenPatientSettings: () => void;
@@ -68,6 +69,7 @@ export function WardDashboard({
   selectedWardId,
   selectedPatientId,
   onBackToHome,
+  onOpenOverview,
   onOpenNews2,
   onOpenEnhanced,
   onOpenPatientSettings,
@@ -266,6 +268,9 @@ export function WardDashboard({
           </Text>
         </View>
         <View style={styles.sessionActions}>
+          <TouchableOpacity accessibilityRole="button" onPress={onOpenOverview} style={styles.changeButton}>
+            <Text style={styles.changeButtonText}>Ward overview</Text>
+          </TouchableOpacity>
           <TouchableOpacity accessibilityRole="button" onPress={onBackToHome} style={styles.changeButton}>
             <Text style={styles.changeButtonText}>Change staff or ward</Text>
           </TouchableOpacity>
