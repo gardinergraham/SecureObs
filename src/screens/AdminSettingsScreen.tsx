@@ -93,6 +93,8 @@ export function AdminSettingsScreen({
       medicationChartEnabled: true,
       staffRotaEnabled: true,
       assessmentFormsEnabled: serviceType === "Care home",
+      foodFluidChartEnabled: serviceType === "Care home",
+      landingPage: "overview",
       sessionTimeoutMinutes: 15,
       rotaShiftCount: 3,
       rotaShifts: [

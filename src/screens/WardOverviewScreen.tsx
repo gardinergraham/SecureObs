@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 
 import type {
+  FoodFluidEntry,
   News2Reading,
   Observation,
   Patient,
@@ -14,6 +15,7 @@ import type {
 import { normaliseStaffRole } from "../utils/staffRole";
 
 type WardOverviewScreenProps = {
+  foodFluidEntries: FoodFluidEntry[];
   news2Readings: News2Reading[];
   observations: Observation[];
   patients: Patient[];
@@ -26,6 +28,7 @@ type WardOverviewScreenProps = {
   ward?: Ward;
   onChangeStaffOrWard: () => void;
   onOpenEnhanced: () => void;
+  onOpenFoodFluidChart: () => void;
   onOpenGeneralObservations: () => void;
   onOpenMedicationChart: () => void;
   onOpenNews2: () => void;
@@ -43,6 +46,7 @@ type TimedPatient = {
 };
 
 export function WardOverviewScreen({
+  foodFluidEntries,
   news2Readings,
   observations,
   patients,
@@ -55,6 +59,7 @@ export function WardOverviewScreen({
   ward,
   onChangeStaffOrWard,
   onOpenEnhanced,
+  onOpenFoodFluidChart,
   onOpenGeneralObservations,
   onOpenMedicationChart,
   onOpenNews2,
@@ -156,6 +161,24 @@ export function WardOverviewScreen({
         return scoreDifference || left.patient.roomNumber - right.patient.roomNumber;
       });
   }, [news2Readings, patients]);
+
+  const todayFoodFluidEntries = useMemo(() => {
+    const patientIds = new Set(patients.map((patient) => patient.id));
+    const todayKey = formatDateKey(new Date(now));
+    return foodFluidEntries
+      .filter(
+        (entry) =>
+          patientIds.has(entry.patientId) && formatDateKey(new Date(entry.recordedAt)) === todayKey
+      )
+      .sort((left, right) => right.recordedAt.localeCompare(left.recordedAt));
+  }, [foodFluidEntries, now, patients]);
+  const todayFluidTotal = todayFoodFluidEntries.reduce(
+    (total, entry) => total + (entry.fluidTakenMl ?? 0),
+    0
+  );
+  const todayLowIntakeCount = todayFoodFluidEntries.filter(
+    (entry) => entry.intakeLevel === "Refused" || entry.intakeLevel === "Less than half"
+  ).length;
 
   const activeSecurityAreas = useMemo(
     () => securityAreas.filter((area) => area.wardId === ward?.id && area.active !== false),
@@ -298,6 +321,42 @@ export function WardOverviewScreen({
           </OverviewCard>
         ) : null}
 
+        {ward?.foodFluidChartEnabled ? (
+          <OverviewCard
+            actionLabel="Open food and fluid chart"
+            eyebrow={`${todayFoodFluidEntries.length} entries today · ${todayFluidTotal} ml fluid`}
+            title="Food and fluid"
+            onPress={onOpenFoodFluidChart}
+          >
+            {todayFoodFluidEntries.length === 0 ? (
+              <Text style={styles.emptyText}>No food or fluid intake recorded today.</Text>
+            ) : (
+              todayFoodFluidEntries.slice(0, 4).map((entry) => {
+                const patient = patients.find((item) => item.id === entry.patientId);
+                return (
+                  <View key={entry.id} style={styles.miniRow}>
+                    <View style={styles.miniRowCopy}>
+                      <Text style={styles.miniRowTitle}>
+                        Room {patient?.roomNumber ?? "—"} · {entry.itemDescription}
+                      </Text>
+                      <Text style={styles.miniRowMeta}>
+                        {entry.mealPeriod} · {formatShortDateTime(entry.recordedAt)}
+                        {entry.entryType === "Drink" ? ` · ${entry.fluidTakenMl ?? 0} ml` : ""}
+                      </Text>
+                    </View>
+                    <FoodFluidPill intakeLevel={entry.intakeLevel} />
+                  </View>
+                );
+              })
+            )}
+            {todayLowIntakeCount > 0 ? (
+              <Text style={styles.warningText}>
+                {todayLowIntakeCount} entr{todayLowIntakeCount === 1 ? "y" : "ies"} refused or below half today.
+              </Text>
+            ) : null}
+          </OverviewCard>
+        ) : null}
+
         {ward?.news2Enabled ? (
           <OverviewCard
             actionLabel="Open NEWS2"
@@ -383,6 +442,9 @@ export function WardOverviewScreen({
           <QuickAction label="Record general check" onPress={onOpenGeneralObservations} />
           {ward?.enhancedObservationsEnabled ? <QuickAction label="Enhanced / TESO" onPress={onOpenEnhanced} /> : null}
           {ward?.news2Enabled ? <QuickAction label="Record NEWS2" onPress={onOpenNews2} /> : null}
+          {ward?.foodFluidChartEnabled ? (
+            <QuickAction label="Food & fluid" onPress={onOpenFoodFluidChart} />
+          ) : null}
           {ward?.securityChecksEnabled ? <QuickAction label="Security check" onPress={onOpenSecurityChecks} /> : null}
           {ward?.medicationChartEnabled ? <QuickAction label="Medication chart" onPress={onOpenMedicationChart} /> : null}
         </View>
@@ -493,6 +555,15 @@ function News2Pill({ score }: { score?: number }) {
     >
       <Text style={styles.news2PillLabel}>NEWS2</Text>
       <Text style={styles.news2PillScore}>{score ?? "—"}</Text>
+    </View>
+  );
+}
+
+function FoodFluidPill({ intakeLevel }: { intakeLevel: FoodFluidEntry["intakeLevel"] }) {
+  const low = intakeLevel === "Refused" || intakeLevel === "Less than half";
+  return (
+    <View style={[styles.foodFluidPill, low && styles.foodFluidPillLow]}>
+      <Text style={[styles.foodFluidPillText, low && styles.foodFluidPillTextLow]}>{intakeLevel}</Text>
     </View>
   );
 }
@@ -803,6 +874,10 @@ const styles = StyleSheet.create({
   news2PillRed: { backgroundColor: "#f08f78", borderColor: "#cc6a55" },
   news2PillLabel: { color: "#52636a", fontSize: 8, fontWeight: "900" },
   news2PillScore: { color: "#18262c", fontSize: 17, fontWeight: "900" },
+  foodFluidPill: { backgroundColor: "#e6f3ec", borderRadius: 999, paddingHorizontal: 9, paddingVertical: 6 },
+  foodFluidPillLow: { backgroundColor: "#f6bdb1" },
+  foodFluidPillText: { color: "#2c604f", fontSize: 9, fontWeight: "900" },
+  foodFluidPillTextLow: { color: "#91382e" },
   leadGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   leadDetail: { backgroundColor: "#f5f8f9", borderRadius: 7, flexGrow: 1, minWidth: 210, padding: 10 },
   leadLabel: { color: "#6b797f", fontSize: 10, fontWeight: "900", textTransform: "uppercase" },

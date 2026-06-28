@@ -49,6 +49,8 @@ export const seedData: {
       medicationChartEnabled: true,
       staffRotaEnabled: true,
       assessmentFormsEnabled: false,
+      foodFluidChartEnabled: false,
+      landingPage: "overview",
       sessionTimeoutMinutes: 15,
       rotaShiftCount: 3,
       rotaShifts: [
@@ -71,6 +73,8 @@ export const seedData: {
       medicationChartEnabled: false,
       staffRotaEnabled: false,
       assessmentFormsEnabled: false,
+      foodFluidChartEnabled: false,
+      landingPage: "overview",
       sessionTimeoutMinutes: 15,
       rotaShiftCount: 3,
       rotaShifts: [
@@ -93,6 +97,8 @@ export const seedData: {
       medicationChartEnabled: true,
       staffRotaEnabled: true,
       assessmentFormsEnabled: true,
+      foodFluidChartEnabled: true,
+      landingPage: "overview",
       sessionTimeoutMinutes: 15,
       rotaShiftCount: 2,
       rotaShifts: [

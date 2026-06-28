@@ -37,7 +37,9 @@ begin
     security_checks_enabled bit not null default 1,
     medication_chart_enabled bit not null default 1,
     staff_rota_enabled bit not null default 1,
-    assessment_forms_enabled bit not null default 0
+    assessment_forms_enabled bit not null default 0,
+    food_fluid_chart_enabled bit not null default 0,
+    landing_page nvarchar(20) not null default 'overview'
   );
 end;
 

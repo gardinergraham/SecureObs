@@ -6,6 +6,7 @@ import { AdminSettingsScreen } from "./src/screens/AdminSettingsScreen";
 import { AuditLogScreen } from "./src/screens/AuditLogScreen";
 import { BankAgencyStaffScreen } from "./src/screens/BankAgencyStaffScreen";
 import { EnhancedObservationScreen } from "./src/screens/EnhancedObservationScreen";
+import { FoodFluidChartScreen } from "./src/screens/FoodFluidChartScreen";
 import { HomeScreen } from "./src/screens/HomeScreen";
 import { MedicationChartScreen } from "./src/screens/MedicationChartScreen";
 import { News2Screen } from "./src/screens/News2Screen";
@@ -25,6 +26,7 @@ import {
   createMissedObservation as persistMissedObservation,
   createMedicationAdministration as persistMedicationAdministration,
   createMedicationPrescription as persistMedicationPrescription,
+  createFoodFluidEntry as persistFoodFluidEntry,
   createNews2Reading as persistNews2Reading,
   saveOrganisationSettings as persistOrganisationSettings,
   createSite as persistSite,
@@ -37,6 +39,7 @@ import {
   loadSites,
   loadMedicationAdministrations,
   loadMedicationPrescriptions,
+  loadFoodFluidEntries,
   loadMissedObservations,
   loadNews2Readings,
   loadObservations,
@@ -75,6 +78,7 @@ import { readNfcTextPayload } from "./src/utils/nfcReader";
 import { calculateNews2Score } from "./src/utils/news2";
 import { hasAdminAccess, hasStaffRole } from "./src/utils/staffRole";
 import type {
+  FoodFluidEntry,
   MedicationAdministration,
   MissedObservation,
   MedicationPrescription,
@@ -116,6 +120,7 @@ type AppScreen =
   | "wardSettings"
   | "securityCheckSettings"
   | "medicationChart"
+  | "foodFluidChart"
   | "news2"
   | "securityChecks";
 
@@ -123,6 +128,7 @@ export default function App() {
   const [screen, setScreen] = useState<AppScreen>("home");
   const [workspaceBackScreen, setWorkspaceBackScreen] = useState<"wardOverview" | "observations">("wardOverview");
   const [news2Readings, setNews2Readings] = useState<News2Reading[]>(() => createDemoNews2Readings(seedData.patients[0]?.id ?? ""));
+  const [foodFluidEntries, setFoodFluidEntries] = useState<FoodFluidEntry[]>([]);
   const [observations, setObservations] = useState<Observation[]>(seedData.observations);
   const [patients, setPatients] = useState<Patient[]>(() => createDemoPatients());
   const [rotaAssignments, setRotaAssignments] = useState<RotaAssignment[]>(seedData.rotaAssignments);
@@ -185,6 +191,7 @@ export default function App() {
           securityAreaResult,
           securityCheckResult,
           news2Result,
+          foodFluidResult,
           medicationPrescriptionResult,
           medicationAdministrationResult,
           missedObservationResult,
@@ -200,6 +207,7 @@ export default function App() {
           loadSecurityAreas(organisationId, selectedWardId || undefined),
           loadSecurityChecks(organisationId),
           loadNews2Readings(organisationId),
+          loadFoodFluidEntries(organisationId),
           loadMedicationPrescriptions(organisationId),
           loadMedicationAdministrations(organisationId),
           loadMissedObservations(organisationId, selectedWardId || undefined),
@@ -227,6 +235,7 @@ export default function App() {
         );
         setSecurityChecks((currentChecks) => mergeById(securityCheckResult.securityChecks, currentChecks));
         setNews2Readings((currentReadings) => mergeById(news2Result.news2Readings, currentReadings));
+        setFoodFluidEntries((currentEntries) => mergeById(foodFluidResult.foodFluidEntries, currentEntries));
         setMedicationPrescriptions((currentPrescriptions) =>
           mergeById(medicationPrescriptionResult.medicationPrescriptions, currentPrescriptions)
         );
@@ -747,6 +756,18 @@ export default function App() {
     );
   };
 
+  const handleCreateFoodFluidEntry = (entry: FoodFluidEntry) => {
+    setFoodFluidEntries((currentEntries) => [entry, ...currentEntries]);
+    void persistOrQueue("food and fluid entry", () =>
+      persistFoodFluidEntry({
+        ...entry,
+        organisationId: selectedStaff?.organisationId,
+        actorStaffId: selectedStaff?.id,
+        actorStaffCode: selectedStaff?.staffCode
+      })
+    );
+  };
+
   const handleCreateSecurityCheck = (check: SecurityCheck) => {
     setSecurityChecks((currentChecks) => [check, ...currentChecks]);
     void persistOrQueue("security check", () =>
@@ -857,7 +878,7 @@ export default function App() {
             onScanStaffCard={handleScanStaffCard}
             onOpenAdminSettings={() => setScreen("adminSettings")}
             onOpenWardSettings={() => setScreen("wardSettings")}
-            onStart={() => setScreen("wardOverview")}
+            onStart={() => setScreen(selectedWard?.landingPage === "observations" ? "observations" : "wardOverview")}
           />
         ) : screen === "adminSettings" ? (
           <AdminSettingsScreen
@@ -903,6 +924,7 @@ export default function App() {
           />
         ) : screen === "wardOverview" ? (
           <WardOverviewScreen
+            foodFluidEntries={foodFluidEntries}
             news2Readings={news2Readings}
             observations={observations}
             patients={wardPatients}
@@ -919,6 +941,10 @@ export default function App() {
               setScreen("enhanced");
             }}
             onOpenGeneralObservations={() => setScreen("observations")}
+            onOpenFoodFluidChart={() => {
+              setWorkspaceBackScreen("wardOverview");
+              setScreen("foodFluidChart");
+            }}
             onOpenMedicationChart={() => {
               setWorkspaceBackScreen("wardOverview");
               setScreen("medicationChart");
@@ -950,6 +976,10 @@ export default function App() {
             wards={siteWards}
             onBackToHome={() => setScreen("home")}
             onOpenOverview={() => setScreen("wardOverview")}
+            onOpenFoodFluidChart={() => {
+              setWorkspaceBackScreen("observations");
+              setScreen("foodFluidChart");
+            }}
             onOpenNews2={() => {
               setWorkspaceBackScreen("observations");
               setScreen("news2");
@@ -1063,6 +1093,17 @@ export default function App() {
             staff={staffMembers}
             onBack={() => setScreen(workspaceBackScreen)}
             onCreateReading={handleCreateNews2Reading}
+            onSelectPatient={setSelectedPatientId}
+          />
+        ) : screen === "foodFluidChart" ? (
+          <FoodFluidChartScreen
+            entries={foodFluidEntries}
+            patients={wardPatients}
+            selectedPatientId={selectedPatientId}
+            selectedStaffId={selectedStaffId}
+            staff={staffMembers}
+            onBack={() => setScreen(workspaceBackScreen)}
+            onCreateEntry={handleCreateFoodFluidEntry}
             onSelectPatient={setSelectedPatientId}
           />
         ) : screen === "medicationChart" ? (

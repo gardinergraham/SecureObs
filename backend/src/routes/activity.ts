@@ -51,6 +51,44 @@ const news2ReadingSchema = z.object({
   totalScore: z.number().int()
 });
 
+const foodFluidEntrySchema = z
+  .object({
+    id: z.string().min(1).optional(),
+    organisationId: optionalOrganisationIdSchema,
+    patientId: z.string().min(1),
+    recordedAt: z.string().datetime(),
+    recordedBy: z.string().min(1),
+    mealPeriod: z.enum(["Breakfast", "Mid-morning", "Lunch", "Mid-afternoon", "Evening meal", "Bedtime"]),
+    entryType: z.enum(["Food", "Drink", "Supplement"]),
+    itemDescription: z.string().min(1),
+    portionOffered: z.string().min(1),
+    intakeLevel: z.enum(["Refused", "Less than half", "Half", "More than half", "All"]),
+    fluidOfferedMl: z.number().int().nonnegative().optional(),
+    fluidTakenMl: z.number().int().nonnegative().optional(),
+    assistanceNotes: z.string().default(""),
+    comments: z.string().default("")
+  })
+  .superRefine((entry, context) => {
+    if (entry.entryType === "Drink" && (entry.fluidOfferedMl === undefined || entry.fluidTakenMl === undefined)) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Drink entries require offered and taken millilitres",
+        path: ["fluidTakenMl"]
+      });
+    }
+    if (
+      entry.fluidOfferedMl !== undefined &&
+      entry.fluidTakenMl !== undefined &&
+      entry.fluidTakenMl > entry.fluidOfferedMl
+    ) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Fluid taken cannot exceed fluid offered",
+        path: ["fluidTakenMl"]
+      });
+    }
+  });
+
 const medicationPrescriptionSchema = z.object({
   id: z.string().min(1).optional(),
   organisationId: optionalOrganisationIdSchema,
@@ -399,6 +437,119 @@ router.post("/news2-readings", requireStaffRole(["nurse", "manager", "doctor"]),
     next(error);
   }
 });
+
+router.get("/food-fluid-entries", async (request, response, next) => {
+  try {
+    const organisationId = requireOrganisationId(request, response);
+    if (!organisationId) return;
+    const result = await pool.query(
+      `
+        select
+          id,
+          patient_id as "patientId",
+          recorded_at as "recordedAt",
+          recorded_by as "recordedBy",
+          meal_period as "mealPeriod",
+          entry_type as "entryType",
+          item_description as "itemDescription",
+          portion_offered as "portionOffered",
+          intake_level as "intakeLevel",
+          fluid_offered_ml as "fluidOfferedMl",
+          fluid_taken_ml as "fluidTakenMl",
+          assistance_notes as "assistanceNotes",
+          comments
+        from food_fluid_entries
+        where organisation_id = $1
+        order by recorded_at desc
+      `,
+      [organisationId]
+    );
+
+    response.json({ foodFluidEntries: result.rows });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post(
+  "/food-fluid-entries",
+  requireStaffRole([...anyWardStaff]),
+  async (request, response, next) => {
+    try {
+      const parsed = foodFluidEntrySchema.safeParse(request.body);
+      if (!parsed.success) {
+        response.status(400).json({ error: "Invalid food or fluid entry", details: parsed.error.flatten() });
+        return;
+      }
+
+      const organisationId = requireOrganisationId(request, response);
+      if (!organisationId) return;
+      const entry = {
+        ...parsed.data,
+        organisationId,
+        id: parsed.data.id ?? `food-fluid-${Date.now()}`
+      };
+      const result = await pool.query(
+        `
+          insert into food_fluid_entries (
+            id, organisation_id, patient_id, recorded_at, recorded_by, meal_period, entry_type,
+            item_description, portion_offered, intake_level, fluid_offered_ml, fluid_taken_ml,
+            assistance_notes, comments
+          ) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
+          on conflict (id) do nothing
+          returning
+            id,
+            patient_id as "patientId",
+            recorded_at as "recordedAt",
+            recorded_by as "recordedBy",
+            meal_period as "mealPeriod",
+            entry_type as "entryType",
+            item_description as "itemDescription",
+            portion_offered as "portionOffered",
+            intake_level as "intakeLevel",
+            fluid_offered_ml as "fluidOfferedMl",
+            fluid_taken_ml as "fluidTakenMl",
+            assistance_notes as "assistanceNotes",
+            comments
+        `,
+        [
+          entry.id,
+          entry.organisationId,
+          entry.patientId,
+          entry.recordedAt,
+          entry.recordedBy,
+          entry.mealPeriod,
+          entry.entryType,
+          entry.itemDescription,
+          entry.portionOffered,
+          entry.intakeLevel,
+          entry.fluidOfferedMl ?? null,
+          entry.fluidTakenMl ?? null,
+          entry.assistanceNotes,
+          entry.comments
+        ]
+      );
+
+      await recordAuditEvent({
+        organisationId: entry.organisationId,
+        ...auditActorFromBody(request.body),
+        eventType: "food_fluid.save",
+        entityType: "food_fluid_entry",
+        entityId: entry.id,
+        details: {
+          patientId: entry.patientId,
+          mealPeriod: entry.mealPeriod,
+          entryType: entry.entryType,
+          intakeLevel: entry.intakeLevel,
+          fluidTakenMl: entry.fluidTakenMl
+        }
+      });
+      response.status(201).json(result.rows[0] ?? entry);
+    } catch (error) {
+      next(error);
+    }
+  }
+);
 
 router.get("/medication-prescriptions", async (request, response, next) => {
   try {

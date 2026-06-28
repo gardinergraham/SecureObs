@@ -4,6 +4,7 @@ import { configureSyncQueue, enqueueFailedRequest, flushSyncQueue, QueuedSyncErr
 import type {
   AuditEvent,
   AuthSession,
+  FoodFluidEntry,
   MedicationAdministration,
   MissedObservation,
   MedicationPrescription,
@@ -247,6 +248,13 @@ export async function createNews2Reading(reading: OrganisationScoped<News2Readin
   });
 }
 
+export async function createFoodFluidEntry(entry: OrganisationScoped<FoodFluidEntry> & ActorScoped) {
+  return saveQueuedRequest<FoodFluidEntry>("food and fluid entry", "/api/food-fluid-entries", {
+    method: "POST",
+    body: JSON.stringify(entry)
+  });
+}
+
 export async function saveRotaAssignment(assignment: OrganisationScoped<RotaAssignment>) {
   return saveQueuedRequest<RotaAssignment>("rota assignment", "/api/rota-assignments", {
     method: "POST",
@@ -307,6 +315,12 @@ export async function loadAuditEvents({
 
 export async function loadNews2Readings(organisationId?: string) {
   return request<{ news2Readings: News2Reading[] }>(withOrganisationId("/api/news2-readings", organisationId));
+}
+
+export async function loadFoodFluidEntries(organisationId?: string) {
+  return request<{ foodFluidEntries: FoodFluidEntry[] }>(
+    withOrganisationId("/api/food-fluid-entries", organisationId)
+  );
 }
 
 export async function createMedicationPrescription(prescription: OrganisationScoped<MedicationPrescription> & ActorScoped) {

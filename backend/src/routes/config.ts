@@ -31,6 +31,8 @@ const wardSchema = z.object({
   medicationChartEnabled: z.boolean().default(true),
   staffRotaEnabled: z.boolean().default(true),
   assessmentFormsEnabled: z.boolean().default(false),
+  foodFluidChartEnabled: z.boolean().default(false),
+  landingPage: z.enum(["overview", "observations"]).default("overview"),
   sessionTimeoutMinutes: z.number().int().positive().default(15),
   rotaShiftCount: z.number().int().positive().default(3),
   rotaShifts: z
@@ -195,6 +197,8 @@ router.get("/wards", async (request, response, next) => {
         wards.medication_chart_enabled as "medicationChartEnabled",
         wards.staff_rota_enabled as "staffRotaEnabled",
         wards.assessment_forms_enabled as "assessmentFormsEnabled",
+        wards.food_fluid_chart_enabled as "foodFluidChartEnabled",
+        wards.landing_page as "landingPage",
         wards.session_timeout_minutes as "sessionTimeoutMinutes",
         wards.rota_shift_count as "rotaShiftCount",
         wards.rota_shifts as "rotaShifts",
@@ -242,8 +246,9 @@ router.post("/wards", requireStaffRole(["manager", "super_admin"]), async (reque
         insert into wards (
           id, site_id, name, service_type, observation_interval_minutes, news2_enabled,
           enhanced_observations_enabled, security_checks_enabled, medication_chart_enabled, staff_rota_enabled,
-          assessment_forms_enabled, session_timeout_minutes, rota_shift_count, rota_shifts, break_duration_minutes
-        ) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14::jsonb,$15)
+          assessment_forms_enabled, food_fluid_chart_enabled, landing_page, session_timeout_minutes,
+          rota_shift_count, rota_shifts, break_duration_minutes
+        ) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16::jsonb,$17)
         on conflict (id) do update set
           site_id = excluded.site_id,
           name = excluded.name,
@@ -255,6 +260,8 @@ router.post("/wards", requireStaffRole(["manager", "super_admin"]), async (reque
           medication_chart_enabled = excluded.medication_chart_enabled,
           staff_rota_enabled = excluded.staff_rota_enabled,
           assessment_forms_enabled = excluded.assessment_forms_enabled,
+          food_fluid_chart_enabled = excluded.food_fluid_chart_enabled,
+          landing_page = excluded.landing_page,
           session_timeout_minutes = excluded.session_timeout_minutes,
           rota_shift_count = excluded.rota_shift_count,
           rota_shifts = excluded.rota_shifts,
@@ -271,6 +278,8 @@ router.post("/wards", requireStaffRole(["manager", "super_admin"]), async (reque
           medication_chart_enabled as "medicationChartEnabled",
           staff_rota_enabled as "staffRotaEnabled",
           assessment_forms_enabled as "assessmentFormsEnabled",
+          food_fluid_chart_enabled as "foodFluidChartEnabled",
+          landing_page as "landingPage",
           session_timeout_minutes as "sessionTimeoutMinutes",
           rota_shift_count as "rotaShiftCount",
           rota_shifts as "rotaShifts",
@@ -288,6 +297,8 @@ router.post("/wards", requireStaffRole(["manager", "super_admin"]), async (reque
         ward.medicationChartEnabled,
         ward.staffRotaEnabled,
         ward.assessmentFormsEnabled,
+        ward.foodFluidChartEnabled,
+        ward.landingPage,
         ward.sessionTimeoutMinutes,
         ward.rotaShiftCount,
         JSON.stringify(ward.rotaShifts),
@@ -304,7 +315,9 @@ router.post("/wards", requireStaffRole(["manager", "super_admin"]), async (reque
       details: {
         name: ward.name,
         siteId: ward.siteId,
-        observationIntervalMinutes: ward.observationIntervalMinutes
+        observationIntervalMinutes: ward.observationIntervalMinutes,
+        foodFluidChartEnabled: ward.foodFluidChartEnabled,
+        landingPage: ward.landingPage
       }
     });
     response.status(201).json(toAppWard(result.rows[0]));
@@ -458,6 +471,8 @@ function toAppWard(row: Record<string, unknown>) {
     rotaShifts,
     breakDurationMinutes: Number(row.breakDurationMinutes ?? 30),
     assessmentFormsEnabled: Boolean(row.assessmentFormsEnabled ?? false),
+    foodFluidChartEnabled: Boolean(row.foodFluidChartEnabled ?? false),
+    landingPage: row.landingPage === "observations" ? "observations" : "overview",
     selected: false
   };
 }

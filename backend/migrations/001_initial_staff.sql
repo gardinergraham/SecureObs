@@ -23,7 +23,9 @@ create table if not exists wards (
   security_checks_enabled boolean not null default true,
   medication_chart_enabled boolean not null default true,
   staff_rota_enabled boolean not null default true,
-  assessment_forms_enabled boolean not null default false
+  assessment_forms_enabled boolean not null default false,
+  food_fluid_chart_enabled boolean not null default false,
+  landing_page text not null default 'overview' check (landing_page in ('overview', 'observations'))
 );
 
 create table if not exists staff_members (

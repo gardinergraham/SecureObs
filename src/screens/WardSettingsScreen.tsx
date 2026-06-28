@@ -432,6 +432,55 @@ export function WardSettingsScreen({
           <Text style={styles.serviceSummaryText}>{selectedWard?.serviceType ?? "Not set"}</Text>
         </View>
 
+        <Text style={styles.settingLabel}>Landing page after login</Text>
+        <Text style={styles.meta}>
+          Choose the first ward screen staff see after selecting this ward.
+        </Text>
+        <View style={styles.optionRow}>
+          <TouchableOpacity
+            accessibilityRole="button"
+            disabled={!selectedWard || !canEditWardSettings}
+            onPress={() => updateWardSettings({ landingPage: "overview" })}
+            style={[
+              styles.optionButton,
+              (selectedWard?.landingPage ?? "overview") === "overview" && styles.optionButtonActive,
+              !canEditWardSettings && styles.disabledControl
+            ]}
+          >
+            <Text
+              style={[
+                styles.optionText,
+                (selectedWard?.landingPage ?? "overview") === "overview" && styles.optionTextActive
+              ]}
+            >
+              Ward overview
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            accessibilityRole="button"
+            disabled={!selectedWard || !canEditWardSettings}
+            onPress={() => updateWardSettings({ landingPage: "observations" })}
+            style={[
+              styles.optionButton,
+              selectedWard?.landingPage === "observations" && styles.optionButtonActive,
+              !canEditWardSettings && styles.disabledControl
+            ]}
+          >
+            <Text
+              style={[
+                styles.optionText,
+                selectedWard?.landingPage === "observations" && styles.optionTextActive
+              ]}
+            >
+              Patient checks
+            </Text>
+          </TouchableOpacity>
+        </View>
+        <Text style={styles.meta}>
+          Ward overview shows the quick-view dashboard. Patient checks opens the original general-observation
+          screen and top menu.
+        </Text>
+
         <Text style={styles.settingLabel}>Ward modules</Text>
         <FeatureToggle
           disabled={!selectedWard || !canEditWardSettings}
@@ -477,6 +526,13 @@ export function WardSettingsScreen({
           label="Assessment forms"
           meta="Care home forms, signatures and printable assessments"
           onToggle={() => updateWardSettings({ assessmentFormsEnabled: !selectedWard?.assessmentFormsEnabled })}
+        />
+        <FeatureToggle
+          disabled={!selectedWard || !canEditWardSettings}
+          enabled={Boolean(selectedWard?.foodFluidChartEnabled)}
+          label="Food and fluid chart"
+          meta="Three-day meal, snack and drink intake monitoring"
+          onToggle={() => updateWardSettings({ foodFluidChartEnabled: !selectedWard?.foodFluidChartEnabled })}
         />
 
         <Text style={styles.settingLabel}>Intermittent observation interval</Text>

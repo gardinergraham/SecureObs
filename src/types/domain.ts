@@ -25,6 +25,16 @@ export type ObservationSource = "General observations" | "Enhanced/TESO";
 export type News2Consciousness = "Alert" | "New confusion" | "Voice" | "Pain" | "Unresponsive";
 export type Spo2Scale = "Scale 1" | "Scale 2";
 export type ServiceType = "High secure hospital" | "Medium secure hospital" | "Care home";
+export type WardLandingPage = "overview" | "observations";
+export type FoodFluidMealPeriod =
+  | "Breakfast"
+  | "Mid-morning"
+  | "Lunch"
+  | "Mid-afternoon"
+  | "Evening meal"
+  | "Bedtime";
+export type FoodFluidEntryType = "Food" | "Drink" | "Supplement";
+export type FoodFluidIntakeLevel = "Refused" | "Less than half" | "Half" | "More than half" | "All";
 export type MedicationAdministrationStatus = "Given" | "Omitted" | "Refused";
 export type MedicationOmissionCode = "N" | "X" | "F" | "S" | "O" | "U";
 export type MedicationPrescriptionType = "regular" | "prn" | "depot" | "rapid";
@@ -51,6 +61,8 @@ export type Ward = {
   medicationChartEnabled: boolean;
   staffRotaEnabled: boolean;
   assessmentFormsEnabled: boolean;
+  foodFluidChartEnabled: boolean;
+  landingPage: WardLandingPage;
   sessionTimeoutMinutes: number;
   rotaShiftCount: number;
   rotaShifts: RotaShift[];
@@ -252,6 +264,22 @@ export type News2Reading = {
   consciousness: News2Consciousness;
   temperature: number;
   totalScore: number;
+};
+
+export type FoodFluidEntry = {
+  id: string;
+  patientId: string;
+  recordedAt: string;
+  recordedBy: string;
+  mealPeriod: FoodFluidMealPeriod;
+  entryType: FoodFluidEntryType;
+  itemDescription: string;
+  portionOffered: string;
+  intakeLevel: FoodFluidIntakeLevel;
+  fluidOfferedMl?: number;
+  fluidTakenMl?: number;
+  assistanceNotes: string;
+  comments: string;
 };
 
 export type MedicationPrescription = {

@@ -394,6 +394,12 @@ export function HomeScreen({
                   {selectedWard?.staffRotaEnabled ? "Staff rota enabled" : "Staff rota hidden"} |{" "}
                   {selectedWard?.rotaShiftCount ?? 0} shifts | Breaks {selectedWard?.breakDurationMinutes ?? 0}m
                 </Text>
+                <Text style={styles.summaryMeta}>
+                  Food and fluid chart {selectedWard?.foodFluidChartEnabled ? "on" : "off"}
+                </Text>
+                <Text style={styles.summaryMeta}>
+                  Opens to {selectedWard?.landingPage === "observations" ? "patient checks" : "ward overview"}
+                </Text>
               </View>
             </>
           ) : (
@@ -417,7 +423,7 @@ export function HomeScreen({
                 ? "General, enhanced, NEWS2, medication and ward workflows"
                 : "Select staff, site and ward"
           }
-          title="Open ward overview"
+          title={selectedWard?.landingPage === "observations" ? "Open patient checks" : "Open ward overview"}
           tone="primary"
           onPress={onStart}
         />
