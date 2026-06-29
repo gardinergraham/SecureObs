@@ -64,18 +64,37 @@ export function SecurityChecks({
       (selectedArea?.expectedItems?.checklist ?? []).map((item) => ({
         id: item.id,
         checked: false,
-        actualCount: String(item.expectedCount)
+        actualCount: ""
       }))
     );
     setCutleryCounts({
-      knives: String(selectedArea?.expectedItems?.cutlery?.knives ?? ""),
-      forks: String(selectedArea?.expectedItems?.cutlery?.forks ?? ""),
-      spoons: String(selectedArea?.expectedItems?.cutlery?.spoons ?? "")
+      knives: "",
+      forks: "",
+      spoons: ""
     });
+    setCountedTotal("");
   }, [selectedArea?.id, selectedArea?.expectedItems]);
 
   const saveCheck = () => {
     if (!selectedArea) {
+      return;
+    }
+
+    if (
+      selectedArea.category === "cutlery" &&
+      Object.values(cutleryCounts).some((value) => !isValidCountEntry(value))
+    ) {
+      Alert.alert("All cutlery counts needed", "Enter the actual knives, forks and spoons counted.");
+      return;
+    }
+    if (
+      selectedArea.expectedItems?.checklist?.length &&
+      selectedArea.expectedItems.checklist.some((item) => {
+        const result = checklistResults.find((entry) => entry.id === item.id);
+        return !result || !isValidCountEntry(result.actualCount);
+      })
+    ) {
+      Alert.alert("All item counts needed", "Enter the actual count for every checklist item.");
       return;
     }
 
@@ -99,6 +118,7 @@ export function SecurityChecks({
       selectedPatient,
       trigger: levelOneTrigger
     });
+    const hasIssue = hasCountVariance(selectedArea, resultDetails);
     const outcomeNotes = buildCheckNotes({
       notes: notes.trim(),
       selectedArea,
@@ -124,9 +144,16 @@ export function SecurityChecks({
     onCreateCheck(check);
     setNotes("");
     setCountedTotal("");
+    setChecklistResults((current) => current.map((item) => ({ ...item, checked: false, actualCount: "" })));
+    setCutleryCounts({ knives: "", forks: "", spoons: "" });
     setSelectedPatientId("");
     setLevelOneTrigger(levelOneTriggers[0] ?? "Weekly check");
-    Alert.alert("Security check saved", `${selectedArea.name} recorded by ${checkedBy}.`);
+    Alert.alert(
+      hasIssue ? "Security issue recorded" : "Security check saved",
+      hasIssue
+        ? `${selectedArea.name} has a count variance. Review the red issue and take the required action.`
+        : `${selectedArea.name} recorded by ${checkedBy}.`
+    );
   };
 
   return (
@@ -161,6 +188,8 @@ export function SecurityChecks({
           ) : (
             orderedAreas.map(({ area, latestCheck }) => {
               const status = getSecurityTiming(area, latestCheck);
+              const hasIssue = Boolean(latestCheck && hasCountVariance(area, latestCheck.resultDetails));
+              const statusLabel = hasIssue ? "Issue" : status.label;
 
               return (
                 <TouchableOpacity
@@ -170,7 +199,8 @@ export function SecurityChecks({
                   style={[
                     styles.areaRow,
                     area.id === selectedArea?.id && styles.areaRowSelected,
-                    status.state === "due" && styles.areaRowDue
+                    status.state === "due" && styles.areaRowDue,
+                    hasIssue && styles.areaRowIssue
                   ]}
                 >
                   <View style={styles.areaInfo}>
@@ -178,15 +208,27 @@ export function SecurityChecks({
                     <Text style={styles.areaMeta}>
                       {formatFrequency(area)} | {area.requiresCount ? "Count required" : "Visual check"}
                     </Text>
-                    <Text style={styles.areaMeta}>
+                    <Text style={[styles.areaMeta, hasIssue && styles.areaIssueMeta]}>
                       {latestCheck
                         ? `${latestCheck.notes} by ${latestCheck.checkedBy} at ${formatTime(latestCheck.checkedAt)}`
                         : "No check recorded"}
                     </Text>
                   </View>
-                  <View style={[styles.statusBadge, status.state === "due" && styles.statusBadgeDue]}>
-                    <Text style={[styles.statusText, status.state === "due" && styles.statusTextDue]}>
-                      {status.label}
+                  <View
+                    style={[
+                      styles.statusBadge,
+                      status.state === "due" && styles.statusBadgeDue,
+                      hasIssue && styles.statusBadgeIssue
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.statusText,
+                        status.state === "due" && styles.statusTextDue,
+                        hasIssue && styles.statusTextIssue
+                      ]}
+                    >
+                      {statusLabel}
                     </Text>
                   </View>
                 </TouchableOpacity>
@@ -257,14 +299,26 @@ export function SecurityChecks({
                         <Text style={styles.cutleryExpected}>
                           Expected total: {selectedArea.expectedItems?.cutlery?.[item] ?? 0}
                         </Text>
+                        {isCountMismatch(
+                          cutleryCounts[item],
+                          selectedArea.expectedItems?.cutlery?.[item] ?? 0
+                        ) ? (
+                          <Text style={styles.countIssueText}>Issue: count does not match</Text>
+                        ) : null}
                         <TextInput
                           accessibilityLabel={`${item} counted total`}
                           blurOnSubmit={false}
                           keyboardType="number-pad"
                           onChangeText={(value) => setCutleryCounts((current) => ({ ...current, [item]: value }))}
-                          placeholder={String(selectedArea.expectedItems?.cutlery?.[item] ?? 0)}
+                          placeholder="Enter count"
                           placeholderTextColor="#6f7f87"
-                          style={styles.input}
+                          style={[
+                            styles.input,
+                            isCountMismatch(
+                              cutleryCounts[item],
+                              selectedArea.expectedItems?.cutlery?.[item] ?? 0
+                            ) && styles.countInputIssue
+                          ]}
                           value={cutleryCounts[item]}
                         />
                       </View>
@@ -293,8 +347,12 @@ export function SecurityChecks({
                   <View style={styles.checklistPanel}>
                     {selectedArea.expectedItems.checklist.map((item) => {
                       const result = checklistResults.find((entry) => entry.id === item.id);
+                      const countMismatch = isCountMismatch(result?.actualCount ?? "", item.expectedCount);
                       return (
-                        <View key={item.id} style={styles.checklistRow}>
+                        <View
+                          key={item.id}
+                          style={[styles.checklistRow, countMismatch && styles.checklistRowIssue]}
+                        >
                           <TouchableOpacity
                             accessibilityRole="button"
                             onPress={() => toggleChecklistItem(item.id)}
@@ -306,15 +364,23 @@ export function SecurityChecks({
                           </TouchableOpacity>
                           <Text style={styles.checklistName}>{item.name}</Text>
                           <Text style={styles.checklistExpected}>Expected {item.expectedCount}</Text>
-                          <TextInput
-                            blurOnSubmit={false}
-                            keyboardType="number-pad"
-                            onChangeText={(actualCount) => updateChecklistCount(item.id, actualCount)}
-                            placeholder={String(item.expectedCount)}
-                            placeholderTextColor="#6f7f87"
-                            style={[styles.input, styles.checklistCountInput]}
-                            value={result?.actualCount ?? ""}
-                          />
+                          <View>
+                            {countMismatch ? <Text style={styles.countIssueText}>Issue</Text> : null}
+                            <TextInput
+                              accessibilityLabel={`${item.name} counted total`}
+                              blurOnSubmit={false}
+                              keyboardType="number-pad"
+                              onChangeText={(actualCount) => updateChecklistCount(item.id, actualCount)}
+                              placeholder="Enter"
+                              placeholderTextColor="#6f7f87"
+                              style={[
+                                styles.input,
+                                styles.checklistCountInput,
+                                countMismatch && styles.countInputIssue
+                              ]}
+                              value={result?.actualCount ?? ""}
+                            />
+                          </View>
                         </View>
                       );
                     })}
@@ -422,7 +488,9 @@ export function SecurityChecks({
 
   function updateChecklistCount(itemId: string, actualCount: string) {
     setChecklistResults((current) =>
-      current.map((item) => (item.id === itemId ? { ...item, actualCount } : item))
+      current.map((item) =>
+        item.id === itemId ? { ...item, actualCount, checked: actualCount.trim().length > 0 } : item
+      )
     );
   }
 }
@@ -478,7 +546,8 @@ function buildCheckNotes({
 }) {
   if (selectedArea.category === "cutlery" && resultDetails.cutlery) {
     const expected = selectedArea.expectedItems?.cutlery;
-    return `Cutlery: knives ${resultDetails.cutlery.knives}/${expected?.knives ?? 0}, forks ${resultDetails.cutlery.forks}/${expected?.forks ?? 0}, spoons ${resultDetails.cutlery.spoons}/${expected?.spoons ?? 0} | ${notes || "Complete"}`;
+    const issuePrefix = hasCountVariance(selectedArea, resultDetails) ? "ISSUE - " : "";
+    return `${issuePrefix}Cutlery: knives ${resultDetails.cutlery.knives}/${expected?.knives ?? 0}, forks ${resultDetails.cutlery.forks}/${expected?.forks ?? 0}, spoons ${resultDetails.cutlery.spoons}/${expected?.spoons ?? 0} | ${notes || (issuePrefix ? "Count variance recorded" : "Complete")}`;
   }
 
   if (isPatientSpecificSecurityCheck(selectedArea)) {
@@ -491,7 +560,8 @@ function buildCheckNotes({
   }
 
   if (resultDetails.checklist?.length) {
-    return `Checklist ${resultDetails.completionPercent ?? 0}% complete | ${notes || "Complete"}`;
+    const issuePrefix = hasCountVariance(selectedArea, resultDetails) ? "ISSUE - " : "";
+    return `${issuePrefix}Checklist ${resultDetails.completionPercent ?? 0}% complete | ${notes || (issuePrefix ? "Count variance recorded" : "Complete")}`;
   }
 
   return notes || "Complete";
@@ -528,7 +598,7 @@ function buildResultDetails({
         name: item.name,
         expectedCount: item.expectedCount,
         checked: Boolean(result?.checked),
-        actualCount: parseCount(result?.actualCount ?? String(item.expectedCount))
+        actualCount: parseCount(result?.actualCount ?? "")
       };
     });
 
@@ -571,6 +641,35 @@ function buildResultDetails({
 function parseCount(value: string) {
   const parsed = Number.parseInt(value, 10);
   return Number.isNaN(parsed) || parsed < 0 ? 0 : parsed;
+}
+
+function isValidCountEntry(value: string) {
+  const trimmed = value.trim();
+  return /^\d+$/.test(trimmed) && Number(trimmed) >= 0;
+}
+
+function isCountMismatch(value: string, expectedCount: number) {
+  return isValidCountEntry(value) && Number(value) !== expectedCount;
+}
+
+function hasCountVariance(
+  area: SecurityArea,
+  resultDetails: SecurityCheck["resultDetails"] | undefined
+) {
+  if (area.category === "cutlery" && area.expectedItems?.cutlery && resultDetails?.cutlery) {
+    return (["knives", "forks", "spoons"] as const).some(
+      (item) => resultDetails.cutlery?.[item] !== area.expectedItems?.cutlery?.[item]
+    );
+  }
+
+  if (area.expectedItems?.checklist?.length && resultDetails?.checklist?.length) {
+    return area.expectedItems.checklist.some((expectedItem) => {
+      const actualItem = resultDetails.checklist?.find((item) => item.id === expectedItem.id);
+      return !actualItem || actualItem.actualCount !== expectedItem.expectedCount;
+    });
+  }
+
+  return false;
 }
 
 function totalCutlery(cutlery: NonNullable<SecurityCheck["resultDetails"]>["cutlery"]) {
@@ -803,6 +902,10 @@ const styles = StyleSheet.create({
   areaRowDue: {
     backgroundColor: "#fff4d7"
   },
+  areaRowIssue: {
+    backgroundColor: "#fff0ee",
+    borderColor: "#c84b40"
+  },
   areaInfo: {
     flex: 1
   },
@@ -817,6 +920,10 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     marginTop: 4
   },
+  areaIssueMeta: {
+    color: "#a0352d",
+    fontWeight: "900"
+  },
   statusBadge: {
     alignItems: "center",
     backgroundColor: "#ddebd6",
@@ -829,6 +936,9 @@ const styles = StyleSheet.create({
   statusBadgeDue: {
     backgroundColor: "#ffe6bf"
   },
+  statusBadgeIssue: {
+    backgroundColor: "#c43d35"
+  },
   statusText: {
     color: "#276149",
     fontSize: 12,
@@ -836,6 +946,9 @@ const styles = StyleSheet.create({
   },
   statusTextDue: {
     color: "#8a4f00"
+  },
+  statusTextIssue: {
+    color: "#ffffff"
   },
   selectedTitle: {
     color: "#18262c",
@@ -902,6 +1015,16 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: "900"
   },
+  countIssueText: {
+    color: "#b3261e",
+    fontSize: 10,
+    fontWeight: "900"
+  },
+  countInputIssue: {
+    backgroundColor: "#fff0ee",
+    borderColor: "#c43d35",
+    borderWidth: 2
+  },
   checklistPanel: {
     backgroundColor: "#f8fafb",
     borderColor: "#d8e0e3",
@@ -914,6 +1037,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
     flexDirection: "row",
     gap: 8
+  },
+  checklistRowIssue: {
+    backgroundColor: "#fff0ee",
+    borderRadius: 6,
+    padding: 5
   },
   checkBox: {
     alignItems: "center",
