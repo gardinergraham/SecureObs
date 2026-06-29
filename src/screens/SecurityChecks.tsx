@@ -444,7 +444,7 @@ function getSecurityTiming(area: SecurityArea, latestCheck: SecurityCheck | unde
     return { label: "Due", state: "due" as const };
   }
 
-  return { label: `${minutes}m`, state: "ok" as const };
+  return { label: "Complete", state: "ok" as const };
 }
 
 function isLevelOnePatientCheck(area: SecurityArea) {

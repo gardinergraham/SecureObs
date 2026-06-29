@@ -2,8 +2,15 @@ import React, { useEffect, useMemo, useState } from "react";
 import { Alert, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 
 import { createObservation } from "../services/api";
-import type { Observation, Patient, PatientLocation, PatientPresentation, StaffMember } from "../types/domain";
-import type { MissedObservation } from "../types/domain";
+import type {
+  MissedObservation,
+  Observation,
+  Patient,
+  PatientLocation,
+  PatientPresentation,
+  RotaAssignment,
+  StaffMember
+} from "../types/domain";
 
 const locations: PatientLocation[] = [
   "Side room",
@@ -22,24 +29,24 @@ type EnhancedObservationScreenProps = {
   observations: Observation[];
   missedObservations: MissedObservation[];
   patients: Patient[];
+  rotaAssignments: RotaAssignment[];
   staff: StaffMember[];
   selectedStaffId: string;
   onBack: () => void;
   onMissedObservationSaved: (missedObservation: MissedObservation) => void;
   onObservationSaved: (observation: Observation) => void;
-  onUpdatePatient: (patient: Patient) => void;
 };
 
 export function EnhancedObservationScreen({
   observations,
   missedObservations,
   patients,
+  rotaAssignments,
   staff,
   selectedStaffId,
   onBack,
   onMissedObservationSaved,
-  onObservationSaved,
-  onUpdatePatient
+  onObservationSaved
 }: EnhancedObservationScreenProps) {
   const enhancedPatients = useMemo(
     () => patients.filter((patient) => patient.enhancedObservation || patient.observationLevel !== "Intermittent"),
@@ -52,6 +59,8 @@ export function EnhancedObservationScreen({
   const [location, setLocation] = useState<PatientLocation>("Side room");
   const [presentation, setPresentation] = useState<PatientPresentation>("Awake");
   const [comments, setComments] = useState("");
+  const [recordingStaffIds, setRecordingStaffIds] = useState<string[]>([]);
+  const [staffSearch, setStaffSearch] = useState("");
   const [missedReason, setMissedReason] = useState(missedObservationReasons[0] ?? "Other");
   const [missedDetails, setMissedDetails] = useState("");
   const selectedEnhancedObservations = useMemo(
@@ -88,33 +97,87 @@ export function EnhancedObservationScreen({
         missedObservation.patientId === selectedPatient?.id && missedObservation.source === "Enhanced/TESO"
     )
     .slice(0, 3);
+  const requiredStaffCount = getRequiredStaffCount(selectedPatient);
+  const currentTimedAssignments = useMemo(
+    () =>
+      selectedPatient
+        ? rotaAssignments.filter(
+            (assignment) =>
+              assignment.patientId === selectedPatient.id &&
+              assignment.role === "Enhanced/TESO" &&
+              isAssignmentActive(assignment, now)
+          )
+        : [],
+    [now, rotaAssignments, selectedPatient]
+  );
+  const defaultRecordingStaffIds = useMemo(() => {
+    const allocatedIds =
+      currentTimedAssignments.length > 0
+        ? currentTimedAssignments.map((assignment) => assignment.staffId)
+        : selectedPatient?.enhancedObservation?.assignedStaffIds ?? [];
+    return Array.from(new Set(allocatedIds));
+  }, [currentTimedAssignments, selectedPatient?.enhancedObservation?.assignedStaffIds]);
+  const defaultRecordingStaffKey = defaultRecordingStaffIds.join("|");
+  const recordingStaff = recordingStaffIds
+    .map((staffId) => staff.find((member) => member.id === staffId))
+    .filter((member): member is StaffMember => Boolean(member));
+  const searchResults = useMemo(() => {
+    const query = staffSearch.trim().toLowerCase();
+    if (!query || !selectedPatient) {
+      return [];
+    }
+
+    return staff
+      .filter(
+        (member) =>
+          member.active !== false &&
+          (member.wardId === selectedPatient.wardId || member.allowedWardIds.includes(selectedPatient.wardId))
+      )
+      .filter((member) =>
+        [member.name, member.staffCode, member.designation ?? ""].some((value) =>
+          value.toLowerCase().includes(query)
+        )
+      )
+      .slice(0, 8);
+  }, [selectedPatient, staff, staffSearch]);
 
   useEffect(() => {
     const timer = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(timer);
   }, []);
 
-  const toggleAssignedStaff = (staffId: string) => {
-    if (!selectedPatient?.enhancedObservation) {
+  useEffect(() => {
+    setRecordingStaffIds(defaultRecordingStaffKey ? defaultRecordingStaffKey.split("|") : []);
+    setStaffSearch("");
+  }, [defaultRecordingStaffKey, selectedPatient?.id]);
+
+  const toggleRecordingStaff = (staffId: string) => {
+    if (recordingStaffIds.includes(staffId)) {
+      setRecordingStaffIds((currentIds) => currentIds.filter((id) => id !== staffId));
       return;
     }
 
-    const currentAssigned = selectedPatient.enhancedObservation.assignedStaffIds;
-    const assignedStaffIds = currentAssigned.includes(staffId)
-      ? currentAssigned.filter((id) => id !== staffId)
-      : [...currentAssigned, staffId];
+    if (recordingStaffIds.length >= requiredStaffCount) {
+      Alert.alert(
+        `${requiredStaffCount}:1 observation`,
+        "Remove the staff member who did not complete this observation before adding their replacement."
+      );
+      return;
+    }
 
-    onUpdatePatient({
-      ...selectedPatient,
-      enhancedObservation: {
-        ...selectedPatient.enhancedObservation,
-        assignedStaffIds
-      }
-    });
+    setRecordingStaffIds((currentIds) => [...currentIds, staffId]);
   };
 
   const saveEnhancedEntry = async () => {
     if (!selectedPatient) {
+      return;
+    }
+
+    if (recordingStaff.length !== requiredStaffCount) {
+      Alert.alert(
+        "Observation staff incomplete",
+        `Select exactly ${requiredStaffCount} staff member${requiredStaffCount === 1 ? "" : "s"} for this ${requiredStaffCount}:1 observation.`
+      );
       return;
     }
 
@@ -127,11 +190,7 @@ export function EnhancedObservationScreen({
     }
 
     const observedAt = new Date().toISOString();
-    const assignedNames =
-      selectedPatient.enhancedObservation?.assignedStaffIds
-        .map((staffId) => staff.find((member) => member.id === staffId)?.name)
-        .filter(Boolean)
-        .join(", ") || selectedStaff?.name || "Unknown";
+    const assignedNames = recordingStaff.map((member) => member.name).join(", ");
 
     const observation = await createObservation({
       patientId: selectedPatient.id,
@@ -157,11 +216,11 @@ export function EnhancedObservationScreen({
       return;
     }
 
-    const assignedNames =
-      selectedPatient.enhancedObservation?.assignedStaffIds
-        .map((staffId) => staff.find((member) => member.id === staffId)?.name)
-        .filter(Boolean)
-        .join(", ") || selectedStaff.name;
+    const allocatedStaff =
+      defaultRecordingStaffIds
+        .map((staffId) => staff.find((member) => member.id === staffId))
+        .filter((member): member is StaffMember => Boolean(member));
+    const assignedNames = allocatedStaff.map((member) => member.name).join(", ") || selectedStaff.name;
 
     const missedObservation: MissedObservation = {
       id: `missed-teso-observation-${Date.now()}`,
@@ -171,7 +230,7 @@ export function EnhancedObservationScreen({
       source: "Enhanced/TESO",
       dueAt: selectedTesoDueAt,
       recordedAt: new Date().toISOString(),
-      allocatedStaffId: selectedPatient.enhancedObservation?.assignedStaffIds[0] ?? selectedStaff.id,
+      allocatedStaffId: allocatedStaff[0]?.id ?? selectedStaff.id,
       allocatedStaffName: assignedNames,
       recordedByStaffId: selectedStaff.id,
       recordedByName: selectedStaff.name,
@@ -282,23 +341,83 @@ export function EnhancedObservationScreen({
                 </View>
               ) : null}
 
-              <Text style={styles.label}>Assigned enhanced staff</Text>
-              <View style={styles.optionRow}>
-                {staff.map((member) => {
-                  const active = selectedPatient.enhancedObservation?.assignedStaffIds.includes(member.id) ?? false;
+              <View style={styles.staffSelectionHeader}>
+                <View style={styles.staffSelectionCopy}>
+                  <Text style={styles.label}>Staff recording this observation</Text>
+                  <Text style={styles.staffSelectionMeta}>
+                    {currentTimedAssignments.length > 0
+                      ? `Rota allocation ${formatAssignmentPeriod(currentTimedAssignments[0])}`
+                      : "No timed rota allocation found; showing the care-plan assignment"}
+                  </Text>
+                </View>
+                <Text
+                  style={[
+                    styles.staffCountBadge,
+                    recordingStaff.length !== requiredStaffCount && styles.staffCountBadgeWarning
+                  ]}
+                >
+                  {recordingStaff.length}/{requiredStaffCount} selected
+                </Text>
+              </View>
 
-                  return (
+              {recordingStaff.length > 0 ? (
+                <View style={styles.optionRow}>
+                  {recordingStaff.map((member) => (
                     <TouchableOpacity
+                      accessibilityHint="Removes this staff member from the observation entry"
                       accessibilityRole="button"
                       key={member.id}
-                      onPress={() => toggleAssignedStaff(member.id)}
-                      style={[styles.optionButton, active && styles.optionButtonActive]}
+                      onPress={() => toggleRecordingStaff(member.id)}
+                      style={[styles.optionButton, styles.optionButtonActive]}
                     >
-                      <Text style={[styles.optionText, active && styles.optionTextActive]}>{member.name}</Text>
+                      <Text style={[styles.optionText, styles.optionTextActive]}>{member.name} · Remove</Text>
                     </TouchableOpacity>
-                  );
-                })}
-              </View>
+                  ))}
+                </View>
+              ) : (
+                <Text style={styles.noAssignedStaff}>
+                  No staff are selected. Search below for the staff who completed this observation.
+                </Text>
+              )}
+
+              <Text style={styles.searchLabel}>Different staff member?</Text>
+              <TextInput
+                accessibilityLabel="Search staff for this observation"
+                autoCapitalize="none"
+                onChangeText={setStaffSearch}
+                placeholder="Search by name, staff code or role"
+                placeholderTextColor="#6f7f87"
+                style={styles.staffSearchInput}
+                value={staffSearch}
+              />
+              {staffSearch.trim() ? (
+                <View style={styles.staffSearchResults}>
+                  {searchResults.length > 0 ? (
+                    searchResults.map((member) => {
+                      const active = recordingStaffIds.includes(member.id);
+                      return (
+                        <TouchableOpacity
+                          accessibilityRole="button"
+                          accessibilityState={{ selected: active }}
+                          key={member.id}
+                          onPress={() => toggleRecordingStaff(member.id)}
+                          style={[styles.staffSearchResult, active && styles.staffSearchResultActive]}
+                        >
+                          <View>
+                            <Text style={styles.staffSearchName}>{member.name}</Text>
+                            <Text style={styles.staffSearchMeta}>
+                              {member.staffCode} · {member.designation ?? member.role}
+                            </Text>
+                          </View>
+                          <Text style={styles.staffSearchAction}>{active ? "Selected" : "Select"}</Text>
+                        </TouchableOpacity>
+                      );
+                    })
+                  ) : (
+                    <Text style={styles.noSearchResults}>No authorised ward staff match that search.</Text>
+                  )}
+                </View>
+              ) : null}
 
               <Text style={styles.label}>Current location</Text>
               <OptionRow options={locations} selected={location} onSelect={(value) => setLocation(value as PatientLocation)} />
@@ -454,6 +573,57 @@ function OptionRow({ options, selected, onSelect }: OptionRowProps) {
       ))}
     </View>
   );
+}
+
+function getRequiredStaffCount(patient?: Patient) {
+  const ratio = patient?.enhancedObservation?.staffRatio ?? "1:1";
+  const count = Number.parseInt(ratio.split(":")[0] ?? "1", 10);
+  return Number.isFinite(count) && count > 0 ? count : 1;
+}
+
+function isAssignmentActive(assignment: RotaAssignment, nowValue: number) {
+  const startTimestamp = Date.parse(assignment.startsAt);
+  const endTimestamp = Date.parse(assignment.endsAt);
+  if (!Number.isNaN(startTimestamp) && !Number.isNaN(endTimestamp)) {
+    return nowValue >= startTimestamp && nowValue < endTimestamp;
+  }
+
+  const startMinutes = timeValueToMinutes(assignment.startsAt);
+  const endMinutes = timeValueToMinutes(assignment.endsAt);
+  if (startMinutes === undefined || endMinutes === undefined) {
+    return false;
+  }
+
+  const now = new Date(nowValue);
+  const nowMinutes = now.getHours() * 60 + now.getMinutes();
+  return endMinutes <= startMinutes
+    ? nowMinutes >= startMinutes || nowMinutes < endMinutes
+    : nowMinutes >= startMinutes && nowMinutes < endMinutes;
+}
+
+function formatAssignmentPeriod(assignment?: RotaAssignment) {
+  if (!assignment) return "for the current observation period";
+  return `${formatAssignmentTime(assignment.startsAt)}–${formatAssignmentTime(assignment.endsAt)}`;
+}
+
+function formatAssignmentTime(value: string) {
+  const minutes = timeValueToMinutes(value);
+  if (minutes !== undefined && /^\d{1,2}:\d{2}$/.test(value)) {
+    return `${String(Math.floor(minutes / 60)).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}`;
+  }
+
+  const date = new Date(value);
+  return Number.isNaN(date.getTime())
+    ? value
+    : date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+}
+
+function timeValueToMinutes(value: string) {
+  const match = value.match(/^(\d{1,2}):(\d{2})$/);
+  if (!match) return undefined;
+  const hours = Number(match[1]);
+  const minutes = Number(match[2]);
+  return hours >= 0 && hours <= 23 && minutes >= 0 && minutes <= 59 ? hours * 60 + minutes : undefined;
 }
 
 function locationFromPatient(place: string): PatientLocation {
@@ -770,6 +940,106 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     marginBottom: 7,
     marginTop: 10
+  },
+  staffSelectionHeader: {
+    alignItems: "flex-end",
+    flexDirection: "row",
+    gap: 10,
+    justifyContent: "space-between"
+  },
+  staffSelectionCopy: {
+    flex: 1
+  },
+  staffSelectionMeta: {
+    color: "#65767d",
+    fontSize: 11,
+    fontWeight: "700",
+    marginBottom: 7,
+    marginTop: -3
+  },
+  staffCountBadge: {
+    backgroundColor: "#e2f2eb",
+    borderRadius: 999,
+    color: "#2b624e",
+    fontSize: 11,
+    fontWeight: "900",
+    marginBottom: 7,
+    overflow: "hidden",
+    paddingHorizontal: 9,
+    paddingVertical: 6
+  },
+  staffCountBadgeWarning: {
+    backgroundColor: "#fff0cc",
+    color: "#79561d"
+  },
+  noAssignedStaff: {
+    backgroundColor: "#fff7df",
+    borderColor: "#ead49a",
+    borderRadius: 6,
+    borderWidth: 1,
+    color: "#755820",
+    fontSize: 12,
+    fontWeight: "700",
+    padding: 10
+  },
+  searchLabel: {
+    color: "#52656e",
+    fontSize: 11,
+    fontWeight: "900",
+    marginBottom: 5,
+    marginTop: 10
+  },
+  staffSearchInput: {
+    backgroundColor: "#f8fafb",
+    borderColor: "#c7d2d6",
+    borderRadius: 6,
+    borderWidth: 1,
+    color: "#18262c",
+    fontSize: 13,
+    minHeight: 42,
+    paddingHorizontal: 10
+  },
+  staffSearchResults: {
+    borderColor: "#d9e1e4",
+    borderRadius: 6,
+    borderWidth: 1,
+    marginTop: 6,
+    overflow: "hidden"
+  },
+  staffSearchResult: {
+    alignItems: "center",
+    backgroundColor: "#ffffff",
+    borderBottomColor: "#e7ecee",
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    minHeight: 48,
+    paddingHorizontal: 10,
+    paddingVertical: 7
+  },
+  staffSearchResultActive: {
+    backgroundColor: "#edf7f4"
+  },
+  staffSearchName: {
+    color: "#233840",
+    fontSize: 12,
+    fontWeight: "900"
+  },
+  staffSearchMeta: {
+    color: "#687980",
+    fontSize: 10,
+    marginTop: 2,
+    textTransform: "capitalize"
+  },
+  staffSearchAction: {
+    color: "#17677a",
+    fontSize: 11,
+    fontWeight: "900"
+  },
+  noSearchResults: {
+    color: "#687980",
+    fontSize: 12,
+    padding: 10
   },
   optionRow: {
     flexDirection: "row",

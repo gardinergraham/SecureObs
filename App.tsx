@@ -1012,12 +1012,12 @@ export default function App() {
             missedObservations={missedObservations}
             observations={observations}
             patients={wardPatients}
+            rotaAssignments={rotaAssignments}
             selectedStaffId={selectedStaffId}
             staff={staffMembers}
             onBack={() => setScreen(workspaceBackScreen)}
             onMissedObservationSaved={handleCreateMissedObservation}
             onObservationSaved={handleObservationSaved}
-            onUpdatePatient={handleUpdatePatient}
           />
         ) : screen === "patientManagement" ? (
           <PatientManagementScreen

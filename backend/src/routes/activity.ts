@@ -1057,6 +1057,21 @@ router.post("/staff-shift-assignments", requireStaffRole(["nurse", "manager"]), 
     const organisationId = requireOrganisationId(request, response);
     if (!organisationId) return;
     const assignment = { ...parsed.data, organisationId };
+    if (assignment.nurseInCharge || assignment.medicationNurse) {
+      const assignedStaffResult = await pool.query(
+        "select role from staff_members where organisation_id = $1 and id = $2",
+        [organisationId, assignment.staffId]
+      );
+      if (!assignedStaffResult.rowCount) {
+        response.status(404).json({ error: "Assigned staff member not found" });
+        return;
+      }
+      if (assignedStaffResult.rows[0]?.role === "hcf") {
+        response.status(400).json({ error: "HCF staff cannot be Nurse in Charge or Medication Nurse" });
+        return;
+      }
+    }
+
     const result = await pool.query(
       `
         insert into staff_shift_assignments (

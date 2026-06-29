@@ -337,10 +337,11 @@ export function WardOverviewScreen({
                   <View key={entry.id} style={styles.miniRow}>
                     <View style={styles.miniRowCopy}>
                       <Text style={styles.miniRowTitle}>
-                        Room {patient?.roomNumber ?? "—"} · {entry.itemDescription}
+                        Room {patient?.roomNumber ?? "—"} ·{" "}
+                        {patient ? `${patient.firstName} ${patient.surname}` : "Patient not found"}
                       </Text>
                       <Text style={styles.miniRowMeta}>
-                        {entry.mealPeriod} · {formatShortDateTime(entry.recordedAt)}
+                        {entry.itemDescription} · {entry.mealPeriod} · {formatShortDateTime(entry.recordedAt)}
                         {entry.entryType === "Drink" ? ` · ${entry.fluidTakenMl ?? 0} ml` : ""}
                       </Text>
                     </View>
@@ -633,7 +634,7 @@ function buildSecuritySummary(
       return {
         area,
         due,
-        label: due ? "Due" : `${minutes}m`,
+        label: due ? "Due" : "Complete",
         lastCheckedAt
       };
     })

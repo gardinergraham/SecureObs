@@ -71,6 +71,11 @@ export function StaffCoverScreen({
   };
 
   const toggleShiftFlag = (assignment: StaffShiftAssignment, flag: "nurseInCharge" | "medicationNurse") => {
+    const assignedStaff = staff.find((member) => member.id === assignment.staffId);
+    if (!assignedStaff || assignedStaff.role === "hcf") {
+      return;
+    }
+
     onUpdateAssignment({
       ...assignment,
       [flag]: !assignment[flag]
@@ -166,29 +171,33 @@ export function StaffCoverScreen({
                               <Text style={styles.staffName}>{assignedStaff?.name ?? "Unknown staff"}</Text>
                               <Text style={styles.staffMeta}>
                                 {assignedStaff?.role ?? "staff"}
-                                {assignment.nurseInCharge ? " | Nurse in charge" : ""}
-                                {assignment.medicationNurse ? " | Medication nurse" : ""}
+                                {assignedStaff?.role !== "hcf" && assignment.nurseInCharge ? " | Nurse in charge" : ""}
+                                {assignedStaff?.role !== "hcf" && assignment.medicationNurse ? " | Medication nurse" : ""}
                               </Text>
-                              <View style={styles.flagRow}>
-                                <TouchableOpacity
-                                  accessibilityRole="button"
-                                  onPress={() => toggleShiftFlag(assignment, "nurseInCharge")}
-                                  style={[styles.flagButton, assignment.nurseInCharge && styles.flagButtonActive]}
-                                >
-                                  <Text style={[styles.flagButtonText, assignment.nurseInCharge && styles.flagButtonTextActive]}>
-                                    NIC
-                                  </Text>
-                                </TouchableOpacity>
-                                <TouchableOpacity
-                                  accessibilityRole="button"
-                                  onPress={() => toggleShiftFlag(assignment, "medicationNurse")}
-                                  style={[styles.flagButton, assignment.medicationNurse && styles.flagButtonActive]}
-                                >
-                                  <Text style={[styles.flagButtonText, assignment.medicationNurse && styles.flagButtonTextActive]}>
-                                    Meds
-                                  </Text>
-                                </TouchableOpacity>
-                              </View>
+                              {assignedStaff?.role === "hcf" ? (
+                                <Text style={styles.ineligibleRoleText}>NIC and medication roles unavailable</Text>
+                              ) : (
+                                <View style={styles.flagRow}>
+                                  <TouchableOpacity
+                                    accessibilityRole="button"
+                                    onPress={() => toggleShiftFlag(assignment, "nurseInCharge")}
+                                    style={[styles.flagButton, assignment.nurseInCharge && styles.flagButtonActive]}
+                                  >
+                                    <Text style={[styles.flagButtonText, assignment.nurseInCharge && styles.flagButtonTextActive]}>
+                                      NIC
+                                    </Text>
+                                  </TouchableOpacity>
+                                  <TouchableOpacity
+                                    accessibilityRole="button"
+                                    onPress={() => toggleShiftFlag(assignment, "medicationNurse")}
+                                    style={[styles.flagButton, assignment.medicationNurse && styles.flagButtonActive]}
+                                  >
+                                    <Text style={[styles.flagButtonText, assignment.medicationNurse && styles.flagButtonTextActive]}>
+                                      Meds
+                                    </Text>
+                                  </TouchableOpacity>
+                                </View>
+                              )}
                             </View>
                             <TouchableOpacity
                               accessibilityRole="button"
@@ -496,6 +505,12 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     marginTop: 2,
     textTransform: "capitalize"
+  },
+  ineligibleRoleText: {
+    color: "#7a6060",
+    fontSize: 10,
+    fontWeight: "800",
+    marginTop: 6
   },
   flagRow: {
     flexDirection: "row",
