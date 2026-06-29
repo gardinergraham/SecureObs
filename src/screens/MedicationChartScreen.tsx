@@ -344,32 +344,6 @@ export function MedicationChartScreen({
             </View>
           ) : null}
 
-          {pendingMedicationAction ? (
-            <View style={styles.confirmPanel}>
-              <View>
-                <Text style={styles.confirmTitle}>Confirm medication record</Text>
-                <Text style={styles.confirmMeta}>
-                  {pendingMedicationAction.prescription.drugName} | {pendingMedicationAction.status}
-                  {pendingMedicationAction.omissionCode ? ` ${pendingMedicationAction.omissionCode}` : ""} |{" "}
-                  {formatDateTime(pendingMedicationAction.scheduledAt)}
-                </Text>
-                {getLateMinutes(pendingMedicationAction.scheduledAt) > 0 ? (
-                  <Text style={styles.confirmWarning}>
-                    Late record: {formatLateMinutes(getLateMinutes(pendingMedicationAction.scheduledAt))} after due time
-                  </Text>
-                ) : null}
-              </View>
-              <View style={styles.confirmActions}>
-                <TouchableOpacity accessibilityRole="button" onPress={() => setPendingMedicationAction(null)} style={styles.cancelConfirmButton}>
-                  <Text style={styles.cancelConfirmText}>Cancel</Text>
-                </TouchableOpacity>
-                <TouchableOpacity accessibilityRole="button" onPress={confirmDoseRecord} style={styles.confirmButton}>
-                  <Text style={styles.confirmButtonText}>Confirm</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          ) : null}
-
           <View style={styles.chartContent}>
 
           {viewMode === "admin" ? (
@@ -534,7 +508,12 @@ export function MedicationChartScreen({
                 visibleDates={visibleDates}
                 viewMode={viewMode}
                 editingDoseKey={editingDoseKey}
+                pendingMedicationAction={
+                  pendingMedicationAction?.prescription.id === prescription.id ? pendingMedicationAction : null
+                }
                 onChangeDose={setEditingDoseKey}
+                onCancelPendingMedicationAction={() => setPendingMedicationAction(null)}
+                onConfirmPendingMedicationAction={confirmDoseRecord}
                 onDiscontinue={() => discontinuePrescription(prescription)}
                 onRecordDose={(scheduledAt, status, omissionCode, notes) =>
                   requestDoseRecord(prescription, scheduledAt, status, omissionCode, notes)
@@ -555,10 +534,13 @@ type PrescriptionCardProps = {
   administrations: MedicationAdministration[];
   canPrescribe: boolean;
   editingDoseKey: string;
+  pendingMedicationAction: PendingMedicationAction | null;
   prescription: MedicationPrescription;
   visibleDates: Date[];
   viewMode: MedicationChartViewMode;
   onChangeDose: (doseKey: string) => void;
+  onCancelPendingMedicationAction: () => void;
+  onConfirmPendingMedicationAction: () => void;
   onDiscontinue: () => void;
   onRecordDose: (
     scheduledAt: string,
@@ -572,10 +554,13 @@ function PrescriptionCard({
   administrations,
   canPrescribe,
   editingDoseKey,
+  pendingMedicationAction,
   prescription,
   visibleDates,
   viewMode,
   onChangeDose,
+  onCancelPendingMedicationAction,
+  onConfirmPendingMedicationAction,
   onDiscontinue,
   onRecordDose
 }: PrescriptionCardProps) {
@@ -619,7 +604,15 @@ function PrescriptionCard({
       {prescription.additionalInstructions ? <Text style={styles.instructionsText}>{prescription.additionalInstructions}</Text> : null}
 
       {isPrn || isRapid ? (
-        <View style={[styles.prnPanel, isRapid && styles.rapidPanel]}>
+        <>
+          {pendingMedicationAction ? (
+            <MedicationConfirmationPanel
+              action={pendingMedicationAction}
+              onCancel={onCancelPendingMedicationAction}
+              onConfirm={onConfirmPendingMedicationAction}
+            />
+          ) : null}
+          <View style={[styles.prnPanel, isRapid && styles.rapidPanel]}>
           <Text style={styles.prnTitle}>{isRapid ? "Rapid tranquillisation" : "PRN / as required"}</Text>
           <Text style={styles.meta}>
             Indication/protocol: {prescription.prnIndication || prescription.additionalInstructions || "Not specified"}
@@ -662,9 +655,18 @@ function PrescriptionCard({
               ))}
             </View>
           ) : null}
-        </View>
+          </View>
+        </>
       ) : isDepot ? (
-        <View style={styles.depotPanel}>
+        <>
+          {pendingMedicationAction ? (
+            <MedicationConfirmationPanel
+              action={pendingMedicationAction}
+              onCancel={onCancelPendingMedicationAction}
+              onConfirm={onConfirmPendingMedicationAction}
+            />
+          ) : null}
+          <View style={styles.depotPanel}>
           <Text style={styles.prnTitle}>Depot administration</Text>
           <Text style={styles.meta}>
             Interval {prescription.depotIntervalDays ?? 14} days | Next due{" "}
@@ -696,7 +698,8 @@ function PrescriptionCard({
               </TouchableOpacity>
             </View>
           ) : null}
-        </View>
+          </View>
+        </>
       ) : (
         <ScrollView horizontal showsHorizontalScrollIndicator>
         <View>
@@ -711,73 +714,120 @@ function PrescriptionCard({
             ))}
           </View>
           {prescription.administrationTimes.map((time) => (
-            <View key={time} style={styles.gridRow}>
-              <View style={[styles.gridCell, styles.timeHeaderCell]}>
-                <Text style={styles.timeText}>{time}</Text>
-              </View>
-              {visibleDates.map((date) => {
-                const scheduledAt = buildScheduledAt(date, time);
-                const record = administrations.find(
-                  (administration) =>
-                    administration.prescriptionId === prescription.id && administration.scheduledAt === scheduledAt
-                );
-                const isFutureDose = new Date(scheduledAt).getTime() > Date.now();
-                const doseKey = `${prescription.id}-${scheduledAt}`;
-                const isEditingDose = editingDoseKey === doseKey;
+            <React.Fragment key={time}>
+              {pendingMedicationAction &&
+              formatInputTime(new Date(pendingMedicationAction.scheduledAt)) === time ? (
+                <MedicationConfirmationPanel
+                  action={pendingMedicationAction}
+                  onCancel={onCancelPendingMedicationAction}
+                  onConfirm={onConfirmPendingMedicationAction}
+                />
+              ) : null}
+              <View style={styles.gridRow}>
+                <View style={[styles.gridCell, styles.timeHeaderCell]}>
+                  <Text style={styles.timeText}>{time}</Text>
+                </View>
+                {visibleDates.map((date) => {
+                  const scheduledAt = buildScheduledAt(date, time);
+                  const record = administrations.find(
+                    (administration) =>
+                      administration.prescriptionId === prescription.id && administration.scheduledAt === scheduledAt
+                  );
+                  const isFutureDose = new Date(scheduledAt).getTime() > Date.now();
+                  const doseKey = `${prescription.id}-${scheduledAt}`;
+                  const isEditingDose = editingDoseKey === doseKey;
 
-                return (
-                  <View key={`${prescription.id}-${scheduledAt}`} style={styles.gridCell}>
-                    {record ? (
-                      <View style={styles.recordedDoseCell}>
-                        <View style={[styles.statusBadge, statusStyle(record.status)]}>
-                          <Text style={styles.statusText}>{statusCodeLabel(record)}</Text>
+                  return (
+                    <View key={`${prescription.id}-${scheduledAt}`} style={styles.gridCell}>
+                      {record ? (
+                        <View style={styles.recordedDoseCell}>
+                          <View style={[styles.statusBadge, statusStyle(record.status)]}>
+                            <Text style={styles.statusText}>{statusCodeLabel(record)}</Text>
+                          </View>
+                          <TouchableOpacity
+                            accessibilityRole="button"
+                            onPress={() => onChangeDose(isEditingDose ? "" : doseKey)}
+                            style={styles.changeDoseButton}
+                          >
+                            <Text style={styles.changeDoseLabel}>{isEditingDose ? "Hide" : "Change"}</Text>
+                          </TouchableOpacity>
+                          {isEditingDose ? (
+                            <View style={styles.recordButtons}>
+                              <DoseButton label="G" onPress={() => onRecordDose(scheduledAt, "Given")} />
+                              <DoseButton label="Ref" onPress={() => onRecordDose(scheduledAt, "Refused", undefined, "Patient refused")} />
+                              {omissionOptions.map((option) => (
+                                <DoseButton
+                                  key={option.code}
+                                  label={option.code}
+                                  onPress={() => onRecordDose(scheduledAt, "Omitted", option.code)}
+                                />
+                              ))}
+                            </View>
+                          ) : null}
                         </View>
-                        <TouchableOpacity
-                          accessibilityRole="button"
-                          onPress={() => onChangeDose(isEditingDose ? "" : doseKey)}
-                          style={styles.changeDoseButton}
-                        >
-                          <Text style={styles.changeDoseLabel}>{isEditingDose ? "Hide" : "Change"}</Text>
-                        </TouchableOpacity>
-                        {isEditingDose ? (
-                          <View style={styles.recordButtons}>
+                      ) : prescription.discontinuedAt ? (
+                        <Text style={styles.blankCell}>-</Text>
+                      ) : isFutureDose ? (
+                        <Text style={styles.futureCell}>Future</Text>
+                      ) : (
+                        <View style={styles.recordButtons}>
                             <DoseButton label="G" onPress={() => onRecordDose(scheduledAt, "Given")} />
                             <DoseButton label="Ref" onPress={() => onRecordDose(scheduledAt, "Refused", undefined, "Patient refused")} />
-                            {omissionOptions.map((option) => (
-                              <DoseButton
-                                key={option.code}
-                                label={option.code}
-                                onPress={() => onRecordDose(scheduledAt, "Omitted", option.code)}
-                              />
-                            ))}
-                          </View>
-                        ) : null}
-                      </View>
-                    ) : prescription.discontinuedAt ? (
-                      <Text style={styles.blankCell}>-</Text>
-                    ) : isFutureDose ? (
-                      <Text style={styles.futureCell}>Future</Text>
-                    ) : (
-                      <View style={styles.recordButtons}>
-                          <DoseButton label="G" onPress={() => onRecordDose(scheduledAt, "Given")} />
-                          <DoseButton label="Ref" onPress={() => onRecordDose(scheduledAt, "Refused", undefined, "Patient refused")} />
-                        {omissionOptions.map((option) => (
-                          <DoseButton
-                            key={option.code}
-                            label={option.code}
-                            onPress={() => onRecordDose(scheduledAt, "Omitted", option.code)}
-                          />
-                        ))}
-                      </View>
-                    )}
-                  </View>
-                );
-              })}
-            </View>
+                          {omissionOptions.map((option) => (
+                            <DoseButton
+                              key={option.code}
+                              label={option.code}
+                              onPress={() => onRecordDose(scheduledAt, "Omitted", option.code)}
+                            />
+                          ))}
+                        </View>
+                      )}
+                    </View>
+                  );
+                })}
+              </View>
+            </React.Fragment>
           ))}
         </View>
         </ScrollView>
       )}
+    </View>
+  );
+}
+
+function MedicationConfirmationPanel({
+  action,
+  onCancel,
+  onConfirm
+}: {
+  action: PendingMedicationAction;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  const lateMinutes = getLateMinutes(action.scheduledAt);
+
+  return (
+    <View accessibilityLiveRegion="assertive" accessibilityRole="alert" style={styles.confirmPanel}>
+      <View>
+        <Text style={styles.confirmTitle}>Confirm medication record</Text>
+        <Text style={styles.confirmMeta}>
+          {action.prescription.drugName} | {action.status}
+          {action.omissionCode ? ` ${action.omissionCode}` : ""} | {formatDateTime(action.scheduledAt)}
+        </Text>
+        {lateMinutes > 0 ? (
+          <Text style={styles.confirmWarning}>
+            Late record: {formatLateMinutes(lateMinutes)} after due time
+          </Text>
+        ) : null}
+      </View>
+      <View style={styles.confirmActions}>
+        <TouchableOpacity accessibilityRole="button" onPress={onCancel} style={styles.cancelConfirmButton}>
+          <Text style={styles.cancelConfirmText}>Cancel</Text>
+        </TouchableOpacity>
+        <TouchableOpacity accessibilityRole="button" onPress={onConfirm} style={styles.confirmButton}>
+          <Text style={styles.confirmButtonText}>Confirm</Text>
+        </TouchableOpacity>
+      </View>
     </View>
   );
 }
@@ -1224,11 +1274,13 @@ const styles = StyleSheet.create({
   confirmPanel: {
     alignItems: "center",
     backgroundColor: "#fff8e8",
-    borderBottomColor: "#e4b75f",
-    borderBottomWidth: 1,
+    borderColor: "#e4b75f",
+    borderRadius: 6,
+    borderWidth: 1,
     flexDirection: "row",
-    justifyContent: "space-between",
     gap: 10,
+    justifyContent: "space-between",
+    marginVertical: 6,
     padding: 10
   },
   confirmTitle: { color: "#62430f", fontSize: 14, fontWeight: "900" },
