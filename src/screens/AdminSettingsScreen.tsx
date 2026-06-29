@@ -1,5 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Alert, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { Alert, Image, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { manipulateAsync, SaveFormat } from "expo-image-manipulator";
+import * as ImagePicker from "expo-image-picker";
 
 import type { OrganisationSettings, ServiceType, Site, StaffMember, Ward } from "../types/domain";
 
@@ -37,6 +39,7 @@ export function AdminSettingsScreen({
   const [serviceType, setServiceType] = useState<ServiceType>("Care home");
   const [observationIntervalMinutes, setObservationIntervalMinutes] = useState(15);
   const [nfcStaffCodeFormat, setNfcStaffCodeFormat] = useState(organisationSettings.nfcStaffCodeFormat);
+  const [logoDataUri, setLogoDataUri] = useState(organisationSettings.logoDataUri ?? null);
   const [isSaving, setIsSaving] = useState(false);
   const selectedSiteWards = useMemo(
     () => wards.filter((ward) => ward.siteId === selectedSiteId),
@@ -46,6 +49,53 @@ export function AdminSettingsScreen({
   useEffect(() => {
     setNfcStaffCodeFormat(organisationSettings.nfcStaffCodeFormat);
   }, [organisationSettings.nfcStaffCodeFormat]);
+
+  useEffect(() => {
+    setLogoDataUri(organisationSettings.logoDataUri ?? null);
+  }, [organisationSettings.logoDataUri]);
+
+  const chooseLogo = async () => {
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ["images"],
+      quality: 0.85
+    });
+
+    if (result.canceled) return;
+
+    try {
+      const asset = result.assets[0];
+      if (!asset) throw new Error("No image was selected.");
+      const format = asset.mimeType === "image/png" ? SaveFormat.PNG : SaveFormat.JPEG;
+      const resized = await manipulateAsync(
+        asset.uri,
+        asset.width > 720 ? [{ resize: { width: 720 } }] : [],
+        { base64: true, compress: 0.78, format }
+      );
+      if (!resized.base64) throw new Error("No image data was returned.");
+
+      const nextLogo = `data:image/${format};base64,${resized.base64}`;
+      if (nextLogo.length > 900_000) {
+        Alert.alert("Logo is too large", "Choose a simpler or smaller image and try again.");
+        return;
+      }
+      setLogoDataUri(nextLogo);
+    } catch {
+      Alert.alert("Logo could not be prepared", "Please choose a JPG or PNG image and try again.");
+    }
+  };
+
+  const saveBranding = async () => {
+    setIsSaving(true);
+    try {
+      await onUpdateOrganisationSettings({
+        ...organisationSettings,
+        logoDataUri
+      });
+      Alert.alert("Branding saved", logoDataUri ? "Your company logo now appears across SecureObs." : "The company logo has been removed.");
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   const saveSite = async () => {
     const trimmedName = siteName.trim();
@@ -176,6 +226,48 @@ export function AdminSettingsScreen({
         </View>
         <Text style={styles.auditButtonArrow}>Open</Text>
       </TouchableOpacity>
+
+      <View style={styles.panel}>
+        <View>
+          <Text style={styles.panelTitle}>Company branding</Text>
+          <Text style={styles.meta}>Add a wide company logo to the header across SecureObs screens.</Text>
+        </View>
+        <View style={styles.brandingRow}>
+          <View style={styles.logoPreview}>
+            {logoDataUri ? (
+              <Image
+                accessibilityLabel="Company logo preview"
+                resizeMode="contain"
+                source={{ uri: logoDataUri }}
+                style={styles.logoPreviewImage}
+              />
+            ) : (
+              <Text style={styles.logoPlaceholder}>Your logo</Text>
+            )}
+          </View>
+          <View style={styles.brandingActions}>
+            <TouchableOpacity accessibilityRole="button" onPress={chooseLogo} style={styles.secondaryButton}>
+              <Text style={styles.secondaryButtonText}>{logoDataUri ? "Choose another logo" : "Choose logo"}</Text>
+            </TouchableOpacity>
+            {logoDataUri ? (
+              <TouchableOpacity accessibilityRole="button" onPress={() => setLogoDataUri(null)} style={styles.removeButton}>
+                <Text style={styles.removeButtonText}>Remove</Text>
+              </TouchableOpacity>
+            ) : null}
+          </View>
+        </View>
+        <TouchableOpacity
+          accessibilityRole="button"
+          disabled={isSaving || logoDataUri === (organisationSettings.logoDataUri ?? null)}
+          onPress={saveBranding}
+          style={[
+            styles.primaryButton,
+            (isSaving || logoDataUri === (organisationSettings.logoDataUri ?? null)) && styles.disabledButton
+          ]}
+        >
+          <Text style={styles.primaryButtonText}>{isSaving ? "Saving" : "Save branding"}</Text>
+        </TouchableOpacity>
+      </View>
 
       <View style={styles.panel}>
         <Text style={styles.panelTitle}>NFC staff card format</Text>
@@ -384,6 +476,53 @@ const styles = StyleSheet.create({
     padding: 14
   },
   panelTitle: { color: "#18262c", fontSize: 18, fontWeight: "900" },
+  brandingRow: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: 14
+  },
+  logoPreview: {
+    alignItems: "center",
+    backgroundColor: "#f8fafb",
+    borderColor: "#c7d2d6",
+    borderRadius: 8,
+    borderStyle: "dashed",
+    borderWidth: 1,
+    height: 96,
+    justifyContent: "center",
+    overflow: "hidden",
+    padding: 8,
+    width: 288
+  },
+  logoPreviewImage: {
+    height: "100%",
+    width: "100%"
+  },
+  logoPlaceholder: {
+    color: "#7b898f",
+    fontSize: 15,
+    fontWeight: "800"
+  },
+  brandingActions: {
+    alignItems: "flex-start",
+    gap: 8
+  },
+  secondaryButton: {
+    alignItems: "center",
+    borderColor: "#1f5262",
+    borderRadius: 6,
+    borderWidth: 1,
+    minHeight: 42,
+    justifyContent: "center",
+    paddingHorizontal: 12
+  },
+  secondaryButtonText: { color: "#1f5262", fontSize: 13, fontWeight: "900" },
+  removeButton: {
+    minHeight: 36,
+    justifyContent: "center",
+    paddingHorizontal: 4
+  },
+  removeButtonText: { color: "#9f2d28", fontSize: 13, fontWeight: "900" },
   input: {
     backgroundColor: "#f8fafb",
     borderColor: "#c7d2d6",

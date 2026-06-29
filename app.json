@@ -14,7 +14,13 @@
       "package": "com.geckostudios.secureobs"
     },
     "plugins": [
-      "react-native-nfc-manager"
+      "react-native-nfc-manager",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow Secure Obs to select your company logo."
+        }
+      ]
     ],
     "extra": {
       "apiUrl": "",

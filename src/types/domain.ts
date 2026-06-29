@@ -47,6 +47,7 @@ export type Site = {
 export type OrganisationSettings = {
   organisationId: string;
   nfcStaffCodeFormat: string;
+  logoDataUri?: string | null;
 };
 
 export type Ward = {

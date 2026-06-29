@@ -16,7 +16,13 @@ const siteSchema = z.object({
 
 const organisationSettingsSchema = z.object({
   organisationId: optionalOrganisationIdSchema,
-  nfcStaffCodeFormat: z.string().min(1)
+  nfcStaffCodeFormat: z.string().min(1),
+  logoDataUri: z
+    .string()
+    .max(900_000)
+    .regex(/^data:image\/(?:jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/)
+    .nullable()
+    .optional()
 });
 
 const wardSchema = z.object({
@@ -70,7 +76,8 @@ router.get("/organisation-settings", async (request, response, next) => {
       `
         select
           organisation_id as "organisationId",
-          nfc_staff_code_format as "nfcStaffCodeFormat"
+          nfc_staff_code_format as "nfcStaffCodeFormat",
+          logo_data_uri as "logoDataUri"
         from organisation_settings
         where organisation_id = $1
       `,
@@ -80,7 +87,8 @@ router.get("/organisation-settings", async (request, response, next) => {
     response.json({
       settings: result.rows[0] ?? {
         organisationId,
-        nfcStaffCodeFormat: "passcode={STAFFCODE}"
+        nfcStaffCodeFormat: "passcode={STAFFCODE}",
+        logoDataUri: null
       }
     });
   } catch (error) {
@@ -100,16 +108,18 @@ router.post("/organisation-settings", requireStaffRole(["super_admin"]), async (
 
     const result = await pool.query(
       `
-        insert into organisation_settings (organisation_id, nfc_staff_code_format)
-        values ($1, $2)
+        insert into organisation_settings (organisation_id, nfc_staff_code_format, logo_data_uri)
+        values ($1, $2, $3)
         on conflict (organisation_id) do update set
           nfc_staff_code_format = excluded.nfc_staff_code_format,
+          logo_data_uri = excluded.logo_data_uri,
           updated_at = now()
         returning
           organisation_id as "organisationId",
-          nfc_staff_code_format as "nfcStaffCodeFormat"
+          nfc_staff_code_format as "nfcStaffCodeFormat",
+          logo_data_uri as "logoDataUri"
       `,
-      [organisationId, parsed.data.nfcStaffCodeFormat]
+      [organisationId, parsed.data.nfcStaffCodeFormat, parsed.data.logoDataUri ?? null]
     );
 
     await recordAuditEvent({
@@ -118,7 +128,10 @@ router.post("/organisation-settings", requireStaffRole(["super_admin"]), async (
       eventType: "settings.organisation.update",
       entityType: "organisation_settings",
       entityId: organisationId,
-      details: { nfcStaffCodeFormat: parsed.data.nfcStaffCodeFormat }
+      details: {
+        nfcStaffCodeFormat: parsed.data.nfcStaffCodeFormat,
+        logoUpdated: parsed.data.logoDataUri !== undefined
+      }
     });
     response.status(201).json({ settings: result.rows[0] });
   } catch (error) {

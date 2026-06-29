@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Alert, AppState, Modal, SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { Alert, AppState, Image, Modal, SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { StatusBar } from "expo-status-bar";
 
 import { AdminSettingsScreen } from "./src/screens/AdminSettingsScreen";
@@ -101,7 +101,8 @@ import type {
 const defaultOrganisationId = "00000000-0000-0000-0000-000000000001";
 const defaultOrganisationSettings: OrganisationSettings = {
   organisationId: defaultOrganisationId,
-  nfcStaffCodeFormat: "passcode={STAFFCODE}"
+  nfcStaffCodeFormat: "passcode={STAFFCODE}",
+  logoDataUri: null
 };
 
 type AppScreen =
@@ -856,9 +857,21 @@ export default function App() {
     <SafeAreaView onTouchStart={resetActivityTimer} style={styles.shell}>
       <StatusBar style="dark" />
       <View style={styles.header}>
-        <View>
-          <Text style={styles.appName}>Secure Obs</Text>
-          <Text style={styles.subtitle}>High secure ward observation workflow</Text>
+        <View style={styles.brand}>
+          {organisationSettings.logoDataUri ? (
+            <View style={styles.organisationLogoFrame}>
+              <Image
+                accessibilityLabel="Company logo"
+                resizeMode="contain"
+                source={{ uri: organisationSettings.logoDataUri }}
+                style={styles.organisationLogo}
+              />
+            </View>
+          ) : null}
+          <View>
+            <Text style={styles.appName}>Secure Obs</Text>
+            <Text style={styles.subtitle}>High secure ward observation workflow</Text>
+          </View>
         </View>
         <TouchableOpacity accessibilityRole="button" onPress={showSyncStatus} style={styles.badge}>
           <Text style={styles.badgeText}>{syncStatusLabel(syncQueueState)}</Text>
@@ -1454,6 +1467,26 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     paddingHorizontal: 18,
     paddingVertical: 14
+  },
+  brand: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: 12
+  },
+  organisationLogoFrame: {
+    alignItems: "center",
+    borderColor: "#d9e0e3",
+    borderRadius: 8,
+    borderWidth: StyleSheet.hairlineWidth,
+    height: 48,
+    justifyContent: "center",
+    overflow: "hidden",
+    padding: 4,
+    width: 112
+  },
+  organisationLogo: {
+    height: "100%",
+    width: "100%"
   },
   appName: {
     color: "#18262c",
