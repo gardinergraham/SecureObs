@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Alert, AppState, Image, Modal, SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { Alert, AppState, Image, Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { StatusBar } from "expo-status-bar";
+import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 
 import { AdminSettingsScreen } from "./src/screens/AdminSettingsScreen";
 import { AuditLogScreen } from "./src/screens/AuditLogScreen";
@@ -854,9 +855,10 @@ export default function App() {
   };
 
   return (
-    <SafeAreaView onTouchStart={resetActivityTimer} style={styles.shell}>
-      <StatusBar style="dark" />
-      <View style={styles.header}>
+    <SafeAreaProvider>
+      <SafeAreaView edges={["top", "left", "right"]} onTouchStart={resetActivityTimer} style={styles.shell}>
+        <StatusBar backgroundColor="#ffffff" style="dark" />
+        <View style={styles.header}>
         <View style={styles.brand}>
           {organisationSettings.logoDataUri ? (
             <View style={styles.organisationLogoFrame}>
@@ -1260,8 +1262,9 @@ export default function App() {
             </ScrollView>
           </View>
         </View>
-      </Modal>
-    </SafeAreaView>
+        </Modal>
+      </SafeAreaView>
+    </SafeAreaProvider>
   );
 }
 
