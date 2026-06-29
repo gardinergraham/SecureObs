@@ -33,6 +33,7 @@ import {
   createStaffMember as persistStaffMember,
   createSecurityCheck as persistSecurityCheck,
   deleteRotaAssignment as persistRotaAssignmentDelete,
+  deleteSecurityArea as persistSecurityAreaDelete,
   deleteStaffShiftAssignment as persistStaffShiftAssignmentDelete,
   createWard as persistWard,
   loadSecurityAreas,
@@ -788,6 +789,15 @@ export default function App() {
     if (saved?.securityArea) {
       setSecurityAreas((currentAreas) => upsertById(currentAreas, saved.securityArea));
     }
+    return Boolean(saved?.securityArea);
+  };
+
+  const handleDeleteSecurityArea = async (areaId: string) => {
+    setSecurityAreas((currentAreas) => currentAreas.filter((area) => area.id !== areaId));
+    const result = await persistOrQueue("security area delete", () =>
+      persistSecurityAreaDelete(areaId, selectedStaff?.organisationId)
+    );
+    return Boolean(result?.deletedId);
   };
 
   const handleCreateMedicationPrescription = (prescription: MedicationPrescription) => {
@@ -920,6 +930,7 @@ export default function App() {
             staff={staffMembers}
             wards={siteWards}
             onBack={() => setScreen("wardSettings")}
+            onDeleteArea={handleDeleteSecurityArea}
             onSaveArea={handleSaveSecurityArea}
           />
         ) : screen === "wardOverview" ? (
@@ -952,6 +963,18 @@ export default function App() {
             onOpenNews2={() => {
               setWorkspaceBackScreen("wardOverview");
               setScreen("news2");
+            }}
+            onOpenPatientManagement={() => {
+              setWorkspaceBackScreen("wardOverview");
+              setScreen("patientManagement");
+            }}
+            onOpenPatientSettings={() => {
+              setWorkspaceBackScreen("wardOverview");
+              setScreen("patientSettings");
+            }}
+            onOpenPreviousObservations={() => {
+              setWorkspaceBackScreen("wardOverview");
+              setScreen("previousObservations");
             }}
             onOpenSecurityChecks={() => {
               setWorkspaceBackScreen("wardOverview");
@@ -988,8 +1011,14 @@ export default function App() {
               setWorkspaceBackScreen("observations");
               setScreen("enhanced");
             }}
-            onOpenPatientSettings={() => setScreen("patientSettings")}
-            onOpenPreviousObservations={() => setScreen("previousObservations")}
+            onOpenPatientSettings={() => {
+              setWorkspaceBackScreen("observations");
+              setScreen("patientSettings");
+            }}
+            onOpenPreviousObservations={() => {
+              setWorkspaceBackScreen("observations");
+              setScreen("previousObservations");
+            }}
             onOpenSecurityChecks={() => {
               setWorkspaceBackScreen("observations");
               setScreen("securityChecks");
@@ -998,7 +1027,10 @@ export default function App() {
               setWorkspaceBackScreen("observations");
               setScreen("medicationChart");
             }}
-            onOpenPatientManagement={() => setScreen("patientManagement")}
+            onOpenPatientManagement={() => {
+              setWorkspaceBackScreen("observations");
+              setScreen("patientManagement");
+            }}
             onOpenStaffRota={() => {
               setWorkspaceBackScreen("observations");
               setScreen("staffRota");
@@ -1026,7 +1058,7 @@ export default function App() {
             selectedWardId={selectedWardId}
             staff={staffMembers}
             wards={accessibleWards}
-            onBack={() => setScreen("observations")}
+            onBack={() => setScreen(workspaceBackScreen)}
             onSavePatient={handleSaveManagedPatient}
           />
         ) : screen === "patientAssessmentForms" ? (
@@ -1045,7 +1077,7 @@ export default function App() {
             selectedPatientId={selectedPatientId}
             selectedWardId={selectedWardId}
             wards={siteWards}
-            onBack={() => setScreen("observations")}
+            onBack={() => setScreen(workspaceBackScreen)}
             onSelectPatient={setSelectedPatientId}
           />
         ) : screen === "staffRota" ? (
@@ -1139,7 +1171,7 @@ export default function App() {
             selectedStaffId={selectedStaffId}
             staff={staffMembers}
             assessmentFormsEnabled={Boolean(selectedWard?.assessmentFormsEnabled)}
-            onBack={() => setScreen("observations")}
+            onBack={() => setScreen(workspaceBackScreen)}
             onOpenAssessmentForms={() => setScreen("patientAssessmentForms")}
             onUpdatePatient={handleUpdatePatient}
           />

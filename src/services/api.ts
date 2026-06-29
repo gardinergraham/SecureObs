@@ -220,6 +220,14 @@ export async function saveSecurityArea(area: OrganisationScoped<SecurityArea> & 
   });
 }
 
+export async function deleteSecurityArea(id: string, organisationId?: string) {
+  return saveQueuedRequest<{ deletedId: string }>(
+    "security area delete",
+    withOrganisationId(`/api/config/security-areas/${encodeURIComponent(id)}`, organisationId),
+    { method: "DELETE" }
+  );
+}
+
 export async function loadOrganisationSettings(organisationId?: string) {
   return request<{ settings: OrganisationSettings }>(withOrganisationId("/api/config/organisation-settings", organisationId));
 }

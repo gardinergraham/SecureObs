@@ -450,6 +450,45 @@ router.post("/security-areas", requireStaffRole(["manager", "super_admin"]), asy
   }
 });
 
+router.delete(
+  "/security-areas/:id",
+  requireStaffRole(["manager", "super_admin"]),
+  async (request, response, next) => {
+    try {
+      const organisationId = requireOrganisationId(request, response);
+      if (!organisationId) return;
+      const areaId = String(request.params.id);
+      const result = await pool.query(
+        `
+          delete from security_areas
+          where id = $1 and organisation_id = $2
+          returning id, ward_id as "wardId", name
+        `,
+        [areaId, organisationId]
+      );
+
+      if (!result.rowCount) {
+        response.status(404).json({ error: "Security check setup not found" });
+        return;
+      }
+
+      await recordAuditEvent({
+        organisationId,
+        eventType: "settings.security_area.delete",
+        entityType: "security_area",
+        entityId: areaId,
+        details: {
+          wardId: result.rows[0].wardId,
+          name: result.rows[0].name
+        }
+      });
+      response.json({ deletedId: areaId });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
 function createId(prefix: string, name: string) {
   const slug = name
     .toLowerCase()

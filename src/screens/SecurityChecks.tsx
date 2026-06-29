@@ -253,10 +253,12 @@ export function SecurityChecks({
                   <View style={styles.cutleryGrid}>
                     {(["knives", "forks", "spoons"] as const).map((item) => (
                       <View key={item} style={styles.cutleryBox}>
-                        <Text style={styles.cutleryLabel}>
-                          {item} expected {selectedArea.expectedItems?.cutlery?.[item] ?? 0}
+                        <Text style={styles.cutleryLabel}>{item}</Text>
+                        <Text style={styles.cutleryExpected}>
+                          Expected total: {selectedArea.expectedItems?.cutlery?.[item] ?? 0}
                         </Text>
                         <TextInput
+                          accessibilityLabel={`${item} counted total`}
                           blurOnSubmit={false}
                           keyboardType="number-pad"
                           onChangeText={(value) => setCutleryCounts((current) => ({ ...current, [item]: value }))}
@@ -891,6 +893,12 @@ const styles = StyleSheet.create({
   },
   cutleryLabel: {
     color: "#31454d",
+    fontSize: 12,
+    fontWeight: "900",
+    textTransform: "capitalize"
+  },
+  cutleryExpected: {
+    color: "#176056",
     fontSize: 11,
     fontWeight: "900"
   },

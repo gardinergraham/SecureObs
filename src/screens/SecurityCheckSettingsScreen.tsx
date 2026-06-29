@@ -10,7 +10,7 @@ import type {
   StaffMember,
   Ward
 } from "../types/domain";
-import { hasStaffRole } from "../utils/staffRole";
+import { hasAdminAccess, hasStaffRole } from "../utils/staffRole";
 
 const frequencyOptions: Array<{ value: SecurityCheckFrequency; label: string; minutes: number }> = [
   { value: "per_shift", label: "Per shift", minutes: 8 * 60 },
@@ -73,7 +73,8 @@ type SecurityCheckSettingsScreenProps = {
   staff: StaffMember[];
   wards: Ward[];
   onBack: () => void;
-  onSaveArea: (area: SecurityArea) => Promise<void>;
+  onDeleteArea: (areaId: string) => Promise<boolean>;
+  onSaveArea: (area: SecurityArea) => Promise<boolean>;
 };
 
 export function SecurityCheckSettingsScreen({
@@ -83,11 +84,12 @@ export function SecurityCheckSettingsScreen({
   staff,
   wards,
   onBack,
+  onDeleteArea,
   onSaveArea
 }: SecurityCheckSettingsScreenProps) {
   const selectedWard = wards.find((ward) => ward.id === selectedWardId);
   const selectedStaff = staff.find((member) => member.id === selectedStaffId);
-  const canEdit = hasStaffRole(selectedStaff, "manager");
+  const canEdit = hasStaffRole(selectedStaff, "manager") || hasAdminAccess(selectedStaff);
   const wardAreas = useMemo(
     () => areas.filter((area) => area.wardId === selectedWardId).sort((left, right) => left.name.localeCompare(right.name)),
     [areas, selectedWardId]
@@ -159,9 +161,14 @@ export function SecurityCheckSettingsScreen({
 
     setIsSaving(true);
     try {
-      await onSaveArea(area);
+      const savedToServer = await onSaveArea(area);
       clearDraft();
-      Alert.alert("Security check saved", `${area.name} has been saved for ${selectedWard.name}.`);
+      Alert.alert(
+        savedToServer ? "Security check saved" : "Security check queued",
+        savedToServer
+          ? `${area.name} has been saved for ${selectedWard.name}.`
+          : `${area.name} is saved on this device and will upload when the connection is restored.`
+      );
     } finally {
       setIsSaving(false);
     }
@@ -171,9 +178,10 @@ export function SecurityCheckSettingsScreen({
     if (!selectedWard || !canEdit || isSaving) return;
     setIsSaving(true);
     try {
+      let allSavedToServer = true;
       for (const check of standardChecks) {
         const existing = wardAreas.find((area) => area.category === check.category);
-        await onSaveArea({
+        const savedToServer = await onSaveArea({
           id: existing?.id ?? `security-area-${selectedWard.id}-${check.category}`,
           wardId: selectedWard.id,
           name: existing?.name ?? check.name,
@@ -184,8 +192,49 @@ export function SecurityCheckSettingsScreen({
           expectedItems: defaultExpectedItemsForCategory(check.category),
           active: true
         });
+        allSavedToServer = allSavedToServer && savedToServer;
       }
-      Alert.alert("Basic checks added", `The standard checks are ready for ${selectedWard.name}.`);
+      Alert.alert(
+        allSavedToServer ? "Basic checks added" : "Basic checks queued",
+        allSavedToServer
+          ? `The standard checks are ready for ${selectedWard.name}.`
+          : "The standard checks are saved on this device and will upload when the connection is restored."
+      );
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const confirmDeleteArea = () => {
+    if (!editingAreaId || !canEdit || isSaving) return;
+    const areaName = name.trim() || "this security check";
+    Alert.alert(
+      "Remove security check?",
+      `${areaName} will be removed from this ward. Existing completed-check history will be retained.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Remove",
+          style: "destructive",
+          onPress: () => {
+            void deleteArea(editingAreaId, areaName);
+          }
+        }
+      ]
+    );
+  };
+
+  const deleteArea = async (areaId: string, areaName: string) => {
+    setIsSaving(true);
+    try {
+      const removedFromServer = await onDeleteArea(areaId);
+      clearDraft();
+      Alert.alert(
+        removedFromServer ? "Security check removed" : "Removal queued",
+        removedFromServer
+          ? `${areaName} has been removed.`
+          : `${areaName} is removed on this device and will be deleted from the server when the connection is restored.`
+      );
     } finally {
       setIsSaving(false);
     }
@@ -235,6 +284,13 @@ export function SecurityCheckSettingsScreen({
                     {formatCategory(area.category)} | {formatFrequency(area.frequencyType, area.frequencyMinutes)}
                   </Text>
                   <Text style={styles.areaMeta}>{area.requiresCount ? "Count required" : "Visual/checklist record"}</Text>
+                  {area.category === "cutlery" ? (
+                    <Text style={styles.expectedSummary}>
+                      Expected: {area.expectedItems?.cutlery?.knives ?? 0} knives ·{" "}
+                      {area.expectedItems?.cutlery?.forks ?? 0} forks ·{" "}
+                      {area.expectedItems?.cutlery?.spoons ?? 0} spoons
+                    </Text>
+                  ) : null}
                 </View>
                 <Text style={[styles.statusBadge, area.active === false && styles.statusBadgeInactive]}>
                   {area.active === false ? "Off" : "On"}
@@ -298,36 +354,48 @@ export function SecurityCheckSettingsScreen({
             <View style={styles.configPanel}>
               <Text style={styles.label}>Expected cutlery</Text>
               <View style={styles.threeColumnRow}>
-                <TextInput
-                  blurOnSubmit={false}
-                  editable={canEdit}
-                  keyboardType="number-pad"
-                  onChangeText={setCutleryKnives}
-                  placeholder="Knives"
-                  placeholderTextColor="#6f7f87"
-                  style={[styles.input, styles.smallInput]}
-                  value={cutleryKnives}
-                />
-                <TextInput
-                  blurOnSubmit={false}
-                  editable={canEdit}
-                  keyboardType="number-pad"
-                  onChangeText={setCutleryForks}
-                  placeholder="Forks"
-                  placeholderTextColor="#6f7f87"
-                  style={[styles.input, styles.smallInput]}
-                  value={cutleryForks}
-                />
-                <TextInput
-                  blurOnSubmit={false}
-                  editable={canEdit}
-                  keyboardType="number-pad"
-                  onChangeText={setCutlerySpoons}
-                  placeholder="Spoons"
-                  placeholderTextColor="#6f7f87"
-                  style={[styles.input, styles.smallInput]}
-                  value={cutlerySpoons}
-                />
+                <View style={styles.expectedCountField}>
+                  <Text style={styles.expectedCountLabel}>Knives expected</Text>
+                  <TextInput
+                    accessibilityLabel="Expected knives"
+                    blurOnSubmit={false}
+                    editable={canEdit}
+                    keyboardType="number-pad"
+                    onChangeText={setCutleryKnives}
+                    placeholder="0"
+                    placeholderTextColor="#6f7f87"
+                    style={[styles.input, styles.smallInput]}
+                    value={cutleryKnives}
+                  />
+                </View>
+                <View style={styles.expectedCountField}>
+                  <Text style={styles.expectedCountLabel}>Forks expected</Text>
+                  <TextInput
+                    accessibilityLabel="Expected forks"
+                    blurOnSubmit={false}
+                    editable={canEdit}
+                    keyboardType="number-pad"
+                    onChangeText={setCutleryForks}
+                    placeholder="0"
+                    placeholderTextColor="#6f7f87"
+                    style={[styles.input, styles.smallInput]}
+                    value={cutleryForks}
+                  />
+                </View>
+                <View style={styles.expectedCountField}>
+                  <Text style={styles.expectedCountLabel}>Spoons expected</Text>
+                  <TextInput
+                    accessibilityLabel="Expected spoons"
+                    blurOnSubmit={false}
+                    editable={canEdit}
+                    keyboardType="number-pad"
+                    onChangeText={setCutlerySpoons}
+                    placeholder="0"
+                    placeholderTextColor="#6f7f87"
+                    style={[styles.input, styles.smallInput]}
+                    value={cutlerySpoons}
+                  />
+                </View>
               </View>
             </View>
           ) : null}
@@ -419,9 +487,19 @@ export function SecurityCheckSettingsScreen({
             <Text style={styles.saveButtonText}>{isSaving ? "Saving..." : editingAreaId ? "Update check" : "Add check"}</Text>
           </TouchableOpacity>
           {editingAreaId ? (
-            <TouchableOpacity accessibilityRole="button" onPress={clearDraft} style={styles.clearButton}>
-              <Text style={styles.clearButtonText}>Clear selection</Text>
-            </TouchableOpacity>
+            <>
+              <TouchableOpacity accessibilityRole="button" onPress={clearDraft} style={styles.clearButton}>
+                <Text style={styles.clearButtonText}>Clear selection</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                accessibilityRole="button"
+                disabled={!canEdit || isSaving}
+                onPress={confirmDeleteArea}
+                style={[styles.deleteButton, (!canEdit || isSaving) && styles.disabledControl]}
+              >
+                <Text style={styles.deleteButtonText}>Remove saved check</Text>
+              </TouchableOpacity>
+            </>
           ) : null}
         </View>
       </View>
@@ -583,6 +661,7 @@ const styles = StyleSheet.create({
   areaText: { flex: 1, paddingRight: 8 },
   areaName: { color: "#18262c", fontSize: 14, fontWeight: "900" },
   areaMeta: { color: "#607078", fontSize: 12, fontWeight: "800", marginTop: 3 },
+  expectedSummary: { color: "#315c50", fontSize: 11, fontWeight: "900", marginTop: 5 },
   statusBadge: {
     backgroundColor: "#dcead7",
     borderRadius: 6,
@@ -613,7 +692,9 @@ const styles = StyleSheet.create({
     padding: 10
   },
   threeColumnRow: { flexDirection: "row", gap: 8 },
-  smallInput: { flex: 1, minWidth: 80 },
+  expectedCountField: { flex: 1, gap: 5, minWidth: 92 },
+  expectedCountLabel: { color: "#31454d", fontSize: 11, fontWeight: "900" },
+  smallInput: { minWidth: 80, width: "100%" },
   checklistConfigRow: {
     flexDirection: "row",
     gap: 8
@@ -671,5 +752,14 @@ const styles = StyleSheet.create({
     minHeight: 38
   },
   clearButtonText: { color: "#1f5262", fontSize: 13, fontWeight: "900" },
+  deleteButton: {
+    alignItems: "center",
+    borderColor: "#a7362d",
+    borderRadius: 6,
+    borderWidth: 1,
+    justifyContent: "center",
+    minHeight: 38
+  },
+  deleteButtonText: { color: "#a7362d", fontSize: 13, fontWeight: "900" },
   disabledControl: { opacity: 0.45 }
 });
