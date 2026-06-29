@@ -5,6 +5,6 @@ set
   updated_at = now()
 from staff_members as staff
 where assignment.organisation_id = staff.organisation_id
-  and assignment.staff_id = staff.id
+  and assignment.staff_id = staff.id::text
   and staff.role = 'hcf'
   and (assignment.nurse_in_charge = true or assignment.medication_nurse = true);

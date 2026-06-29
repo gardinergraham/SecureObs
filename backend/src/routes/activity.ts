@@ -1059,7 +1059,7 @@ router.post("/staff-shift-assignments", requireStaffRole(["nurse", "manager"]), 
     const assignment = { ...parsed.data, organisationId };
     if (assignment.nurseInCharge || assignment.medicationNurse) {
       const assignedStaffResult = await pool.query(
-        "select role from staff_members where organisation_id = $1 and id = $2",
+        "select role from staff_members where organisation_id = $1 and id::text = $2",
         [organisationId, assignment.staffId]
       );
       if (!assignedStaffResult.rowCount) {
