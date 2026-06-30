@@ -808,7 +808,10 @@ function MedicationConfirmationPanel({
 
   return (
     <View accessibilityLiveRegion="assertive" accessibilityRole="alert" style={styles.confirmPanel}>
-      <View>
+      <TouchableOpacity accessibilityRole="button" onPress={onConfirm} style={styles.confirmButton}>
+        <Text style={styles.confirmButtonText}>Confirm</Text>
+      </TouchableOpacity>
+      <View style={styles.confirmCopy}>
         <Text style={styles.confirmTitle}>Confirm medication record</Text>
         <Text style={styles.confirmMeta}>
           {action.prescription.drugName} | {action.status}
@@ -820,14 +823,9 @@ function MedicationConfirmationPanel({
           </Text>
         ) : null}
       </View>
-      <View style={styles.confirmActions}>
-        <TouchableOpacity accessibilityRole="button" onPress={onCancel} style={styles.cancelConfirmButton}>
-          <Text style={styles.cancelConfirmText}>Cancel</Text>
-        </TouchableOpacity>
-        <TouchableOpacity accessibilityRole="button" onPress={onConfirm} style={styles.confirmButton}>
-          <Text style={styles.confirmButtonText}>Confirm</Text>
-        </TouchableOpacity>
-      </View>
+      <TouchableOpacity accessibilityRole="button" onPress={onCancel} style={styles.cancelConfirmButton}>
+        <Text style={styles.cancelConfirmText}>Cancel</Text>
+      </TouchableOpacity>
     </View>
   );
 }
@@ -1279,14 +1277,13 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     flexDirection: "row",
     gap: 10,
-    justifyContent: "space-between",
     marginVertical: 6,
     padding: 10
   },
+  confirmCopy: { flex: 1 },
   confirmTitle: { color: "#62430f", fontSize: 14, fontWeight: "900" },
   confirmMeta: { color: "#7b5a1a", fontSize: 12, fontWeight: "800", marginTop: 3 },
   confirmWarning: { color: "#8a3f00", fontSize: 12, fontWeight: "900", marginTop: 4 },
-  confirmActions: { flexDirection: "row", gap: 8 },
   cancelConfirmButton: {
     alignItems: "center",
     borderColor: "#9a5c00",
