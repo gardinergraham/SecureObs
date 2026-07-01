@@ -6,7 +6,7 @@
     <title>SecureObs | Secure Ward Observation Platform</title>
     <meta
       name="description"
-      content="SecureObs brings ward observations, TESO, NEWS2, medication records, rota cover, security checks, bank staff access, offline sync and audit governance into one practical tablet workflow."
+      content="SecureObs brings ward observations, patient notes, care plans, TESO, NEWS2, medication records, rota cover, security checks, offline sync and audit governance into one practical tablet workflow."
     />
     <link rel="stylesheet" href="styles.css" />
   </head>
@@ -19,6 +19,7 @@
       <nav aria-label="Main navigation">
         <a href="#workflow">Workflow</a>
         <a href="#bespoke">Bespoke setup</a>
+        <a href="#patient-records">Patient records</a>
         <a href="#screenshots">Screens</a>
         <a href="#governance">Governance</a>
         <a href="#deployment">Deployment</a>
@@ -33,8 +34,8 @@
           <p class="eyebrow">Secure ward observation workflow</p>
           <h1>One practical tablet system for safer ward observations.</h1>
           <p class="lead">
-            SecureObs brings general observations, TESO, NEWS2, medication records, security checks,
-            staff cover, bank staff access and audit governance into one simple ward workflow.
+            SecureObs brings general observations, patient notes, structured care plans, TESO, NEWS2,
+            medication records, security checks, staff cover, bank staff access and audit governance into one simple ward workflow.
             Each site can turn modules on or off so the app fits the service rather than forcing every
             ward into the same setup.
           </p>
@@ -112,6 +113,16 @@
             <h3>Admin setup</h3>
             <p>Sites, wards, feature switches, NFC formats, manager setup, session timeout and database-ready configuration.</p>
           </article>
+          <article>
+            <span class="feature-icon">09</span>
+            <h3>Patient notes</h3>
+            <p>Long-form signed notes with staff and date filtering, chronological review, multi-select and confidential PDF export.</p>
+          </article>
+          <article>
+            <span class="feature-icon">10</span>
+            <h3>Structured care plans</h3>
+            <p>Nursing templates for needs, risks, goals, interventions, patient preferences and review dates, with signed history and PDF output.</p>
+          </article>
         </div>
       </section>
 
@@ -133,6 +144,8 @@
           <span>Enhanced observations and TESO</span>
           <span>Medication chart</span>
           <span>Security checks</span>
+          <span>Patient notes</span>
+          <span>Care plans</span>
           <span>Assessment forms</span>
           <span>Staff rota</span>
           <span>Session timeout</span>
@@ -159,6 +172,50 @@
             <div>
               <h3>Management settings in one place</h3>
               <p>Managers can control staff access, ward modules, observation timing, timeout, shift count and break duration.</p>
+            </div>
+          </article>
+        </div>
+      </section>
+
+      <section id="patient-records" class="section records-section">
+        <div class="section-heading">
+          <p class="eyebrow">Patient-centred records</p>
+          <h2>Notes and care plans stay readable, attributable and ready to share.</h2>
+          <p>
+            Staff can select a patient, add detailed clinical information and review signed records without
+            leaving the ward workflow. Selected notes and completed care plans can be printed or saved as
+            confidential PDFs for an authorised clinical review.
+          </p>
+        </div>
+
+        <div class="records-showcase">
+          <article class="screenshot-card records-card">
+            <img
+              src="assets/screenshots2/Patient_Notes_PDF.png"
+              alt="SecureObs confidential patient notes PDF showing selected signed notes"
+              loading="lazy"
+            />
+            <div>
+              <h3>Patient notes with selective PDF export</h3>
+              <p>
+                Record longer patient notes, filter the history by staff member or date order, select the
+                entries needed and produce a clearly attributed confidential record for printing or sharing.
+              </p>
+            </div>
+          </article>
+          <article class="screenshot-card records-card">
+            <img
+              src="assets/screenshots2/Patient_Care_Plans.png"
+              alt="SecureObs structured patient care plan template"
+              loading="lazy"
+            />
+            <div>
+              <h3>Structured general nursing care plans</h3>
+              <p>
+                Capture assessed needs, risks and triggers, desired outcomes, planned staff interventions,
+                patient views and review dates. Saved plans retain staff authorship and can be printed or
+                shared as a PDF.
+              </p>
             </div>
           </article>
         </div>
@@ -288,6 +345,24 @@
               <p>Review general, enhanced and missed observations by date, patient and reason.</p>
             </div>
           </article>
+          <article class="screenshot-card screenshot-card-wide screenshot-card-full">
+            <a
+              href="assets/screenshots2/Patient_Care_Plans_Full.jpg"
+              target="_blank"
+              rel="noopener"
+              aria-label="Open the full SecureObs patient care plans screen"
+            >
+              <img
+                src="assets/screenshots2/Patient_Care_Plans_Full.jpg"
+                alt="Complete SecureObs patient care plans screen showing the care-plan template and a saved signed plan"
+                loading="lazy"
+              />
+            </a>
+            <div>
+              <h3>Care plans from creation to review</h3>
+              <p>See the complete workflow: structured clinical fields, review date, signed saving, saved plans and PDF sharing. Select the image to view it full size.</p>
+            </div>
+          </article>
         </div>
       </section>
 
@@ -297,14 +372,14 @@
           <h2>Simple on the ward, serious underneath.</h2>
           <p>
             SecureObs is built for environments where the record matters. Staff access, failed sign-ins,
-            observations, medication actions, settings changes and patient form completion can all be tied
-            back to staff identity and time.
+            observations, patient notes, care plans, medication actions, settings changes and patient form
+            completion can all be tied back to staff identity and time.
           </p>
         </div>
         <div class="security-list">
           <p>NFC, STAFFCODE and PIN sign-in with lockout controls</p>
           <p>Role permissions for nurses, HCF, OT, security, managers, doctors and super admin</p>
-          <p>Immutable audit events for access, observations, medications, TESO, settings and forms</p>
+          <p>Immutable audit events for access, observations, patient notes, care plans, medications, TESO, settings and forms</p>
           <p>Organisation and ward filtering for multi-site deployments</p>
           <p>Offline queue with individual retry instead of throwing away pending work</p>
         </div>
