@@ -50,6 +50,17 @@ export type OrganisationSettings = {
   logoDataUri?: string | null;
 };
 
+export type PatientNote = {
+  id: string;
+  patientId: string;
+  wardId: string;
+  body: string;
+  recordedByStaffId: string;
+  recordedByName: string;
+  recordedByStaffCode: string;
+  recordedAt: string;
+};
+
 export type Ward = {
   id: string;
   siteId: string;

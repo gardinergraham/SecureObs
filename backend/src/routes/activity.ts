@@ -2,7 +2,7 @@ import { Router } from "express";
 import { z } from "zod";
 
 import { auditActorFromBody, recordAuditEvent } from "../audit.js";
-import { requirePrescriber, requireStaffRole } from "../auth.js";
+import { requirePrescriber, requireStaffRole, type AuthenticatedRequest } from "../auth.js";
 import { pool } from "../db/pool.js";
 import { optionalOrganisationIdSchema, requireOrganisationId } from "./organisation.js";
 
@@ -142,6 +142,20 @@ const missedObservationSchema = z.object({
   actorStaffCode: z.string().optional()
 });
 
+const patientNoteSchema = z.object({
+  id: z.string().min(1).optional(),
+  organisationId: optionalOrganisationIdSchema,
+  patientId: z.string().min(1),
+  wardId: z.string().min(1),
+  body: z.string().trim().min(1).max(20_000),
+  recordedByStaffId: z.string().min(1),
+  recordedByName: z.string().min(1),
+  recordedByStaffCode: z.string().min(1),
+  recordedAt: z.string().datetime(),
+  actorStaffId: z.string().optional(),
+  actorStaffCode: z.string().optional()
+});
+
 const rotaAssignmentSchema = z.object({
   id: z.string().min(1),
   organisationId: optionalOrganisationIdSchema,
@@ -248,6 +262,136 @@ router.post("/observations", requireStaffRole([...anyWardStaff]), async (request
       entityType: "observation",
       entityId: observation.id,
       details: { patientId: observation.patientId, source: observation.source }
+    });
+    response.status(201).json(result.rows[0]);
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.get("/patient-notes", async (request, response, next) => {
+  try {
+    const organisationId = requireOrganisationId(request, response);
+    if (!organisationId) return;
+    const wardId = typeof request.query.wardId === "string" ? request.query.wardId : undefined;
+    const result = await pool.query(
+      `
+        select
+          id,
+          patient_id as "patientId",
+          ward_id as "wardId",
+          body,
+          recorded_by_staff_id as "recordedByStaffId",
+          recorded_by_name as "recordedByName",
+          recorded_by_staff_code as "recordedByStaffCode",
+          recorded_at as "recordedAt"
+        from patient_notes
+        where organisation_id = $1
+          and ($2::text is null or ward_id = $2::text)
+        order by recorded_at desc
+        limit 1000
+      `,
+      [organisationId, wardId ?? null]
+    );
+
+    response.json({ patientNotes: result.rows });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post("/patient-notes", requireStaffRole([...anyWardStaff]), async (request, response, next) => {
+  try {
+    const parsed = patientNoteSchema.safeParse(request.body);
+    if (!parsed.success) {
+      response.status(400).json({ error: "Invalid patient note", details: parsed.error.flatten() });
+      return;
+    }
+
+    const organisationId = requireOrganisationId(request, response);
+    if (!organisationId) return;
+    const authenticatedStaff = (request as AuthenticatedRequest).auth?.staff;
+    if (!authenticatedStaff) {
+      response.status(401).json({ error: "Authenticated staff session required" });
+      return;
+    }
+    if (
+      authenticatedStaff.role !== "super_admin" &&
+      !authenticatedStaff.allowedWardIds.includes(parsed.data.wardId)
+    ) {
+      response.status(403).json({ error: "Staff session is not authorised for this ward" });
+      return;
+    }
+    const note = {
+      ...parsed.data,
+      organisationId,
+      id: parsed.data.id ?? `patient-note-${Date.now()}`,
+      recordedByStaffId: authenticatedStaff.id ?? parsed.data.recordedByStaffId,
+      recordedByName: authenticatedStaff.name,
+      recordedByStaffCode: authenticatedStaff.staffCode
+    };
+    const patientResult = await pool.query(
+      `
+        select id
+        from patients
+        where id = $1
+          and organisation_id = $2
+          and ward_id = $3
+      `,
+      [note.patientId, note.organisationId, note.wardId]
+    );
+    if (!patientResult.rows[0]) {
+      response.status(404).json({ error: "Patient not found for this ward" });
+      return;
+    }
+
+    const result = await pool.query(
+      `
+        insert into patient_notes (
+          id, organisation_id, patient_id, ward_id, body, recorded_by_staff_id,
+          recorded_by_name, recorded_by_staff_code, recorded_at
+        ) values ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+        on conflict (id) do nothing
+        returning
+          id,
+          patient_id as "patientId",
+          ward_id as "wardId",
+          body,
+          recorded_by_staff_id as "recordedByStaffId",
+          recorded_by_name as "recordedByName",
+          recorded_by_staff_code as "recordedByStaffCode",
+          recorded_at as "recordedAt"
+      `,
+      [
+        note.id,
+        note.organisationId,
+        note.patientId,
+        note.wardId,
+        note.body,
+        note.recordedByStaffId,
+        note.recordedByName,
+        note.recordedByStaffCode,
+        note.recordedAt
+      ]
+    );
+
+    if (!result.rows[0]) {
+      response.status(409).json({ error: "Patient note already exists" });
+      return;
+    }
+
+    await recordAuditEvent({
+      organisationId,
+      actorStaffId: authenticatedStaff.id,
+      actorStaffCode: authenticatedStaff.staffCode,
+      eventType: "patient_note.save",
+      entityType: "patient_note",
+      entityId: note.id,
+      details: {
+        patientId: note.patientId,
+        wardId: note.wardId,
+        characterCount: note.body.length
+      }
     });
     response.status(201).json(result.rows[0]);
   } catch (error) {

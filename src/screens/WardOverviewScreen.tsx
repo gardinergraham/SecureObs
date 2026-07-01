@@ -33,6 +33,7 @@ type WardOverviewScreenProps = {
   onOpenMedicationChart: () => void;
   onOpenNews2: () => void;
   onOpenPatientManagement: () => void;
+  onOpenPatientNotes: () => void;
   onOpenPatientSettings: () => void;
   onOpenPreviousObservations: () => void;
   onOpenSecurityChecks: () => void;
@@ -67,6 +68,7 @@ export function WardOverviewScreen({
   onOpenMedicationChart,
   onOpenNews2,
   onOpenPatientManagement,
+  onOpenPatientNotes,
   onOpenPatientSettings,
   onOpenPreviousObservations,
   onOpenSecurityChecks,
@@ -454,6 +456,7 @@ export function WardOverviewScreen({
           ) : null}
           <QuickAction label="Patient settings / TESO" onPress={onOpenPatientSettings} />
           <QuickAction label="Patient management" onPress={onOpenPatientManagement} />
+          <QuickAction label="Patient notes" onPress={onOpenPatientNotes} />
           <QuickAction label="Previous observations" onPress={onOpenPreviousObservations} />
           {ward?.securityChecksEnabled ? <QuickAction label="Security check" onPress={onOpenSecurityChecks} /> : null}
           {ward?.medicationChartEnabled ? <QuickAction label="Medication chart" onPress={onOpenMedicationChart} /> : null}

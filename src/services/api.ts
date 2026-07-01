@@ -12,6 +12,7 @@ import type {
   Observation,
   OrganisationSettings,
   Patient,
+  PatientNote,
   RotaAssignment,
   SecurityArea,
   SecurityCheck,
@@ -203,6 +204,19 @@ export async function savePatient(patient: OrganisationScoped<Patient> & ActorSc
   return saveQueuedRequest<{ patient: Patient }>("patient", "/api/patients", {
     method: "POST",
     body: JSON.stringify(patient)
+  });
+}
+
+export async function loadPatientNotes(organisationId?: string, wardId?: string) {
+  return request<{ patientNotes: PatientNote[] }>(
+    withOptionalQuery(withOrganisationId("/api/patient-notes", organisationId), "wardId", wardId)
+  );
+}
+
+export async function createPatientNote(note: OrganisationScoped<PatientNote> & ActorScoped) {
+  return saveQueuedRequest<PatientNote>("patient note", "/api/patient-notes", {
+    method: "POST",
+    body: JSON.stringify(note)
   });
 }
 

@@ -13,6 +13,7 @@ import { MedicationChartScreen } from "./src/screens/MedicationChartScreen";
 import { News2Screen } from "./src/screens/News2Screen";
 import { PatientManagementScreen } from "./src/screens/PatientManagementScreen";
 import { PatientAssessmentFormsScreen } from "./src/screens/PatientAssessmentFormsScreen";
+import { PatientNotesScreen } from "./src/screens/PatientNotesScreen";
 import { PatientSettingsScreen } from "./src/screens/PatientSettingsScreen";
 import { PreviousObservationsScreen } from "./src/screens/PreviousObservationsScreen";
 import { SecurityCheckSettingsScreen } from "./src/screens/SecurityCheckSettingsScreen";
@@ -29,6 +30,7 @@ import {
   createMedicationPrescription as persistMedicationPrescription,
   createFoodFluidEntry as persistFoodFluidEntry,
   createNews2Reading as persistNews2Reading,
+  createPatientNote as persistPatientNote,
   saveOrganisationSettings as persistOrganisationSettings,
   createSite as persistSite,
   createStaffMember as persistStaffMember,
@@ -47,6 +49,7 @@ import {
   loadObservations,
   loadOrganisationSettings,
   loadPatients,
+  loadPatientNotes,
   loadRotaAssignments,
   loadSecurityChecks,
   loadStaffShiftAssignments,
@@ -88,6 +91,7 @@ import type {
   Observation,
   OrganisationSettings,
   Patient,
+  PatientNote,
   PatientLocation,
   PatientPresentation,
   RotaAssignment,
@@ -115,6 +119,7 @@ type AppScreen =
   | "enhanced"
   | "patientManagement"
   | "patientAssessmentForms"
+  | "patientNotes"
   | "patientSettings"
   | "previousObservations"
   | "bankAgencyStaff"
@@ -133,6 +138,7 @@ export default function App() {
   const [news2Readings, setNews2Readings] = useState<News2Reading[]>(() => createDemoNews2Readings(seedData.patients[0]?.id ?? ""));
   const [foodFluidEntries, setFoodFluidEntries] = useState<FoodFluidEntry[]>([]);
   const [observations, setObservations] = useState<Observation[]>(seedData.observations);
+  const [patientNotes, setPatientNotes] = useState<PatientNote[]>([]);
   const [patients, setPatients] = useState<Patient[]>(() => createDemoPatients());
   const [rotaAssignments, setRotaAssignments] = useState<RotaAssignment[]>(seedData.rotaAssignments);
   const [staffShiftAssignments, setStaffShiftAssignments] = useState<StaffShiftAssignment[]>(
@@ -191,6 +197,7 @@ export default function App() {
           wardResult,
           observationResult,
           patientResult,
+          patientNoteResult,
           securityAreaResult,
           securityCheckResult,
           news2Result,
@@ -207,6 +214,7 @@ export default function App() {
           loadWards(organisationId),
           loadObservations(organisationId),
           loadPatients(organisationId),
+          loadPatientNotes(organisationId, selectedWardId || undefined),
           loadSecurityAreas(organisationId, selectedWardId || undefined),
           loadSecurityChecks(organisationId),
           loadNews2Readings(organisationId),
@@ -228,6 +236,7 @@ export default function App() {
           )
         );
         setObservations((currentObservations) => mergeById(observationResult.observations, currentObservations));
+        setPatientNotes((currentNotes) => mergeById(patientNoteResult.patientNotes, currentNotes));
         setSecurityAreas((currentAreas) =>
           selectedWardId
             ? [
@@ -708,6 +717,18 @@ export default function App() {
     setPatients((currentPatients) => upsertPatient(currentPatients, result?.patient ?? patient));
   };
 
+  const handleCreatePatientNote = async (note: PatientNote) => {
+    const result = await persistOrQueue("patient note", () =>
+      persistPatientNote({
+        ...note,
+        organisationId: selectedStaff?.organisationId,
+        actorStaffId: selectedStaff?.id,
+        actorStaffCode: selectedStaff?.staffCode
+      })
+    );
+    setPatientNotes((currentNotes) => upsertById(currentNotes, result ?? note));
+  };
+
   const handleCreateRotaAssignment = (assignment: RotaAssignment) => {
     setRotaAssignments((currentAssignments) => upsertById(currentAssignments, assignment));
     void persistOrQueue("rota assignment", () =>
@@ -983,6 +1004,10 @@ export default function App() {
               setWorkspaceBackScreen("wardOverview");
               setScreen("patientManagement");
             }}
+            onOpenPatientNotes={() => {
+              setWorkspaceBackScreen("wardOverview");
+              setScreen("patientNotes");
+            }}
             onOpenPatientSettings={() => {
               setWorkspaceBackScreen("wardOverview");
               setScreen("patientSettings");
@@ -1046,6 +1071,10 @@ export default function App() {
               setWorkspaceBackScreen("observations");
               setScreen("patientManagement");
             }}
+            onOpenPatientNotes={() => {
+              setWorkspaceBackScreen("observations");
+              setScreen("patientNotes");
+            }}
             onOpenStaffRota={() => {
               setWorkspaceBackScreen("observations");
               setScreen("staffRota");
@@ -1093,6 +1122,18 @@ export default function App() {
             selectedWardId={selectedWardId}
             wards={siteWards}
             onBack={() => setScreen(workspaceBackScreen)}
+            onSelectPatient={setSelectedPatientId}
+          />
+        ) : screen === "patientNotes" ? (
+          <PatientNotesScreen
+            notes={patientNotes}
+            patients={wardPatients}
+            selectedPatientId={selectedPatientId}
+            selectedStaffId={selectedStaffId}
+            staff={staffMembers}
+            ward={selectedWard}
+            onBack={() => setScreen(workspaceBackScreen)}
+            onCreateNote={handleCreatePatientNote}
             onSelectPatient={setSelectedPatientId}
           />
         ) : screen === "staffRota" ? (
