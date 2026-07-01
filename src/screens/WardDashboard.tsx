@@ -47,6 +47,7 @@ type WardDashboardProps = {
   onOpenFoodFluidChart: () => void;
   onOpenNews2: () => void;
   onOpenEnhanced: () => void;
+  onOpenPatientCarePlans: () => void;
   onOpenPatientNotes: () => void;
   onOpenPatientSettings: () => void;
   onOpenPreviousObservations: () => void;
@@ -75,6 +76,7 @@ export function WardDashboard({
   onOpenFoodFluidChart,
   onOpenNews2,
   onOpenEnhanced,
+  onOpenPatientCarePlans,
   onOpenPatientNotes,
   onOpenPatientSettings,
   onOpenPreviousObservations,
@@ -307,7 +309,10 @@ export function WardDashboard({
           <Text style={styles.modeButtonText}>Patient management</Text>
         </TouchableOpacity>
         <TouchableOpacity accessibilityRole="button" onPress={onOpenPatientNotes} style={styles.modeButton}>
-          <Text style={styles.modeButtonText}>Patient notes</Text>
+          <Text style={styles.modeButtonText}>Notes</Text>
+        </TouchableOpacity>
+        <TouchableOpacity accessibilityRole="button" onPress={onOpenPatientCarePlans} style={styles.modeButton}>
+          <Text style={styles.modeButtonText}>Care plans</Text>
         </TouchableOpacity>
         <TouchableOpacity accessibilityRole="button" onPress={onOpenPreviousObservations} style={styles.modeButton}>
           <Text style={styles.modeButtonText}>Previous obs</Text>

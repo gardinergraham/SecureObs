@@ -107,6 +107,8 @@ export function PatientNotesScreen({
       await onCreateNote(note);
       setNoteBody("");
       Alert.alert("Patient note saved", `The note has been added to ${selectedPatient.firstName}'s record.`);
+    } catch (error) {
+      Alert.alert("Patient note not saved", error instanceof Error ? error.message : "Please sign in and try again.");
     } finally {
       setIsSaving(false);
     }

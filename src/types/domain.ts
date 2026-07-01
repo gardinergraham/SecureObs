@@ -61,6 +61,24 @@ export type PatientNote = {
   recordedAt: string;
 };
 
+export type PatientCarePlan = {
+  id: string;
+  patientId: string;
+  wardId: string;
+  title: string;
+  identifiedNeeds: string;
+  risksAndTriggers: string;
+  goals: string;
+  interventions: string;
+  patientViews: string;
+  reviewDate: string;
+  additionalNotes: string;
+  createdByStaffId: string;
+  createdByName: string;
+  createdByStaffCode: string;
+  createdAt: string;
+};
+
 export type Ward = {
   id: string;
   siteId: string;

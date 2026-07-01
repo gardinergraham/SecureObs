@@ -1,5 +1,5 @@
 import { seedData } from "../data/seedData";
-import { clearAuthSession, getAuthSession, storeAuthSession } from "./authSession";
+import { expireAuthSession, getAuthSession, storeAuthSession } from "./authSession";
 import { configureSyncQueue, enqueueFailedRequest, flushSyncQueue, QueuedSyncError } from "./syncQueue";
 import type {
   AuditEvent,
@@ -12,6 +12,7 @@ import type {
   Observation,
   OrganisationSettings,
   Patient,
+  PatientCarePlan,
   PatientNote,
   RotaAssignment,
   SecurityArea,
@@ -26,6 +27,16 @@ const defaultApiUrl = "https://adequate-energy-production.up.railway.app";
 const apiUrl = process.env.EXPO_PUBLIC_API_URL ?? defaultApiUrl;
 
 configureSyncQueue(request);
+
+class ApiRequestError extends Error {
+  constructor(
+    message: string,
+    readonly status: number
+  ) {
+    super(message);
+    this.name = "ApiRequestError";
+  }
+}
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   if (!apiUrl) {
@@ -44,10 +55,10 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
   if (!response.ok) {
     if (response.status === 401) {
-      await clearAuthSession();
+      await expireAuthSession();
     }
     const message = await readErrorMessage(response);
-    throw new Error(message || `API request failed: ${response.status}`);
+    throw new ApiRequestError(message || `API request failed: ${response.status}`, response.status);
   }
 
   return response.json() as Promise<T>;
@@ -102,6 +113,9 @@ export async function createObservation(observation: OrganisationScoped<Omit<Obs
     await flushSyncQueue();
     return savedObservation;
   } catch (error) {
+    if (!isRetryableRequestError(error)) {
+      throw error;
+    }
     await enqueueFailedRequest("observation", path, init, error);
     return localObservation;
   }
@@ -113,9 +127,16 @@ export async function saveQueuedRequest<T>(label: string, path: string, init?: R
     await flushSyncQueue();
     return result;
   } catch (error) {
+    if (!isRetryableRequestError(error)) {
+      throw error;
+    }
     await enqueueFailedRequest(label, path, init, error);
     throw new QueuedSyncError(`${label} queued for sync`);
   }
+}
+
+function isRetryableRequestError(error: unknown) {
+  return !(error instanceof ApiRequestError) || error.status >= 500;
 }
 
 export async function createObservationDirect(observation: OrganisationScoped<Omit<Observation, "id"> & ActorScoped>) {
@@ -217,6 +238,19 @@ export async function createPatientNote(note: OrganisationScoped<PatientNote> & 
   return saveQueuedRequest<PatientNote>("patient note", "/api/patient-notes", {
     method: "POST",
     body: JSON.stringify(note)
+  });
+}
+
+export async function loadPatientCarePlans(organisationId?: string, wardId?: string) {
+  return request<{ patientCarePlans: PatientCarePlan[] }>(
+    withOptionalQuery(withOrganisationId("/api/patient-care-plans", organisationId), "wardId", wardId)
+  );
+}
+
+export async function createPatientCarePlan(plan: OrganisationScoped<PatientCarePlan> & ActorScoped) {
+  return saveQueuedRequest<PatientCarePlan>("patient care plan", "/api/patient-care-plans", {
+    method: "POST",
+    body: JSON.stringify(plan)
   });
 }
 

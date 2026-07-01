@@ -156,6 +156,27 @@ const patientNoteSchema = z.object({
   actorStaffCode: z.string().optional()
 });
 
+const patientCarePlanSchema = z.object({
+  id: z.string().min(1).optional(),
+  organisationId: optionalOrganisationIdSchema,
+  patientId: z.string().min(1),
+  wardId: z.string().min(1),
+  title: z.string().trim().min(1).max(200),
+  identifiedNeeds: z.string().trim().min(1).max(10_000),
+  risksAndTriggers: z.string().trim().max(10_000).default(""),
+  goals: z.string().trim().min(1).max(10_000),
+  interventions: z.string().trim().min(1).max(20_000),
+  patientViews: z.string().trim().max(10_000).default(""),
+  reviewDate: z.string().trim().min(1).max(50),
+  additionalNotes: z.string().trim().max(10_000).default(""),
+  createdByStaffId: z.string().min(1),
+  createdByName: z.string().min(1),
+  createdByStaffCode: z.string().min(1),
+  createdAt: z.string().datetime(),
+  actorStaffId: z.string().optional(),
+  actorStaffCode: z.string().optional()
+});
+
 const rotaAssignmentSchema = z.object({
   id: z.string().min(1),
   organisationId: optionalOrganisationIdSchema,
@@ -398,6 +419,161 @@ router.post("/patient-notes", requireStaffRole([...anyWardStaff]), async (reques
     next(error);
   }
 });
+
+router.get("/patient-care-plans", async (request, response, next) => {
+  try {
+    const organisationId = requireOrganisationId(request, response);
+    if (!organisationId) return;
+    const wardId = typeof request.query.wardId === "string" ? request.query.wardId : undefined;
+    const result = await pool.query(
+      `
+        select
+          id,
+          patient_id as "patientId",
+          ward_id as "wardId",
+          title,
+          identified_needs as "identifiedNeeds",
+          risks_and_triggers as "risksAndTriggers",
+          goals,
+          interventions,
+          patient_views as "patientViews",
+          review_date as "reviewDate",
+          additional_notes as "additionalNotes",
+          created_by_staff_id as "createdByStaffId",
+          created_by_name as "createdByName",
+          created_by_staff_code as "createdByStaffCode",
+          created_at as "createdAt"
+        from patient_care_plans
+        where organisation_id = $1
+          and ($2::text is null or ward_id = $2::text)
+        order by created_at desc
+        limit 500
+      `,
+      [organisationId, wardId ?? null]
+    );
+
+    response.json({ patientCarePlans: result.rows });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post(
+  "/patient-care-plans",
+  requireStaffRole(["nurse", "manager", "doctor", "super_admin"]),
+  async (request, response, next) => {
+    try {
+      const parsed = patientCarePlanSchema.safeParse(request.body);
+      if (!parsed.success) {
+        response.status(400).json({ error: "Invalid patient care plan", details: parsed.error.flatten() });
+        return;
+      }
+
+      const organisationId = requireOrganisationId(request, response);
+      if (!organisationId) return;
+      const authenticatedStaff = (request as AuthenticatedRequest).auth?.staff;
+      if (!authenticatedStaff) {
+        response.status(401).json({ error: "Authenticated staff session required" });
+        return;
+      }
+      if (!authenticatedStaff.allowedWardIds.includes(parsed.data.wardId)) {
+        response.status(403).json({ error: "Staff session is not authorised for this ward" });
+        return;
+      }
+
+      const plan = {
+        ...parsed.data,
+        organisationId,
+        id: parsed.data.id ?? `patient-care-plan-${Date.now()}`,
+        createdByStaffId: authenticatedStaff.id ?? parsed.data.createdByStaffId,
+        createdByName: authenticatedStaff.name,
+        createdByStaffCode: authenticatedStaff.staffCode
+      };
+      const patientResult = await pool.query(
+        `
+          select id
+          from patients
+          where id = $1
+            and organisation_id = $2
+            and ward_id = $3
+        `,
+        [plan.patientId, plan.organisationId, plan.wardId]
+      );
+      if (!patientResult.rows[0]) {
+        response.status(404).json({ error: "Patient not found for this ward" });
+        return;
+      }
+
+      const result = await pool.query(
+        `
+          insert into patient_care_plans (
+            id, organisation_id, patient_id, ward_id, title, identified_needs, risks_and_triggers,
+            goals, interventions, patient_views, review_date, additional_notes,
+            created_by_staff_id, created_by_name, created_by_staff_code, created_at
+          ) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
+          on conflict (id) do nothing
+          returning
+            id,
+            patient_id as "patientId",
+            ward_id as "wardId",
+            title,
+            identified_needs as "identifiedNeeds",
+            risks_and_triggers as "risksAndTriggers",
+            goals,
+            interventions,
+            patient_views as "patientViews",
+            review_date as "reviewDate",
+            additional_notes as "additionalNotes",
+            created_by_staff_id as "createdByStaffId",
+            created_by_name as "createdByName",
+            created_by_staff_code as "createdByStaffCode",
+            created_at as "createdAt"
+        `,
+        [
+          plan.id,
+          plan.organisationId,
+          plan.patientId,
+          plan.wardId,
+          plan.title,
+          plan.identifiedNeeds,
+          plan.risksAndTriggers,
+          plan.goals,
+          plan.interventions,
+          plan.patientViews,
+          plan.reviewDate,
+          plan.additionalNotes,
+          plan.createdByStaffId,
+          plan.createdByName,
+          plan.createdByStaffCode,
+          plan.createdAt
+        ]
+      );
+
+      if (!result.rows[0]) {
+        response.status(409).json({ error: "Patient care plan already exists" });
+        return;
+      }
+
+      await recordAuditEvent({
+        organisationId,
+        actorStaffId: authenticatedStaff.id,
+        actorStaffCode: authenticatedStaff.staffCode,
+        eventType: "patient_care_plan.save",
+        entityType: "patient_care_plan",
+        entityId: plan.id,
+        details: {
+          patientId: plan.patientId,
+          wardId: plan.wardId,
+          title: plan.title,
+          reviewDate: plan.reviewDate
+        }
+      });
+      response.status(201).json(result.rows[0]);
+    } catch (error) {
+      next(error);
+    }
+  }
+);
 
 router.get("/security-checks", async (request, response, next) => {
   try {

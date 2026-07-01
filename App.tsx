@@ -13,6 +13,7 @@ import { MedicationChartScreen } from "./src/screens/MedicationChartScreen";
 import { News2Screen } from "./src/screens/News2Screen";
 import { PatientManagementScreen } from "./src/screens/PatientManagementScreen";
 import { PatientAssessmentFormsScreen } from "./src/screens/PatientAssessmentFormsScreen";
+import { PatientCarePlansScreen } from "./src/screens/PatientCarePlansScreen";
 import { PatientNotesScreen } from "./src/screens/PatientNotesScreen";
 import { PatientSettingsScreen } from "./src/screens/PatientSettingsScreen";
 import { PreviousObservationsScreen } from "./src/screens/PreviousObservationsScreen";
@@ -30,6 +31,7 @@ import {
   createMedicationPrescription as persistMedicationPrescription,
   createFoodFluidEntry as persistFoodFluidEntry,
   createNews2Reading as persistNews2Reading,
+  createPatientCarePlan as persistPatientCarePlan,
   createPatientNote as persistPatientNote,
   saveOrganisationSettings as persistOrganisationSettings,
   createSite as persistSite,
@@ -49,6 +51,7 @@ import {
   loadObservations,
   loadOrganisationSettings,
   loadPatients,
+  loadPatientCarePlans,
   loadPatientNotes,
   loadRotaAssignments,
   loadSecurityChecks,
@@ -68,7 +71,7 @@ import {
   unlockStaffAccess,
   updateMedicationPrescription as persistMedicationPrescriptionUpdate
 } from "./src/services/api";
-import { clearAuthSession } from "./src/services/authSession";
+import { clearAuthSession, subscribeToAuthSessionExpiry } from "./src/services/authSession";
 import {
   flushSyncQueue,
   isQueuedSyncError,
@@ -91,6 +94,7 @@ import type {
   Observation,
   OrganisationSettings,
   Patient,
+  PatientCarePlan,
   PatientNote,
   PatientLocation,
   PatientPresentation,
@@ -119,6 +123,7 @@ type AppScreen =
   | "enhanced"
   | "patientManagement"
   | "patientAssessmentForms"
+  | "patientCarePlans"
   | "patientNotes"
   | "patientSettings"
   | "previousObservations"
@@ -138,6 +143,7 @@ export default function App() {
   const [news2Readings, setNews2Readings] = useState<News2Reading[]>(() => createDemoNews2Readings(seedData.patients[0]?.id ?? ""));
   const [foodFluidEntries, setFoodFluidEntries] = useState<FoodFluidEntry[]>([]);
   const [observations, setObservations] = useState<Observation[]>(seedData.observations);
+  const [patientCarePlans, setPatientCarePlans] = useState<PatientCarePlan[]>([]);
   const [patientNotes, setPatientNotes] = useState<PatientNote[]>([]);
   const [patients, setPatients] = useState<Patient[]>(() => createDemoPatients());
   const [rotaAssignments, setRotaAssignments] = useState<RotaAssignment[]>(seedData.rotaAssignments);
@@ -187,6 +193,19 @@ export default function App() {
     };
   }, []);
 
+  useEffect(
+    () =>
+      subscribeToAuthSessionExpiry(() => {
+        setSelectedStaffId("");
+        setSelectedSiteId("");
+        setSelectedWardId("");
+        setSelectedPatientId("");
+        setScreen("home");
+        Alert.alert("Staff session expired", "Sign in again to save records and retry waiting uploads.");
+      }),
+    []
+  );
+
   useEffect(() => {
     const loadConfiguration = async () => {
       const organisationId = selectedStaff?.organisationId ?? defaultOrganisationId;
@@ -197,6 +216,7 @@ export default function App() {
           wardResult,
           observationResult,
           patientResult,
+          patientCarePlanResult,
           patientNoteResult,
           securityAreaResult,
           securityCheckResult,
@@ -214,6 +234,7 @@ export default function App() {
           loadWards(organisationId),
           loadObservations(organisationId),
           loadPatients(organisationId),
+          loadPatientCarePlans(organisationId, selectedWardId || undefined),
           loadPatientNotes(organisationId, selectedWardId || undefined),
           loadSecurityAreas(organisationId, selectedWardId || undefined),
           loadSecurityChecks(organisationId),
@@ -236,6 +257,7 @@ export default function App() {
           )
         );
         setObservations((currentObservations) => mergeById(observationResult.observations, currentObservations));
+        setPatientCarePlans((currentPlans) => mergeById(patientCarePlanResult.patientCarePlans, currentPlans));
         setPatientNotes((currentNotes) => mergeById(patientNoteResult.patientNotes, currentNotes));
         setSecurityAreas((currentAreas) =>
           selectedWardId
@@ -272,7 +294,11 @@ export default function App() {
     void loadConfiguration();
   }, [selectedStaff?.organisationId, selectedWardId]);
 
-  const persistOrQueue = async <T,>(label: string, run: () => Promise<T>) => {
+  const persistOrQueue = async <T,>(
+    label: string,
+    run: () => Promise<T>,
+    rethrowPermanentError = false
+  ) => {
     try {
       const result = await run();
       await flushSyncQueue();
@@ -280,6 +306,9 @@ export default function App() {
     } catch (error) {
       if (!isQueuedSyncError(error)) {
         console.warn(`${label} save failed`, error);
+        if (rethrowPermanentError) {
+          throw error;
+        }
       }
       return undefined;
     }
@@ -397,6 +426,7 @@ export default function App() {
         if (!staff || cancelled) return;
         setStaffMembers((currentStaff) => upsertStaffByCode(currentStaff, staff));
         selectStaffSession(staff);
+        void flushSyncQueue();
       })
       .catch((error) => {
         console.warn("Unable to restore staff session", error);
@@ -475,6 +505,7 @@ export default function App() {
       const { staff } = await lookupStaffByCode(parsedCard.staffCode, selectedStaff?.organisationId ?? defaultOrganisationId);
       setStaffMembers((currentStaff) => upsertStaffByCode(currentStaff, staff));
       selectStaffSession(staff);
+      void flushSyncQueue();
       return `Selected ${staff.name} from Postgres STAFFCODE ${parsedCard.staffCode}.`;
     } catch {
       const matchedStaff = staffMembers.find(
@@ -498,6 +529,7 @@ export default function App() {
     );
     setStaffMembers((currentStaff) => upsertStaffByCode(currentStaff, staff));
     selectStaffSession(staff);
+    void flushSyncQueue();
     return `Selected ${staff.name} for bank/temp access.`;
   };
 
@@ -509,6 +541,7 @@ export default function App() {
     );
     setStaffMembers((currentStaff) => upsertStaffByCode(currentStaff, staff));
     selectStaffSession(staff);
+    void flushSyncQueue();
     return `Selected ${staff.name}.`;
   };
 
@@ -516,6 +549,7 @@ export default function App() {
     const { staff } = await changeStaffPin(currentPin, newPin);
     setStaffMembers((currentStaff) => upsertStaffByCode(currentStaff, staff));
     selectStaffSession(staff);
+    void flushSyncQueue();
     return "PIN updated. You can now continue.";
   };
 
@@ -718,15 +752,33 @@ export default function App() {
   };
 
   const handleCreatePatientNote = async (note: PatientNote) => {
-    const result = await persistOrQueue("patient note", () =>
-      persistPatientNote({
-        ...note,
-        organisationId: selectedStaff?.organisationId,
-        actorStaffId: selectedStaff?.id,
-        actorStaffCode: selectedStaff?.staffCode
-      })
+    const result = await persistOrQueue(
+      "patient note",
+      () =>
+        persistPatientNote({
+          ...note,
+          organisationId: selectedStaff?.organisationId,
+          actorStaffId: selectedStaff?.id,
+          actorStaffCode: selectedStaff?.staffCode
+        }),
+      true
     );
     setPatientNotes((currentNotes) => upsertById(currentNotes, result ?? note));
+  };
+
+  const handleCreatePatientCarePlan = async (plan: PatientCarePlan) => {
+    const result = await persistOrQueue(
+      "patient care plan",
+      () =>
+        persistPatientCarePlan({
+          ...plan,
+          organisationId: selectedStaff?.organisationId,
+          actorStaffId: selectedStaff?.id,
+          actorStaffCode: selectedStaff?.staffCode
+        }),
+      true
+    );
+    setPatientCarePlans((currentPlans) => upsertById(currentPlans, result ?? plan));
   };
 
   const handleCreateRotaAssignment = (assignment: RotaAssignment) => {
@@ -1004,6 +1056,10 @@ export default function App() {
               setWorkspaceBackScreen("wardOverview");
               setScreen("patientManagement");
             }}
+            onOpenPatientCarePlans={() => {
+              setWorkspaceBackScreen("wardOverview");
+              setScreen("patientCarePlans");
+            }}
             onOpenPatientNotes={() => {
               setWorkspaceBackScreen("wardOverview");
               setScreen("patientNotes");
@@ -1071,6 +1127,10 @@ export default function App() {
               setWorkspaceBackScreen("observations");
               setScreen("patientManagement");
             }}
+            onOpenPatientCarePlans={() => {
+              setWorkspaceBackScreen("observations");
+              setScreen("patientCarePlans");
+            }}
             onOpenPatientNotes={() => {
               setWorkspaceBackScreen("observations");
               setScreen("patientNotes");
@@ -1122,6 +1182,18 @@ export default function App() {
             selectedWardId={selectedWardId}
             wards={siteWards}
             onBack={() => setScreen(workspaceBackScreen)}
+            onSelectPatient={setSelectedPatientId}
+          />
+        ) : screen === "patientCarePlans" ? (
+          <PatientCarePlansScreen
+            carePlans={patientCarePlans}
+            patients={wardPatients}
+            selectedPatientId={selectedPatientId}
+            selectedStaffId={selectedStaffId}
+            staff={staffMembers}
+            ward={selectedWard}
+            onBack={() => setScreen(workspaceBackScreen)}
+            onCreateCarePlan={handleCreatePatientCarePlan}
             onSelectPatient={setSelectedPatientId}
           />
         ) : screen === "patientNotes" ? (
