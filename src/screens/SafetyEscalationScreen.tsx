@@ -1,7 +1,10 @@
 import React, { useMemo, useState } from "react";
 import {
   Alert,
+  Keyboard,
+  KeyboardAvoidingView,
   Modal,
+  Platform,
   StyleSheet,
   Text,
   TextInput,
@@ -129,6 +132,12 @@ export function SafetyEscalationScreen({
   const [resolvingIncidentId, setResolvingIncidentId] = useState("");
   const [resolutionNotes, setResolutionNotes] = useState("");
 
+  const closeResolutionModal = () => {
+    Keyboard.dismiss();
+    setResolvingIncidentId("");
+    setResolutionNotes("");
+  };
+
   const wardIncidents = useMemo(
     () =>
       incidents
@@ -246,6 +255,7 @@ export function SafetyEscalationScreen({
       });
       setResolvingIncidentId("");
       setResolutionNotes("");
+      Keyboard.dismiss();
     } catch (error) {
       Alert.alert("Unable to resolve", error instanceof Error ? error.message : "Please try again.");
     } finally {
@@ -558,13 +568,34 @@ export function SafetyEscalationScreen({
       <Modal
         accessibilityViewIsModal
         animationType="fade"
-        onRequestClose={() => setResolvingIncidentId("")}
+        onRequestClose={closeResolutionModal}
         transparent
         visible={Boolean(resolvingIncidentId)}
       >
-        <View style={styles.modalBackdrop}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          style={styles.modalBackdrop}
+        >
           <View style={styles.resolveModal}>
-            <Text style={styles.sectionTitle}>Resolve incident</Text>
+            <View style={styles.resolveModalHeader}>
+              <Text style={styles.sectionTitle}>Resolve incident</Text>
+              <View style={styles.keyboardActions}>
+                <TouchableOpacity
+                  accessibilityRole="button"
+                  onPress={Keyboard.dismiss}
+                  style={styles.keyboardButton}
+                >
+                  <Text style={styles.keyboardButtonText}>Hide keyboard</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  accessibilityRole="button"
+                  onPress={closeResolutionModal}
+                  style={styles.closeModalButton}
+                >
+                  <Text style={styles.closeModalButtonText}>Close</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
             <Text style={styles.panelMeta}>
               {wardIncidents.find((incident) => incident.id === resolvingIncidentId)?.title ??
                 "Record the outcome before closing this incident."}
@@ -580,10 +611,7 @@ export function SafetyEscalationScreen({
               <TouchableOpacity
                 accessibilityRole="button"
                 disabled={Boolean(updatingIncidentId)}
-                onPress={() => {
-                  setResolvingIncidentId("");
-                  setResolutionNotes("");
-                }}
+                onPress={closeResolutionModal}
                 style={styles.secondaryButton}
               >
                 <Text style={styles.secondaryButtonText}>Cancel</Text>
@@ -606,7 +634,7 @@ export function SafetyEscalationScreen({
               </TouchableOpacity>
             </View>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
     </View>
   );
@@ -653,11 +681,13 @@ function BodyMapColumn({
     <View style={styles.bodyColumn}>
       <View style={[styles.bodyHead, selectedFor(["head", "face"]) && styles.bodyPartSelected]} />
       <View style={styles.bodyShoulders}>
-        <View style={[styles.bodyArm, selectedFor(["left arm", "left hand"]) && styles.bodyPartSelected]} />
+        <View style={[styles.bodyHand, selectedFor(["left hand"]) && styles.bodyPartSelected]} />
+        <View style={[styles.bodyArm, selectedFor(["left arm"]) && styles.bodyPartSelected]} />
         <View style={[styles.bodyTorso, selectedFor(["neck", "chest", "abdomen", "upper back", "lower back"]) && styles.bodyPartSelected]}>
           <Text style={styles.bodySideLabel}>{side}</Text>
         </View>
-        <View style={[styles.bodyArm, selectedFor(["right arm", "right hand"]) && styles.bodyPartSelected]} />
+        <View style={[styles.bodyArm, selectedFor(["right arm"]) && styles.bodyPartSelected]} />
+        <View style={[styles.bodyHand, selectedFor(["right hand"]) && styles.bodyPartSelected]} />
       </View>
       <View style={styles.bodyHips}>
         <View style={[styles.bodyHip, selectedFor(["left hip", "pelvis", "buttocks"]) && styles.bodyPartSelected]} />
@@ -963,7 +993,8 @@ const styles = StyleSheet.create({
   },
   bodyHead: { backgroundColor: "#d5e3e7", borderRadius: 999, height: 36, width: 36 },
   bodyShoulders: { alignItems: "flex-start", flexDirection: "row", marginTop: 4 },
-  bodyArm: { backgroundColor: "#d5e3e7", borderRadius: 10, height: 18, marginTop: 8, width: 62 },
+  bodyArm: { backgroundColor: "#d5e3e7", borderRadius: 10, height: 18, marginTop: 8, width: 48 },
+  bodyHand: { backgroundColor: "#d5e3e7", borderRadius: 999, height: 20, marginTop: 7, width: 20 },
   bodyTorso: {
     alignItems: "center",
     backgroundColor: "#d5e3e7",
@@ -1076,5 +1107,30 @@ const styles = StyleSheet.create({
     shadowRadius: 12,
     width: "100%"
   },
+  resolveModalHeader: {
+    alignItems: "center",
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10,
+    justifyContent: "space-between"
+  },
+  keyboardActions: { flexDirection: "row", gap: 7 },
+  keyboardButton: {
+    backgroundColor: "#eef4f5",
+    borderRadius: 7,
+    justifyContent: "center",
+    minHeight: 36,
+    paddingHorizontal: 10
+  },
+  keyboardButtonText: { color: "#315663", fontSize: 10, fontWeight: "900" },
+  closeModalButton: {
+    borderColor: "#315663",
+    borderRadius: 7,
+    borderWidth: 1,
+    justifyContent: "center",
+    minHeight: 36,
+    paddingHorizontal: 11
+  },
+  closeModalButtonText: { color: "#315663", fontSize: 10, fontWeight: "900" },
   modalActions: { flexDirection: "row", justifyContent: "flex-end", gap: 8 }
 });

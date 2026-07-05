@@ -199,19 +199,19 @@ const safetyIncidentSchema = z.object({
   immediateAction: z.string().trim().max(10_000).default(""),
   bodyAreas: z.array(z.string().trim().min(1).max(100)).max(30).default([]),
   patientAccount: z.string().trim().max(10_000).default(""),
-  ownerStaffId: z.string().optional(),
-  ownerName: z.string().optional(),
+  ownerStaffId: z.string().nullish(),
+  ownerName: z.string().nullish(),
   reportedByStaffId: z.string().min(1),
   reportedByName: z.string().min(1),
   reportedByStaffCode: z.string().min(1),
   reportedAt: z.string().datetime(),
-  acknowledgedByStaffId: z.string().optional(),
-  acknowledgedByName: z.string().optional(),
-  acknowledgedAt: z.string().datetime().optional(),
-  resolutionNotes: z.string().trim().max(20_000).optional(),
-  resolvedByStaffId: z.string().optional(),
-  resolvedByName: z.string().optional(),
-  resolvedAt: z.string().datetime().optional(),
+  acknowledgedByStaffId: z.string().nullish(),
+  acknowledgedByName: z.string().nullish(),
+  acknowledgedAt: z.string().datetime().nullish(),
+  resolutionNotes: z.string().trim().max(20_000).nullish(),
+  resolvedByStaffId: z.string().nullish(),
+  resolvedByName: z.string().nullish(),
+  resolvedAt: z.string().datetime().nullish(),
   actorStaffId: z.string().optional(),
   actorStaffCode: z.string().optional()
 });
@@ -667,7 +667,14 @@ router.post("/safety-incidents", requireStaffRole([...anyWardStaff]), async (req
   try {
     const parsed = safetyIncidentSchema.safeParse(request.body);
     if (!parsed.success) {
-      response.status(400).json({ error: "Invalid safety incident", details: parsed.error.flatten() });
+      const issueSummary = parsed.error.issues
+        .slice(0, 3)
+        .map((issue) => `${issue.path.join(".") || "incident"}: ${issue.message}`)
+        .join("; ");
+      response.status(400).json({
+        error: `Invalid safety incident${issueSummary ? ` — ${issueSummary}` : ""}`,
+        details: parsed.error.flatten()
+      });
       return;
     }
 
