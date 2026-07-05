@@ -40,6 +40,7 @@ type WardOverviewScreenProps = {
   onOpenPatientSettings: () => void;
   onOpenPreviousObservations: () => void;
   onOpenSafetyCentre: () => void;
+  onOpenShiftHandover: () => void;
   onOpenSecurityChecks: () => void;
   onOpenStaffRota: () => void;
 };
@@ -78,6 +79,7 @@ export function WardOverviewScreen({
   onOpenPatientSettings,
   onOpenPreviousObservations,
   onOpenSafetyCentre,
+  onOpenShiftHandover,
   onOpenSecurityChecks,
   onOpenStaffRota
 }: WardOverviewScreenProps) {
@@ -519,6 +521,7 @@ export function WardOverviewScreen({
           <QuickAction label="Patient notes" onPress={onOpenPatientNotes} />
           <QuickAction label="Care plans" onPress={onOpenPatientCarePlans} />
           <QuickAction label="Safety centre / incidents" onPress={onOpenSafetyCentre} />
+          <QuickAction label="Shift handover" onPress={onOpenShiftHandover} />
           <QuickAction label="Previous observations" onPress={onOpenPreviousObservations} />
           {ward?.securityChecksEnabled ? <QuickAction label="Security check" onPress={onOpenSecurityChecks} /> : null}
           {ward?.medicationChartEnabled ? <QuickAction label="Medication chart" onPress={onOpenMedicationChart} /> : null}

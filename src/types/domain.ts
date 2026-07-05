@@ -117,6 +117,36 @@ export type SafetyIncident = {
   resolvedAt?: string;
 };
 
+export type ShiftHandoverPatientSummary = {
+  patientId: string;
+  patientName: string;
+  roomNumber: number;
+  observationCount: number;
+  movementSummary: string;
+  presentationSummary: string;
+  nutritionSummary: string;
+  news2Summary: string;
+  medicationSummary: string;
+  incidentSummary: string;
+  narrative: string;
+  staffNotes: string;
+};
+
+export type ShiftHandover = {
+  id: string;
+  wardId: string;
+  shiftId: string;
+  shiftLabel: string;
+  shiftStartedAt: string;
+  shiftEndedAt: string;
+  overallSummary: string;
+  patientSummaries: ShiftHandoverPatientSummary[];
+  createdByStaffId: string;
+  createdByName: string;
+  createdByStaffCode: string;
+  createdAt: string;
+};
+
 export type Ward = {
   id: string;
   siteId: string;

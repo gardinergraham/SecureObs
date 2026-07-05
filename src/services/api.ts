@@ -18,6 +18,7 @@ import type {
   SafetyIncident,
   SecurityArea,
   SecurityCheck,
+  ShiftHandover,
   Site,
   StaffShiftAssignment,
   StaffMember,
@@ -265,6 +266,19 @@ export async function saveSafetyIncident(incident: OrganisationScoped<SafetyInci
   return saveQueuedRequest<SafetyIncident>("safety incident", "/api/safety-incidents", {
     method: "POST",
     body: JSON.stringify(incident)
+  });
+}
+
+export async function loadShiftHandovers(organisationId?: string, wardId?: string) {
+  return request<{ shiftHandovers: ShiftHandover[] }>(
+    withOptionalQuery(withOrganisationId("/api/shift-handovers", organisationId), "wardId", wardId)
+  );
+}
+
+export async function createShiftHandover(handover: OrganisationScoped<ShiftHandover> & ActorScoped) {
+  return saveQueuedRequest<ShiftHandover>("shift handover", "/api/shift-handovers", {
+    method: "POST",
+    body: JSON.stringify(handover)
   });
 }
 

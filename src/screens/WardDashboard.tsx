@@ -54,6 +54,7 @@ type WardDashboardProps = {
   onOpenPatientSettings: () => void;
   onOpenPreviousObservations: () => void;
   onOpenSafetyCentre: () => void;
+  onOpenShiftHandover: () => void;
   onOpenSecurityChecks: () => void;
   onOpenMedicationChart: () => void;
   onOpenStaffRota: () => void;
@@ -85,6 +86,7 @@ export function WardDashboard({
   onOpenPatientSettings,
   onOpenPreviousObservations,
   onOpenSafetyCentre,
+  onOpenShiftHandover,
   onOpenSecurityChecks,
   onOpenMedicationChart,
   onOpenStaffRota,
@@ -336,6 +338,9 @@ export function WardDashboard({
           <Text style={[styles.modeButtonText, redIncidentCount > 0 && styles.safetyButtonTextRed]}>
             Safety centre {activeIncidents.length > 0 ? `(${activeIncidents.length})` : ""}
           </Text>
+        </TouchableOpacity>
+        <TouchableOpacity accessibilityRole="button" onPress={onOpenShiftHandover} style={styles.modeButton}>
+          <Text style={styles.modeButtonText}>Shift handover</Text>
         </TouchableOpacity>
         <TouchableOpacity accessibilityRole="button" onPress={onOpenPreviousObservations} style={styles.modeButton}>
           <Text style={styles.modeButtonText}>Previous obs</Text>

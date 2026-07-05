@@ -216,6 +216,39 @@ const safetyIncidentSchema = z.object({
   actorStaffCode: z.string().optional()
 });
 
+const shiftHandoverPatientSummarySchema = z.object({
+  patientId: z.string().min(1),
+  patientName: z.string().min(1).max(255),
+  roomNumber: z.number().int(),
+  observationCount: z.number().int().nonnegative(),
+  movementSummary: z.string().max(5000),
+  presentationSummary: z.string().max(5000),
+  nutritionSummary: z.string().max(5000),
+  news2Summary: z.string().max(5000),
+  medicationSummary: z.string().max(5000),
+  incidentSummary: z.string().max(5000),
+  narrative: z.string().max(20_000),
+  staffNotes: z.string().max(10_000)
+});
+
+const shiftHandoverSchema = z.object({
+  id: z.string().min(1).optional(),
+  organisationId: optionalOrganisationIdSchema,
+  wardId: z.string().min(1),
+  shiftId: z.string().min(1),
+  shiftLabel: z.string().min(1).max(255),
+  shiftStartedAt: z.string().datetime(),
+  shiftEndedAt: z.string().datetime(),
+  overallSummary: z.string().min(1).max(20_000),
+  patientSummaries: z.array(shiftHandoverPatientSummarySchema).max(200),
+  createdByStaffId: z.string().min(1),
+  createdByName: z.string().min(1),
+  createdByStaffCode: z.string().min(1),
+  createdAt: z.string().datetime(),
+  actorStaffId: z.string().optional(),
+  actorStaffCode: z.string().optional()
+});
+
 const rotaAssignmentSchema = z.object({
   id: z.string().min(1),
   organisationId: optionalOrganisationIdSchema,
@@ -869,6 +902,142 @@ router.post("/safety-incidents", requireStaffRole([...anyWardStaff]), async (req
     next(error);
   }
 });
+
+router.get("/shift-handovers", async (request, response, next) => {
+  try {
+    const organisationId = requireOrganisationId(request, response);
+    if (!organisationId) return;
+    const wardId = typeof request.query.wardId === "string" ? request.query.wardId : undefined;
+    const result = await pool.query(
+      `
+        select
+          id,
+          ward_id as "wardId",
+          shift_id as "shiftId",
+          shift_label as "shiftLabel",
+          shift_started_at as "shiftStartedAt",
+          shift_ended_at as "shiftEndedAt",
+          overall_summary as "overallSummary",
+          patient_summaries as "patientSummaries",
+          created_by_staff_id as "createdByStaffId",
+          created_by_name as "createdByName",
+          created_by_staff_code as "createdByStaffCode",
+          created_at as "createdAt"
+        from shift_handovers
+        where organisation_id = $1
+          and ($2::text is null or ward_id = $2::text)
+        order by shift_started_at desc
+        limit 200
+      `,
+      [organisationId, wardId ?? null]
+    );
+    response.json({ shiftHandovers: result.rows });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post(
+  "/shift-handovers",
+  requireStaffRole(["nurse", "manager", "doctor", "super_admin"]),
+  async (request, response, next) => {
+    try {
+      const parsed = shiftHandoverSchema.safeParse(request.body);
+      if (!parsed.success) {
+        const issueSummary = parsed.error.issues
+          .slice(0, 3)
+          .map((issue) => `${issue.path.join(".") || "handover"}: ${issue.message}`)
+          .join("; ");
+        response.status(400).json({
+          error: `Invalid shift handover${issueSummary ? ` — ${issueSummary}` : ""}`,
+          details: parsed.error.flatten()
+        });
+        return;
+      }
+      const organisationId = requireOrganisationId(request, response);
+      if (!organisationId) return;
+      const authenticatedStaff = (request as AuthenticatedRequest).auth?.staff;
+      if (!authenticatedStaff) {
+        response.status(401).json({ error: "Authenticated staff session required" });
+        return;
+      }
+      if (
+        authenticatedStaff.role !== "super_admin" &&
+        !authenticatedStaff.allowedWardIds.includes(parsed.data.wardId)
+      ) {
+        response.status(403).json({ error: "Staff session is not authorised for this ward" });
+        return;
+      }
+      const handover = {
+        ...parsed.data,
+        id: parsed.data.id ?? `shift-handover-${Date.now()}`,
+        organisationId,
+        createdByStaffId: authenticatedStaff.id,
+        createdByName: authenticatedStaff.name,
+        createdByStaffCode: authenticatedStaff.staffCode
+      };
+      const result = await pool.query(
+        `
+          insert into shift_handovers (
+            id, organisation_id, ward_id, shift_id, shift_label, shift_started_at, shift_ended_at,
+            overall_summary, patient_summaries, created_by_staff_id, created_by_name,
+            created_by_staff_code, created_at
+          ) values ($1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb,$10,$11,$12,$13)
+          on conflict (id) do nothing
+          returning
+            id,
+            ward_id as "wardId",
+            shift_id as "shiftId",
+            shift_label as "shiftLabel",
+            shift_started_at as "shiftStartedAt",
+            shift_ended_at as "shiftEndedAt",
+            overall_summary as "overallSummary",
+            patient_summaries as "patientSummaries",
+            created_by_staff_id as "createdByStaffId",
+            created_by_name as "createdByName",
+            created_by_staff_code as "createdByStaffCode",
+            created_at as "createdAt"
+        `,
+        [
+          handover.id,
+          handover.organisationId,
+          handover.wardId,
+          handover.shiftId,
+          handover.shiftLabel,
+          handover.shiftStartedAt,
+          handover.shiftEndedAt,
+          handover.overallSummary,
+          JSON.stringify(handover.patientSummaries),
+          handover.createdByStaffId,
+          handover.createdByName,
+          handover.createdByStaffCode,
+          handover.createdAt
+        ]
+      );
+      if (!result.rows[0]) {
+        response.status(409).json({ error: "Shift handover already exists" });
+        return;
+      }
+      await recordAuditEvent({
+        organisationId,
+        actorStaffId: authenticatedStaff.id,
+        actorStaffCode: authenticatedStaff.staffCode,
+        eventType: "shift_handover.sign",
+        entityType: "shift_handover",
+        entityId: handover.id,
+        details: {
+          wardId: handover.wardId,
+          shiftId: handover.shiftId,
+          shiftStartedAt: handover.shiftStartedAt,
+          patientCount: handover.patientSummaries.length
+        }
+      });
+      response.status(201).json(result.rows[0]);
+    } catch (error) {
+      next(error);
+    }
+  }
+);
 
 router.get("/security-checks", async (request, response, next) => {
   try {

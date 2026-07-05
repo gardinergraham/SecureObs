@@ -20,6 +20,7 @@ import { PreviousObservationsScreen } from "./src/screens/PreviousObservationsSc
 import { SecurityCheckSettingsScreen } from "./src/screens/SecurityCheckSettingsScreen";
 import { SecurityChecks } from "./src/screens/SecurityChecks";
 import { SafetyEscalationScreen } from "./src/screens/SafetyEscalationScreen";
+import { ShiftHandoverScreen } from "./src/screens/ShiftHandoverScreen";
 import { StaffCoverScreen } from "./src/screens/StaffCoverScreen";
 import { StaffRotaScreen } from "./src/screens/StaffRotaScreen";
 import { WardDashboard } from "./src/screens/WardDashboard";
@@ -34,6 +35,7 @@ import {
   createNews2Reading as persistNews2Reading,
   createPatientCarePlan as persistPatientCarePlan,
   createPatientNote as persistPatientNote,
+  createShiftHandover as persistShiftHandover,
   saveSafetyIncident as persistSafetyIncident,
   saveOrganisationSettings as persistOrganisationSettings,
   createSite as persistSite,
@@ -56,6 +58,7 @@ import {
   loadPatientCarePlans,
   loadPatientNotes,
   loadSafetyIncidents,
+  loadShiftHandovers,
   loadRotaAssignments,
   loadSecurityChecks,
   loadStaffShiftAssignments,
@@ -103,6 +106,7 @@ import type {
   PatientPresentation,
   RotaAssignment,
   SafetyIncident,
+  ShiftHandover,
   SecurityArea,
   SecurityCheck,
   Site,
@@ -130,6 +134,7 @@ type AppScreen =
   | "patientCarePlans"
   | "patientNotes"
   | "safetyEscalation"
+  | "shiftHandover"
   | "patientSettings"
   | "previousObservations"
   | "bankAgencyStaff"
@@ -151,6 +156,7 @@ export default function App() {
   const [patientCarePlans, setPatientCarePlans] = useState<PatientCarePlan[]>([]);
   const [patientNotes, setPatientNotes] = useState<PatientNote[]>([]);
   const [safetyIncidents, setSafetyIncidents] = useState<SafetyIncident[]>([]);
+  const [shiftHandovers, setShiftHandovers] = useState<ShiftHandover[]>([]);
   const [patients, setPatients] = useState<Patient[]>(() => createDemoPatients());
   const [rotaAssignments, setRotaAssignments] = useState<RotaAssignment[]>(seedData.rotaAssignments);
   const [staffShiftAssignments, setStaffShiftAssignments] = useState<StaffShiftAssignment[]>(
@@ -225,6 +231,7 @@ export default function App() {
           patientCarePlanResult,
           patientNoteResult,
           safetyIncidentResult,
+          shiftHandoverResult,
           securityAreaResult,
           securityCheckResult,
           news2Result,
@@ -244,6 +251,7 @@ export default function App() {
           loadPatientCarePlans(organisationId, selectedWardId || undefined),
           loadPatientNotes(organisationId, selectedWardId || undefined),
           loadSafetyIncidents(organisationId, selectedWardId || undefined),
+          loadShiftHandovers(organisationId, selectedWardId || undefined),
           loadSecurityAreas(organisationId, selectedWardId || undefined),
           loadSecurityChecks(organisationId),
           loadNews2Readings(organisationId),
@@ -269,6 +277,9 @@ export default function App() {
         setPatientNotes((currentNotes) => mergeById(patientNoteResult.patientNotes, currentNotes));
         setSafetyIncidents((currentIncidents) =>
           mergeById(safetyIncidentResult.safetyIncidents, currentIncidents)
+        );
+        setShiftHandovers((currentHandovers) =>
+          mergeById(shiftHandoverResult.shiftHandovers, currentHandovers)
         );
         setSecurityAreas((currentAreas) =>
           selectedWardId
@@ -820,6 +831,21 @@ export default function App() {
     }
   };
 
+  const handleCreateShiftHandover = async (handover: ShiftHandover) => {
+    const result = await persistOrQueue(
+      "shift handover",
+      () =>
+        persistShiftHandover({
+          ...handover,
+          organisationId: selectedStaff?.organisationId,
+          actorStaffId: selectedStaff?.id,
+          actorStaffCode: selectedStaff?.staffCode
+        }),
+      true
+    );
+    setShiftHandovers((currentHandovers) => upsertById(currentHandovers, result ?? handover));
+  };
+
   const handleCreateRotaAssignment = (assignment: RotaAssignment) => {
     setRotaAssignments((currentAssignments) => upsertById(currentAssignments, assignment));
     void persistOrQueue("rota assignment", () =>
@@ -1108,6 +1134,10 @@ export default function App() {
               setWorkspaceBackScreen("wardOverview");
               setScreen("safetyEscalation");
             }}
+            onOpenShiftHandover={() => {
+              setWorkspaceBackScreen("wardOverview");
+              setScreen("shiftHandover");
+            }}
             onOpenPatientSettings={() => {
               setWorkspaceBackScreen("wardOverview");
               setScreen("patientSettings");
@@ -1183,6 +1213,10 @@ export default function App() {
             onOpenSafetyCentre={() => {
               setWorkspaceBackScreen("observations");
               setScreen("safetyEscalation");
+            }}
+            onOpenShiftHandover={() => {
+              setWorkspaceBackScreen("observations");
+              setScreen("shiftHandover");
             }}
             onOpenStaffRota={() => {
               setWorkspaceBackScreen("observations");
@@ -1268,6 +1302,23 @@ export default function App() {
             onBack={() => setScreen(workspaceBackScreen)}
             onSaveIncident={handleSaveSafetyIncident}
             onSelectPatient={setSelectedPatientId}
+          />
+        ) : screen === "shiftHandover" ? (
+          <ShiftHandoverScreen
+            foodFluidEntries={foodFluidEntries}
+            handovers={shiftHandovers}
+            incidents={safetyIncidents}
+            medicationAdministrations={medicationAdministrations}
+            medicationPrescriptions={medicationPrescriptions}
+            missedObservations={missedObservations}
+            news2Readings={news2Readings}
+            observations={observations}
+            patients={wardPatients}
+            selectedStaffId={selectedStaffId}
+            staff={staffMembers}
+            ward={selectedWard}
+            onBack={() => setScreen(workspaceBackScreen)}
+            onCreateHandover={handleCreateShiftHandover}
           />
         ) : screen === "staffRota" ? (
           <StaffRotaScreen
