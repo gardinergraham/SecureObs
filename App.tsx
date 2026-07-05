@@ -793,18 +793,31 @@ export default function App() {
   };
 
   const handleSaveSafetyIncident = async (incident: SafetyIncident) => {
-    const result = await persistOrQueue(
-      "safety incident",
-      () =>
-        persistSafetyIncident({
-          ...incident,
-          organisationId: selectedStaff?.organisationId,
-          actorStaffId: selectedStaff?.id,
-          actorStaffCode: selectedStaff?.staffCode
-        }),
-      true
-    );
-    setSafetyIncidents((currentIncidents) => upsertById(currentIncidents, result ?? incident));
+    const previousIncident = safetyIncidents.find((item) => item.id === incident.id);
+    setSafetyIncidents((currentIncidents) => upsertById(currentIncidents, incident));
+    try {
+      const result = await persistOrQueue(
+        "safety incident",
+        () =>
+          persistSafetyIncident({
+            ...incident,
+            organisationId: selectedStaff?.organisationId,
+            actorStaffId: selectedStaff?.id,
+            actorStaffCode: selectedStaff?.staffCode
+          }),
+        true
+      );
+      if (result) {
+        setSafetyIncidents((currentIncidents) => upsertById(currentIncidents, result));
+      }
+    } catch (error) {
+      setSafetyIncidents((currentIncidents) =>
+        previousIncident
+          ? upsertById(currentIncidents, previousIncident)
+          : currentIncidents.filter((item) => item.id !== incident.id)
+      );
+      throw error;
+    }
   };
 
   const handleCreateRotaAssignment = (assignment: RotaAssignment) => {

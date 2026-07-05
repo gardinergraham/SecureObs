@@ -1,5 +1,14 @@
 import React, { useMemo, useState } from "react";
-import { Alert, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+import {
+  Alert,
+  Modal,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  useWindowDimensions,
+  View
+} from "react-native";
 
 import type {
   IncidentCategory,
@@ -39,6 +48,8 @@ const bodyAreas = [
   "Front · Left hand",
   "Front · Right hand",
   "Front · Pelvis / groin",
+  "Front · Left hip",
+  "Front · Right hip",
   "Front · Left leg",
   "Front · Right leg",
   "Front · Left foot",
@@ -50,6 +61,8 @@ const bodyAreas = [
   "Back · Left arm",
   "Back · Right arm",
   "Back · Buttocks",
+  "Back · Left hip",
+  "Back · Right hip",
   "Back · Left leg",
   "Back · Right leg"
 ];
@@ -88,6 +101,8 @@ export function SafetyEscalationScreen({
   onSaveIncident,
   onSelectPatient
 }: SafetyEscalationScreenProps) {
+  const { width: viewportWidth } = useWindowDimensions();
+  const compactLayout = viewportWidth < 680;
   const selectedStaff = staff.find((member) => member.id === selectedStaffId);
   const orderedPatients = useMemo(
     () => [...patients].sort((left, right) => left.roomNumber - right.roomNumber),
@@ -96,10 +111,14 @@ export function SafetyEscalationScreen({
   const selectedPatient =
     orderedPatients.find((patient) => patient.id === selectedPatientId) ?? orderedPatients[0];
   const wardStaff = useMemo(
-    () =>
-      staff
+    () => {
+      const members = staff
         .filter((member) => member.active !== false && (member.wardId === ward?.id || member.allowedWardIds.includes(ward?.id ?? "")))
-        .sort((left, right) => left.name.localeCompare(right.name)),
+        .sort((left, right) => left.name.localeCompare(right.name));
+      return Array.from(
+        new Map(members.map((member) => [member.staffCode.toLowerCase(), member])).values()
+      );
+    },
     [staff, ward?.id]
   );
   const [draft, setDraft] = useState<IncidentDraft>(() => emptyDraft());
@@ -257,8 +276,8 @@ export function SafetyEscalationScreen({
         </View>
       </View>
 
-      <View style={styles.workspace}>
-        <View style={styles.patientPanel}>
+      <View style={[styles.workspace, compactLayout && styles.workspaceCompact]}>
+        <View style={[styles.patientPanel, compactLayout && styles.patientPanelCompact]}>
           <Text style={styles.panelTitle}>Patients</Text>
           <Text style={styles.panelMeta}>Select the patient involved.</Text>
           {orderedPatients.map((patient) => (
@@ -268,7 +287,9 @@ export function SafetyEscalationScreen({
               onPress={() => onSelectPatient(patient.id)}
               style={[styles.patientRow, patient.id === selectedPatient?.id && styles.patientRowActive]}
             >
-              <Text style={styles.patientName}>Room {patient.roomNumber} · {patient.firstName} {patient.surname}</Text>
+              <Text style={[styles.patientName, patient.id === selectedPatient?.id && styles.patientNameActive]}>
+                Room {patient.roomNumber} · {patient.firstName} {patient.surname}
+              </Text>
               <Text style={styles.patientMeta}>{patient.hospitalNumber}</Text>
             </TouchableOpacity>
           ))}
@@ -279,11 +300,18 @@ export function SafetyEscalationScreen({
             <View style={styles.formHeading}>
               <View>
                 <Text style={styles.sectionTitle}>Record a safety incident</Text>
-                <Text style={styles.panelMeta}>
-                  {selectedPatient
-                    ? `${selectedPatient.firstName} ${selectedPatient.surname} · Room ${selectedPatient.roomNumber}`
-                    : "Select a patient"}
-                </Text>
+                {selectedPatient ? (
+                  <View style={styles.selectedPatientIdentity}>
+                    <Text style={styles.selectedPatientName}>
+                      {selectedPatient.firstName} {selectedPatient.surname}
+                    </Text>
+                    <Text style={styles.selectedPatientRoom}>
+                      Room {selectedPatient.roomNumber} · {selectedPatient.hospitalNumber}
+                    </Text>
+                  </View>
+                ) : (
+                  <Text style={styles.panelMeta}>Select a patient</Text>
+                )}
               </View>
               <View style={[styles.severityBadge, severityStyle(draft.severity)]}>
                 <Text style={styles.severityBadgeText}>{severityLabel(draft.severity)}</Text>
@@ -499,7 +527,7 @@ export function SafetyEscalationScreen({
                             onPress={() => void acknowledgeIncident(incident)}
                             style={[styles.secondaryButton, isUpdating && styles.disabledButton]}
                           >
-                            <Text style={styles.secondaryButtonText}>Acknowledge</Text>
+                            <Text style={styles.secondaryButtonText}>Review / acknowledge</Text>
                           </TouchableOpacity>
                         ) : null}
                         {canResolve ? (
@@ -514,32 +542,9 @@ export function SafetyEscalationScreen({
                             }}
                             style={[styles.resolveButton, isUpdating && styles.disabledButton]}
                           >
-                            <Text style={styles.resolveButtonText}>Resolve</Text>
+                            <Text style={styles.resolveButtonText}>Resolve incident</Text>
                           </TouchableOpacity>
                         ) : null}
-                      </View>
-                    ) : null}
-
-                    {resolvingIncidentId === incident.id ? (
-                      <View style={styles.resolvePanel}>
-                        <IncidentField
-                          label="Resolution, outcome and follow-up *"
-                          multiline
-                          onChangeText={setResolutionNotes}
-                          placeholder="Record the review outcome, treatment, referrals and outstanding follow-up."
-                          value={resolutionNotes}
-                        />
-                        <TouchableOpacity
-                          accessibilityRole="button"
-                          disabled={!resolutionNotes.trim() || isUpdating}
-                          onPress={() => void resolveIncident(incident)}
-                          style={[
-                            styles.saveButton,
-                            (!resolutionNotes.trim() || isUpdating) && styles.disabledButton
-                          ]}
-                        >
-                          <Text style={styles.saveButtonText}>Confirm resolution</Text>
-                        </TouchableOpacity>
                       </View>
                     ) : null}
                   </View>
@@ -549,6 +554,60 @@ export function SafetyEscalationScreen({
           </View>
         </View>
       </View>
+
+      <Modal
+        accessibilityViewIsModal
+        animationType="fade"
+        onRequestClose={() => setResolvingIncidentId("")}
+        transparent
+        visible={Boolean(resolvingIncidentId)}
+      >
+        <View style={styles.modalBackdrop}>
+          <View style={styles.resolveModal}>
+            <Text style={styles.sectionTitle}>Resolve incident</Text>
+            <Text style={styles.panelMeta}>
+              {wardIncidents.find((incident) => incident.id === resolvingIncidentId)?.title ??
+                "Record the outcome before closing this incident."}
+            </Text>
+            <IncidentField
+              label="Resolution, outcome and follow-up *"
+              multiline
+              onChangeText={setResolutionNotes}
+              placeholder="Record the review outcome, treatment, referrals and outstanding follow-up."
+              value={resolutionNotes}
+            />
+            <View style={styles.modalActions}>
+              <TouchableOpacity
+                accessibilityRole="button"
+                disabled={Boolean(updatingIncidentId)}
+                onPress={() => {
+                  setResolvingIncidentId("");
+                  setResolutionNotes("");
+                }}
+                style={styles.secondaryButton}
+              >
+                <Text style={styles.secondaryButtonText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                accessibilityRole="button"
+                disabled={!resolutionNotes.trim() || Boolean(updatingIncidentId)}
+                onPress={() => {
+                  const incident = wardIncidents.find((item) => item.id === resolvingIncidentId);
+                  if (incident) void resolveIncident(incident);
+                }}
+                style={[
+                  styles.saveButton,
+                  (!resolutionNotes.trim() || Boolean(updatingIncidentId)) && styles.disabledButton
+                ]}
+              >
+                <Text style={styles.saveButtonText}>
+                  {updatingIncidentId ? "Saving…" : "Confirm resolution"}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -584,15 +643,29 @@ function BodyMapColumn({
   selectedAreas: string[];
   side: "Front" | "Back";
 }) {
+  const selectedFor = (terms: string[]) =>
+    selectedAreas.some(
+      (area) =>
+        area.startsWith(side) &&
+        terms.some((term) => area.toLowerCase().includes(term.toLowerCase()))
+    );
   return (
     <View style={styles.bodyColumn}>
-      <View style={styles.bodyHead} />
-      <View style={styles.bodyTorso}>
-        <Text style={styles.bodySideLabel}>{side}</Text>
+      <View style={[styles.bodyHead, selectedFor(["head", "face"]) && styles.bodyPartSelected]} />
+      <View style={styles.bodyShoulders}>
+        <View style={[styles.bodyArm, selectedFor(["left arm", "left hand"]) && styles.bodyPartSelected]} />
+        <View style={[styles.bodyTorso, selectedFor(["neck", "chest", "abdomen", "upper back", "lower back"]) && styles.bodyPartSelected]}>
+          <Text style={styles.bodySideLabel}>{side}</Text>
+        </View>
+        <View style={[styles.bodyArm, selectedFor(["right arm", "right hand"]) && styles.bodyPartSelected]} />
+      </View>
+      <View style={styles.bodyHips}>
+        <View style={[styles.bodyHip, selectedFor(["left hip", "pelvis", "buttocks"]) && styles.bodyPartSelected]} />
+        <View style={[styles.bodyHip, selectedFor(["right hip", "pelvis", "buttocks"]) && styles.bodyPartSelected]} />
       </View>
       <View style={styles.bodyLegs}>
-        <View style={styles.bodyLeg} />
-        <View style={styles.bodyLeg} />
+        <View style={[styles.bodyLeg, selectedFor(["left leg", "left foot"]) && styles.bodyPartSelected]} />
+        <View style={[styles.bodyLeg, selectedFor(["right leg", "right foot"]) && styles.bodyPartSelected]} />
       </View>
       <View style={styles.bodyAreaChoices}>
         {areas.map((area) => {
@@ -795,25 +868,29 @@ const styles = StyleSheet.create({
   ragLabel: { color: "#596a71", fontSize: 10, fontWeight: "900", textTransform: "uppercase" },
   totalValue: { color: "#173f4d", fontSize: 24, fontWeight: "900" },
   totalLabel: { color: "#65747a", fontSize: 10, fontWeight: "900", textTransform: "uppercase" },
-  workspace: { alignItems: "flex-start", flexDirection: "row", flexWrap: "wrap", gap: 14 },
+  workspace: { alignItems: "flex-start", flexDirection: "row", flexWrap: "nowrap", gap: 14 },
+  workspaceCompact: { flexDirection: "column" },
   patientPanel: {
     backgroundColor: "#ffffff",
     borderColor: "#d8e0e3",
     borderRadius: 10,
     borderWidth: 1,
-    flexBasis: 280,
+    flexBasis: 220,
     flexGrow: 0,
+    flexShrink: 0,
     gap: 9,
-    minWidth: 260,
+    minWidth: 200,
     padding: 14
   },
+  patientPanelCompact: { flexBasis: "auto", width: "100%" },
   panelTitle: { color: "#1c3038", fontSize: 18, fontWeight: "900" },
   panelMeta: { color: "#68787f", fontSize: 11, fontWeight: "700", marginTop: 3 },
   patientRow: { borderColor: "#dce3e5", borderRadius: 7, borderWidth: 1, padding: 11 },
   patientRowActive: { backgroundColor: "#e8f2f4", borderColor: "#236879" },
   patientName: { color: "#21353d", fontSize: 12, fontWeight: "900" },
+  patientNameActive: { color: "#173f4d", fontSize: 14 },
   patientMeta: { color: "#6c7a80", fontSize: 10, fontWeight: "800", marginTop: 4 },
-  mainPanel: { flexBasis: 700, flexGrow: 1, gap: 14, minWidth: 300 },
+  mainPanel: { flexBasis: 0, flexGrow: 1, flexShrink: 1, gap: 14, minWidth: 0 },
   formPanel: {
     backgroundColor: "#ffffff",
     borderColor: "#d8e0e3",
@@ -824,6 +901,9 @@ const styles = StyleSheet.create({
   },
   formHeading: { alignItems: "flex-start", flexDirection: "row", justifyContent: "space-between" },
   sectionTitle: { color: "#172b33", fontSize: 20, fontWeight: "900" },
+  selectedPatientIdentity: { marginTop: 7 },
+  selectedPatientName: { color: "#173f4d", fontSize: 19, fontWeight: "900" },
+  selectedPatientRoom: { color: "#607078", fontSize: 12, fontWeight: "800", marginTop: 2 },
   severityBadge: { borderRadius: 999, paddingHorizontal: 11, paddingVertical: 7 },
   severityBadgeText: { color: "#ffffff", fontSize: 10, fontWeight: "900", textTransform: "uppercase" },
   field: { gap: 6 },
@@ -878,22 +958,26 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     flexBasis: "47%",
     flexGrow: 1,
-    minWidth: 260,
+    minWidth: 210,
     padding: 11
   },
   bodyHead: { backgroundColor: "#d5e3e7", borderRadius: 999, height: 36, width: 36 },
+  bodyShoulders: { alignItems: "flex-start", flexDirection: "row", marginTop: 4 },
+  bodyArm: { backgroundColor: "#d5e3e7", borderRadius: 10, height: 18, marginTop: 8, width: 62 },
   bodyTorso: {
     alignItems: "center",
     backgroundColor: "#d5e3e7",
     borderRadius: 16,
     height: 80,
     justifyContent: "center",
-    marginTop: 4,
     width: 76
   },
+  bodyHips: { flexDirection: "row", gap: 2 },
+  bodyHip: { backgroundColor: "#d5e3e7", height: 24, width: 37 },
   bodySideLabel: { color: "#41606b", fontSize: 10, fontWeight: "900", textTransform: "uppercase" },
   bodyLegs: { flexDirection: "row", gap: 8 },
   bodyLeg: { backgroundColor: "#d5e3e7", borderBottomLeftRadius: 10, borderBottomRightRadius: 10, height: 70, width: 27 },
+  bodyPartSelected: { backgroundColor: "#d86757" },
   bodyAreaChoices: { flexDirection: "row", flexWrap: "wrap", gap: 5, marginTop: 11, width: "100%" },
   bodyAreaButton: {
     backgroundColor: "#f8fafb",
@@ -971,5 +1055,26 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12
   },
   resolveButtonText: { color: "#ffffff", fontSize: 10, fontWeight: "900" },
-  resolvePanel: { backgroundColor: "#eef4f5", borderRadius: 8, gap: 9, padding: 11 }
+  resolvePanel: { backgroundColor: "#eef4f5", borderRadius: 8, gap: 9, padding: 11 },
+  modalBackdrop: {
+    alignItems: "center",
+    backgroundColor: "rgba(11, 31, 38, 0.58)",
+    flex: 1,
+    justifyContent: "center",
+    padding: 18
+  },
+  resolveModal: {
+    backgroundColor: "#ffffff",
+    borderRadius: 11,
+    elevation: 8,
+    gap: 12,
+    maxWidth: 620,
+    padding: 20,
+    shadowColor: "#000000",
+    shadowOffset: { height: 4, width: 0 },
+    shadowOpacity: 0.2,
+    shadowRadius: 12,
+    width: "100%"
+  },
+  modalActions: { flexDirection: "row", justifyContent: "flex-end", gap: 8 }
 });
