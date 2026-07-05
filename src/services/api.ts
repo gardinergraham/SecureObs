@@ -15,6 +15,7 @@ import type {
   PatientCarePlan,
   PatientNote,
   RotaAssignment,
+  SafetyIncident,
   SecurityArea,
   SecurityCheck,
   Site,
@@ -251,6 +252,19 @@ export async function createPatientCarePlan(plan: OrganisationScoped<PatientCare
   return saveQueuedRequest<PatientCarePlan>("patient care plan", "/api/patient-care-plans", {
     method: "POST",
     body: JSON.stringify(plan)
+  });
+}
+
+export async function loadSafetyIncidents(organisationId?: string, wardId?: string) {
+  return request<{ safetyIncidents: SafetyIncident[] }>(
+    withOptionalQuery(withOrganisationId("/api/safety-incidents", organisationId), "wardId", wardId)
+  );
+}
+
+export async function saveSafetyIncident(incident: OrganisationScoped<SafetyIncident> & ActorScoped) {
+  return saveQueuedRequest<SafetyIncident>("safety incident", "/api/safety-incidents", {
+    method: "POST",
+    body: JSON.stringify(incident)
   });
 }
 

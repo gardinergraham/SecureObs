@@ -6,6 +6,7 @@ import type {
   News2Reading,
   Observation,
   Patient,
+  SafetyIncident,
   SecurityArea,
   SecurityCheck,
   StaffMember,
@@ -16,6 +17,7 @@ import { normaliseStaffRole } from "../utils/staffRole";
 
 type WardOverviewScreenProps = {
   foodFluidEntries: FoodFluidEntry[];
+  incidents: SafetyIncident[];
   news2Readings: News2Reading[];
   observations: Observation[];
   patients: Patient[];
@@ -37,6 +39,7 @@ type WardOverviewScreenProps = {
   onOpenPatientNotes: () => void;
   onOpenPatientSettings: () => void;
   onOpenPreviousObservations: () => void;
+  onOpenSafetyCentre: () => void;
   onOpenSecurityChecks: () => void;
   onOpenStaffRota: () => void;
 };
@@ -52,6 +55,7 @@ type TimedPatient = {
 
 export function WardOverviewScreen({
   foodFluidEntries,
+  incidents,
   news2Readings,
   observations,
   patients,
@@ -73,6 +77,7 @@ export function WardOverviewScreen({
   onOpenPatientNotes,
   onOpenPatientSettings,
   onOpenPreviousObservations,
+  onOpenSafetyCentre,
   onOpenSecurityChecks,
   onOpenStaffRota
 }: WardOverviewScreenProps) {
@@ -198,6 +203,13 @@ export function WardOverviewScreen({
     () => buildSecuritySummary(activeSecurityAreas, securityChecks, currentShift, now),
     [activeSecurityAreas, currentShift, now, securityChecks]
   );
+  const activeIncidents = useMemo(
+    () =>
+      incidents
+        .filter((incident) => incident.wardId === ward?.id && incident.status !== "resolved")
+        .sort(compareSafetyIncidents),
+    [incidents, ward?.id]
+  );
 
   const overdueGeneralCount = generalPatients.filter((item) => item.status === "overdue").length;
   const soonGeneralCount = generalPatients.filter((item) => item.status === "soon" || item.status === "due").length;
@@ -208,6 +220,10 @@ export function WardOverviewScreen({
   const activeEnhancedCoverGapCount = ward?.enhancedObservationsEnabled ? enhancedCoverGapCount : 0;
   const activeNews2AttentionCount = ward?.news2Enabled ? news2AttentionCount : 0;
   const activeSecurityDueCount = ward?.securityChecksEnabled ? securitySummary.dueCount : 0;
+  const redIncidentCount = activeIncidents.filter((incident) => incident.severity === "red").length;
+  const amberIncidentCount = activeIncidents.filter((incident) => incident.severity === "amber").length;
+  const greenIncidentCount = activeIncidents.filter((incident) => incident.severity === "green").length;
+  const incidentAttentionCount = redIncidentCount + amberIncidentCount;
   const nurseInCharge = shiftStaff.filter((entry) => entry.assignment.nurseInCharge).map((entry) => entry.member.name);
   const medicationNurse = shiftStaff.filter((entry) => entry.assignment.medicationNurse).map((entry) => entry.member.name);
   const urgentCount =
@@ -215,11 +231,13 @@ export function WardOverviewScreen({
     activeEnhancedOverdueCount +
     activeEnhancedCoverGapCount +
     activeNews2AttentionCount +
-    activeSecurityDueCount;
+    activeSecurityDueCount +
+    incidentAttentionCount;
   const primaryAction = getPrimaryAction(normaliseStaffRole(selectedStaff?.role), {
     enhancedCoverGapCount: activeEnhancedCoverGapCount,
     news2AttentionCount: activeNews2AttentionCount,
     overdueGeneralCount,
+    incidentAttentionCount,
     securityDueCount: activeSecurityDueCount
   });
 
@@ -229,7 +247,8 @@ export function WardOverviewScreen({
   }, []);
 
   const runPrimaryAction = () => {
-    if (primaryAction.target === "security") onOpenSecurityChecks();
+    if (primaryAction.target === "safety") onOpenSafetyCentre();
+    else if (primaryAction.target === "security") onOpenSecurityChecks();
     else if (primaryAction.target === "enhanced") onOpenEnhanced();
     else if (primaryAction.target === "news2") onOpenNews2();
     else if (primaryAction.target === "staff") onOpenStaffRota();
@@ -266,7 +285,8 @@ export function WardOverviewScreen({
           </Text>
           <Text style={styles.attentionMeta}>
             {overdueGeneralCount} general overdue · {activeEnhancedOverdueCount} enhanced overdue ·{" "}
-            {activeSecurityDueCount} security due · {activeEnhancedCoverGapCount} enhanced cover gaps
+            {activeSecurityDueCount} security due · {incidentAttentionCount} incident alerts ·{" "}
+            {activeEnhancedCoverGapCount} enhanced cover gaps
           </Text>
         </View>
         <TouchableOpacity accessibilityRole="button" onPress={runPrimaryAction} style={styles.primaryButton}>
@@ -286,10 +306,48 @@ export function WardOverviewScreen({
         {ward?.securityChecksEnabled ? (
           <Metric label="Security due" tone={activeSecurityDueCount > 0 ? "danger" : "neutral"} value={activeSecurityDueCount} />
         ) : null}
+        <Metric
+          label="Active incidents"
+          tone={redIncidentCount > 0 ? "danger" : amberIncidentCount > 0 ? "warning" : "neutral"}
+          value={activeIncidents.length}
+        />
         <Metric label="Staff this shift" tone={shiftStaff.length === 0 ? "warning" : "neutral"} value={shiftStaff.length} />
       </View>
 
       <View style={styles.cardGrid}>
+        <OverviewCard
+          actionLabel="Open Safety Centre"
+          eyebrow={`${redIncidentCount} red · ${amberIncidentCount} amber · ${greenIncidentCount} green`}
+          title="Safety and escalation"
+          onPress={onOpenSafetyCentre}
+          wide={activeIncidents.length > 0}
+        >
+          {activeIncidents.length === 0 ? (
+            <Text style={styles.emptyText}>No active incidents or safeguarding concerns.</Text>
+          ) : (
+            activeIncidents.slice(0, 4).map((incident) => {
+              const patient = patients.find((item) => item.id === incident.patientId);
+              return (
+                <View key={incident.id} style={[styles.miniRow, incidentRowStyle(incident.severity)]}>
+                  <View style={styles.incidentRagWrap}>
+                    <View style={[styles.incidentRag, incidentRagStyle(incident.severity)]} />
+                  </View>
+                  <View style={styles.miniRowCopy}>
+                    <Text style={styles.miniRowTitle}>{incident.title}</Text>
+                    <Text style={styles.miniRowMeta}>
+                      {patient
+                        ? `Room ${patient.roomNumber} · ${patient.firstName} ${patient.surname}`
+                        : "Patient unavailable"}{" "}
+                      · {incident.category} · {formatShortDateTime(incident.reportedAt)}
+                    </Text>
+                  </View>
+                  <IncidentStatusPill status={incident.status} />
+                </View>
+              );
+            })
+          )}
+        </OverviewCard>
+
         <OverviewCard
           actionLabel="Open general observations"
           eyebrow={`${overdueGeneralCount} overdue · ${soonGeneralCount} due soon`}
@@ -460,6 +518,7 @@ export function WardOverviewScreen({
           <QuickAction label="Patient management" onPress={onOpenPatientManagement} />
           <QuickAction label="Patient notes" onPress={onOpenPatientNotes} />
           <QuickAction label="Care plans" onPress={onOpenPatientCarePlans} />
+          <QuickAction label="Safety centre / incidents" onPress={onOpenSafetyCentre} />
           <QuickAction label="Previous observations" onPress={onOpenPreviousObservations} />
           {ward?.securityChecksEnabled ? <QuickAction label="Security check" onPress={onOpenSecurityChecks} /> : null}
           {ward?.medicationChartEnabled ? <QuickAction label="Medication chart" onPress={onOpenMedicationChart} /> : null}
@@ -581,6 +640,16 @@ function FoodFluidPill({ intakeLevel }: { intakeLevel: FoodFluidEntry["intakeLev
   return (
     <View style={[styles.foodFluidPill, low && styles.foodFluidPillLow]}>
       <Text style={[styles.foodFluidPillText, low && styles.foodFluidPillTextLow]}>{intakeLevel}</Text>
+    </View>
+  );
+}
+
+function IncidentStatusPill({ status }: { status: SafetyIncident["status"] }) {
+  return (
+    <View style={styles.incidentStatusPill}>
+      <Text style={styles.incidentStatusText}>
+        {status === "open" ? "Open" : status === "acknowledged" ? "Acknowledged" : "Resolved"}
+      </Text>
     </View>
   );
 }
@@ -712,11 +781,15 @@ function getPrimaryAction(
   role: StaffMember["role"],
   counts: {
     enhancedCoverGapCount: number;
+    incidentAttentionCount: number;
     news2AttentionCount: number;
     overdueGeneralCount: number;
     securityDueCount: number;
   }
 ) {
+  if (counts.incidentAttentionCount > 0) {
+    return { label: "Open Safety Centre", target: "safety" as const };
+  }
   if (role === "security" && counts.securityDueCount > 0) {
     return { label: "Open security checks", target: "security" as const };
   }
@@ -733,6 +806,27 @@ function getPrimaryAction(
     return { label: "Review enhanced cover", target: "enhanced" as const };
   }
   return { label: "Open general observations", target: "general" as const };
+}
+
+function compareSafetyIncidents(left: SafetyIncident, right: SafetyIncident) {
+  const severityOrder = { red: 0, amber: 1, green: 2 };
+  return (
+    severityOrder[left.severity] - severityOrder[right.severity] ||
+    left.status.localeCompare(right.status) ||
+    right.reportedAt.localeCompare(left.reportedAt)
+  );
+}
+
+function incidentRowStyle(severity: SafetyIncident["severity"]) {
+  if (severity === "red") return styles.incidentRowRed;
+  if (severity === "amber") return styles.incidentRowAmber;
+  return styles.incidentRowGreen;
+}
+
+function incidentRagStyle(severity: SafetyIncident["severity"]) {
+  if (severity === "red") return styles.incidentRagRed;
+  if (severity === "amber") return styles.incidentRagAmber;
+  return styles.incidentRagGreen;
 }
 
 function timeToMinutes(time: string) {
@@ -866,6 +960,14 @@ const styles = StyleSheet.create({
     minHeight: 54,
     padding: 9
   },
+  incidentRowRed: { backgroundColor: "#fff1ee", borderColor: "#e6b0a8" },
+  incidentRowAmber: { backgroundColor: "#fff8e4", borderColor: "#e3cf91" },
+  incidentRowGreen: { backgroundColor: "#eff8f3", borderColor: "#bddac9" },
+  incidentRagWrap: { alignItems: "center", justifyContent: "center", paddingRight: 9 },
+  incidentRag: { borderRadius: 999, height: 14, width: 14 },
+  incidentRagRed: { backgroundColor: "#c83e33" },
+  incidentRagAmber: { backgroundColor: "#e1a42c" },
+  incidentRagGreen: { backgroundColor: "#37855d" },
   miniRowCopy: { flex: 1, paddingRight: 8 },
   miniRowTitle: { color: "#21363f", fontSize: 12, fontWeight: "900" },
   miniRowMeta: { color: "#6b797f", fontSize: 10, fontWeight: "700", marginTop: 3 },
@@ -895,6 +997,8 @@ const styles = StyleSheet.create({
   foodFluidPillLow: { backgroundColor: "#f6bdb1" },
   foodFluidPillText: { color: "#2c604f", fontSize: 9, fontWeight: "900" },
   foodFluidPillTextLow: { color: "#91382e" },
+  incidentStatusPill: { backgroundColor: "#e7edef", borderRadius: 999, paddingHorizontal: 9, paddingVertical: 6 },
+  incidentStatusText: { color: "#40555d", fontSize: 8, fontWeight: "900", textTransform: "uppercase" },
   leadGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   leadDetail: { backgroundColor: "#f5f8f9", borderRadius: 7, flexGrow: 1, minWidth: 210, padding: 10 },
   leadLabel: { color: "#6b797f", fontSize: 10, fontWeight: "900", textTransform: "uppercase" },

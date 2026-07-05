@@ -38,6 +38,17 @@ export type FoodFluidIntakeLevel = "Refused" | "Less than half" | "Half" | "More
 export type MedicationAdministrationStatus = "Given" | "Omitted" | "Refused";
 export type MedicationOmissionCode = "N" | "X" | "F" | "S" | "O" | "U";
 export type MedicationPrescriptionType = "regular" | "prn" | "depot" | "rapid";
+export type IncidentSeverity = "green" | "amber" | "red";
+export type IncidentStatus = "open" | "acknowledged" | "resolved";
+export type IncidentCategory =
+  | "Injury or physical concern"
+  | "Violence or aggression"
+  | "Self-harm"
+  | "Fall"
+  | "Medication"
+  | "Safeguarding"
+  | "Security"
+  | "Other";
 
 export type Site = {
   id: string;
@@ -77,6 +88,33 @@ export type PatientCarePlan = {
   createdByName: string;
   createdByStaffCode: string;
   createdAt: string;
+};
+
+export type SafetyIncident = {
+  id: string;
+  patientId: string;
+  wardId: string;
+  category: IncidentCategory;
+  severity: IncidentSeverity;
+  status: IncidentStatus;
+  title: string;
+  details: string;
+  immediateAction: string;
+  bodyAreas: string[];
+  patientAccount: string;
+  ownerStaffId?: string;
+  ownerName?: string;
+  reportedByStaffId: string;
+  reportedByName: string;
+  reportedByStaffCode: string;
+  reportedAt: string;
+  acknowledgedByStaffId?: string;
+  acknowledgedByName?: string;
+  acknowledgedAt?: string;
+  resolutionNotes?: string;
+  resolvedByStaffId?: string;
+  resolvedByName?: string;
+  resolvedAt?: string;
 };
 
 export type Ward = {

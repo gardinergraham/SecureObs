@@ -9,6 +9,7 @@ import type {
   Patient,
   PatientLocation,
   PatientPresentation,
+  SafetyIncident,
   StaffShiftAssignment,
   StaffMember,
   Ward
@@ -37,6 +38,7 @@ type WardDashboardProps = {
   news2Readings: News2Reading[];
   missedObservations: MissedObservation[];
   observations: Observation[];
+  incidents: SafetyIncident[];
   staffShiftAssignments: StaffShiftAssignment[];
   staff: StaffMember[];
   selectedStaffId: string;
@@ -51,6 +53,7 @@ type WardDashboardProps = {
   onOpenPatientNotes: () => void;
   onOpenPatientSettings: () => void;
   onOpenPreviousObservations: () => void;
+  onOpenSafetyCentre: () => void;
   onOpenSecurityChecks: () => void;
   onOpenMedicationChart: () => void;
   onOpenStaffRota: () => void;
@@ -66,6 +69,7 @@ export function WardDashboard({
   news2Readings,
   missedObservations,
   observations,
+  incidents,
   staffShiftAssignments,
   staff,
   selectedStaffId,
@@ -80,6 +84,7 @@ export function WardDashboard({
   onOpenPatientNotes,
   onOpenPatientSettings,
   onOpenPreviousObservations,
+  onOpenSafetyCentre,
   onOpenSecurityChecks,
   onOpenMedicationChart,
   onOpenStaffRota,
@@ -91,6 +96,11 @@ export function WardDashboard({
   const selectedWard = wards.find((ward) => ward.id === selectedWardId);
   const selectedPatient = patients.find((patient) => patient.id === selectedPatientId);
   const selectedStaff = staff.find((member) => member.id === selectedStaffId);
+  const activeIncidents = incidents.filter(
+    (incident) => incident.wardId === selectedWardId && incident.status !== "resolved"
+  );
+  const redIncidentCount = activeIncidents.filter((incident) => incident.severity === "red").length;
+  const amberIncidentCount = activeIncidents.filter((incident) => incident.severity === "amber").length;
   const [now, setNow] = useState(() => Date.now());
   const currentShift = selectedWard ? getCurrentShift(selectedWard, now) : undefined;
   const currentShiftAssignments = currentShift
@@ -313,6 +323,19 @@ export function WardDashboard({
         </TouchableOpacity>
         <TouchableOpacity accessibilityRole="button" onPress={onOpenPatientCarePlans} style={styles.modeButton}>
           <Text style={styles.modeButtonText}>Care plans</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          accessibilityRole="button"
+          onPress={onOpenSafetyCentre}
+          style={[
+            styles.modeButton,
+            redIncidentCount > 0 && styles.safetyButtonRed,
+            redIncidentCount === 0 && amberIncidentCount > 0 && styles.safetyButtonAmber
+          ]}
+        >
+          <Text style={[styles.modeButtonText, redIncidentCount > 0 && styles.safetyButtonTextRed]}>
+            Safety centre {activeIncidents.length > 0 ? `(${activeIncidents.length})` : ""}
+          </Text>
         </TouchableOpacity>
         <TouchableOpacity accessibilityRole="button" onPress={onOpenPreviousObservations} style={styles.modeButton}>
           <Text style={styles.modeButtonText}>Previous obs</Text>
@@ -1007,6 +1030,9 @@ const styles = StyleSheet.create({
     backgroundColor: "#1f5262",
     borderColor: "#1f5262"
   },
+  safetyButtonRed: { backgroundColor: "#f7c2b9", borderColor: "#bd4034" },
+  safetyButtonAmber: { backgroundColor: "#fff0b8", borderColor: "#d19a24" },
+  safetyButtonTextRed: { color: "#7f2b23" },
   modeButtonText: {
     color: "#30434a",
     fontSize: 13,

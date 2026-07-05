@@ -177,6 +177,45 @@ const patientCarePlanSchema = z.object({
   actorStaffCode: z.string().optional()
 });
 
+const safetyIncidentSchema = z.object({
+  id: z.string().min(1).optional(),
+  organisationId: optionalOrganisationIdSchema,
+  patientId: z.string().min(1),
+  wardId: z.string().min(1),
+  category: z.enum([
+    "Injury or physical concern",
+    "Violence or aggression",
+    "Self-harm",
+    "Fall",
+    "Medication",
+    "Safeguarding",
+    "Security",
+    "Other"
+  ]),
+  severity: z.enum(["green", "amber", "red"]),
+  status: z.enum(["open", "acknowledged", "resolved"]).default("open"),
+  title: z.string().trim().min(1).max(200),
+  details: z.string().trim().min(1).max(20_000),
+  immediateAction: z.string().trim().max(10_000).default(""),
+  bodyAreas: z.array(z.string().trim().min(1).max(100)).max(30).default([]),
+  patientAccount: z.string().trim().max(10_000).default(""),
+  ownerStaffId: z.string().optional(),
+  ownerName: z.string().optional(),
+  reportedByStaffId: z.string().min(1),
+  reportedByName: z.string().min(1),
+  reportedByStaffCode: z.string().min(1),
+  reportedAt: z.string().datetime(),
+  acknowledgedByStaffId: z.string().optional(),
+  acknowledgedByName: z.string().optional(),
+  acknowledgedAt: z.string().datetime().optional(),
+  resolutionNotes: z.string().trim().max(20_000).optional(),
+  resolvedByStaffId: z.string().optional(),
+  resolvedByName: z.string().optional(),
+  resolvedAt: z.string().datetime().optional(),
+  actorStaffId: z.string().optional(),
+  actorStaffCode: z.string().optional()
+});
+
 const rotaAssignmentSchema = z.object({
   id: z.string().min(1),
   organisationId: optionalOrganisationIdSchema,
@@ -574,6 +613,255 @@ router.post(
     }
   }
 );
+
+router.get("/safety-incidents", async (request, response, next) => {
+  try {
+    const organisationId = requireOrganisationId(request, response);
+    if (!organisationId) return;
+    const wardId = typeof request.query.wardId === "string" ? request.query.wardId : undefined;
+    const result = await pool.query(
+      `
+        select
+          id,
+          patient_id as "patientId",
+          ward_id as "wardId",
+          category,
+          severity,
+          status,
+          title,
+          details,
+          immediate_action as "immediateAction",
+          body_areas as "bodyAreas",
+          patient_account as "patientAccount",
+          owner_staff_id as "ownerStaffId",
+          owner_name as "ownerName",
+          reported_by_staff_id as "reportedByStaffId",
+          reported_by_name as "reportedByName",
+          reported_by_staff_code as "reportedByStaffCode",
+          reported_at as "reportedAt",
+          acknowledged_by_staff_id as "acknowledgedByStaffId",
+          acknowledged_by_name as "acknowledgedByName",
+          acknowledged_at as "acknowledgedAt",
+          resolution_notes as "resolutionNotes",
+          resolved_by_staff_id as "resolvedByStaffId",
+          resolved_by_name as "resolvedByName",
+          resolved_at as "resolvedAt"
+        from safety_incidents
+        where organisation_id = $1
+          and ($2::text is null or ward_id = $2::text)
+        order by
+          case status when 'open' then 0 when 'acknowledged' then 1 else 2 end,
+          case severity when 'red' then 0 when 'amber' then 1 else 2 end,
+          reported_at desc
+        limit 1000
+      `,
+      [organisationId, wardId ?? null]
+    );
+    response.json({ safetyIncidents: result.rows });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post("/safety-incidents", requireStaffRole([...anyWardStaff]), async (request, response, next) => {
+  try {
+    const parsed = safetyIncidentSchema.safeParse(request.body);
+    if (!parsed.success) {
+      response.status(400).json({ error: "Invalid safety incident", details: parsed.error.flatten() });
+      return;
+    }
+
+    const organisationId = requireOrganisationId(request, response);
+    if (!organisationId) return;
+    const authenticatedStaff = (request as AuthenticatedRequest).auth?.staff;
+    if (!authenticatedStaff) {
+      response.status(401).json({ error: "Authenticated staff session required" });
+      return;
+    }
+    if (
+      authenticatedStaff.role !== "super_admin" &&
+      !authenticatedStaff.allowedWardIds.includes(parsed.data.wardId)
+    ) {
+      response.status(403).json({ error: "Staff session is not authorised for this ward" });
+      return;
+    }
+
+    const patientResult = await pool.query(
+      `
+        select id
+        from patients
+        where id = $1 and organisation_id = $2 and ward_id = $3
+      `,
+      [parsed.data.patientId, organisationId, parsed.data.wardId]
+    );
+    if (!patientResult.rows[0]) {
+      response.status(404).json({ error: "Patient not found for this ward" });
+      return;
+    }
+
+    const incidentId = parsed.data.id ?? `safety-incident-${Date.now()}`;
+    const existingResult = await pool.query(
+      `
+        select
+          status,
+          reported_by_staff_id as "reportedByStaffId",
+          reported_by_name as "reportedByName",
+          reported_by_staff_code as "reportedByStaffCode",
+          reported_at as "reportedAt",
+          acknowledged_by_staff_id as "acknowledgedByStaffId",
+          acknowledged_by_name as "acknowledgedByName",
+          acknowledged_at as "acknowledgedAt"
+        from safety_incidents
+        where id = $1 and organisation_id = $2
+      `,
+      [incidentId, organisationId]
+    );
+    const existing = existingResult.rows[0] as
+      | {
+          status: "open" | "acknowledged" | "resolved";
+          reportedByStaffId: string;
+          reportedByName: string;
+          reportedByStaffCode: string;
+          reportedAt: string;
+          acknowledgedByStaffId?: string;
+          acknowledgedByName?: string;
+          acknowledgedAt?: string;
+        }
+      | undefined;
+    const resolutionRoles = ["nurse", "manager", "doctor", "super_admin"];
+    if (
+      existing &&
+      parsed.data.status === "resolved" &&
+      existing.status !== "resolved" &&
+      !resolutionRoles.includes(authenticatedStaff.role)
+    ) {
+      response.status(403).json({ error: "Only nurses, doctors and managers can resolve incidents" });
+      return;
+    }
+
+    const now = new Date().toISOString();
+    const isAcknowledged = parsed.data.status === "acknowledged" || parsed.data.status === "resolved";
+    const incident = {
+      ...parsed.data,
+      id: incidentId,
+      organisationId,
+      reportedByStaffId: existing?.reportedByStaffId ?? authenticatedStaff.id,
+      reportedByName: existing?.reportedByName ?? authenticatedStaff.name,
+      reportedByStaffCode: existing?.reportedByStaffCode ?? authenticatedStaff.staffCode,
+      reportedAt: existing?.reportedAt ?? parsed.data.reportedAt,
+      acknowledgedByStaffId:
+        existing?.acknowledgedByStaffId ?? (isAcknowledged ? authenticatedStaff.id : undefined),
+      acknowledgedByName:
+        existing?.acknowledgedByName ?? (isAcknowledged ? authenticatedStaff.name : undefined),
+      acknowledgedAt: existing?.acknowledgedAt ?? (isAcknowledged ? now : undefined),
+      resolvedByStaffId: parsed.data.status === "resolved" ? authenticatedStaff.id : undefined,
+      resolvedByName: parsed.data.status === "resolved" ? authenticatedStaff.name : undefined,
+      resolvedAt: parsed.data.status === "resolved" ? parsed.data.resolvedAt ?? now : undefined
+    };
+
+    const result = await pool.query(
+      `
+        insert into safety_incidents (
+          id, organisation_id, patient_id, ward_id, category, severity, status, title, details,
+          immediate_action, body_areas, patient_account, owner_staff_id, owner_name,
+          reported_by_staff_id, reported_by_name, reported_by_staff_code, reported_at,
+          acknowledged_by_staff_id, acknowledged_by_name, acknowledged_at, resolution_notes,
+          resolved_by_staff_id, resolved_by_name, resolved_at
+        ) values (
+          $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11::jsonb,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25
+        )
+        on conflict (id) do update set
+          severity = excluded.severity,
+          status = excluded.status,
+          title = excluded.title,
+          details = excluded.details,
+          immediate_action = excluded.immediate_action,
+          body_areas = excluded.body_areas,
+          patient_account = excluded.patient_account,
+          owner_staff_id = excluded.owner_staff_id,
+          owner_name = excluded.owner_name,
+          acknowledged_by_staff_id = excluded.acknowledged_by_staff_id,
+          acknowledged_by_name = excluded.acknowledged_by_name,
+          acknowledged_at = excluded.acknowledged_at,
+          resolution_notes = excluded.resolution_notes,
+          resolved_by_staff_id = excluded.resolved_by_staff_id,
+          resolved_by_name = excluded.resolved_by_name,
+          resolved_at = excluded.resolved_at
+        returning
+          id,
+          patient_id as "patientId",
+          ward_id as "wardId",
+          category,
+          severity,
+          status,
+          title,
+          details,
+          immediate_action as "immediateAction",
+          body_areas as "bodyAreas",
+          patient_account as "patientAccount",
+          owner_staff_id as "ownerStaffId",
+          owner_name as "ownerName",
+          reported_by_staff_id as "reportedByStaffId",
+          reported_by_name as "reportedByName",
+          reported_by_staff_code as "reportedByStaffCode",
+          reported_at as "reportedAt",
+          acknowledged_by_staff_id as "acknowledgedByStaffId",
+          acknowledged_by_name as "acknowledgedByName",
+          acknowledged_at as "acknowledgedAt",
+          resolution_notes as "resolutionNotes",
+          resolved_by_staff_id as "resolvedByStaffId",
+          resolved_by_name as "resolvedByName",
+          resolved_at as "resolvedAt"
+      `,
+      [
+        incident.id,
+        incident.organisationId,
+        incident.patientId,
+        incident.wardId,
+        incident.category,
+        incident.severity,
+        incident.status,
+        incident.title,
+        incident.details,
+        incident.immediateAction,
+        JSON.stringify(incident.bodyAreas),
+        incident.patientAccount,
+        incident.ownerStaffId ?? null,
+        incident.ownerName ?? null,
+        incident.reportedByStaffId,
+        incident.reportedByName,
+        incident.reportedByStaffCode,
+        incident.reportedAt,
+        incident.acknowledgedByStaffId ?? null,
+        incident.acknowledgedByName ?? null,
+        incident.acknowledgedAt ?? null,
+        incident.resolutionNotes ?? null,
+        incident.resolvedByStaffId ?? null,
+        incident.resolvedByName ?? null,
+        incident.resolvedAt ?? null
+      ]
+    );
+
+    await recordAuditEvent({
+      organisationId,
+      actorStaffId: authenticatedStaff.id,
+      actorStaffCode: authenticatedStaff.staffCode,
+      eventType: existing ? `safety_incident.${incident.status}` : "safety_incident.report",
+      entityType: "safety_incident",
+      entityId: incident.id,
+      details: {
+        patientId: incident.patientId,
+        wardId: incident.wardId,
+        severity: incident.severity,
+        status: incident.status,
+        category: incident.category
+      }
+    });
+    response.status(existing ? 200 : 201).json(result.rows[0]);
+  } catch (error) {
+    next(error);
+  }
+});
 
 router.get("/security-checks", async (request, response, next) => {
   try {
