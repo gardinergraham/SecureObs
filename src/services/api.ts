@@ -14,6 +14,7 @@ import type {
   Patient,
   PatientCarePlan,
   PatientNote,
+  PatientTask,
   RotaAssignment,
   SafetyIncident,
   SecurityArea,
@@ -279,6 +280,19 @@ export async function createShiftHandover(handover: OrganisationScoped<ShiftHand
   return saveQueuedRequest<ShiftHandover>("shift handover", "/api/shift-handovers", {
     method: "POST",
     body: JSON.stringify(handover)
+  });
+}
+
+export async function loadPatientTasks(organisationId?: string, wardId?: string) {
+  return request<{ patientTasks: PatientTask[] }>(
+    withOptionalQuery(withOrganisationId("/api/patient-tasks", organisationId), "wardId", wardId)
+  );
+}
+
+export async function savePatientTask(task: OrganisationScoped<PatientTask> & ActorScoped) {
+  return saveQueuedRequest<PatientTask>("patient task", "/api/patient-tasks", {
+    method: "POST",
+    body: JSON.stringify(task)
   });
 }
 

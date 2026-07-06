@@ -9,6 +9,7 @@ import type {
   Patient,
   PatientLocation,
   PatientPresentation,
+  PatientTask,
   SafetyIncident,
   StaffShiftAssignment,
   StaffMember,
@@ -39,6 +40,7 @@ type WardDashboardProps = {
   missedObservations: MissedObservation[];
   observations: Observation[];
   incidents: SafetyIncident[];
+  patientTasks: PatientTask[];
   staffShiftAssignments: StaffShiftAssignment[];
   staff: StaffMember[];
   selectedStaffId: string;
@@ -51,6 +53,7 @@ type WardDashboardProps = {
   onOpenEnhanced: () => void;
   onOpenPatientCarePlans: () => void;
   onOpenPatientNotes: () => void;
+  onOpenPatientTasks: () => void;
   onOpenPatientSettings: () => void;
   onOpenPreviousObservations: () => void;
   onOpenSafetyCentre: () => void;
@@ -71,6 +74,7 @@ export function WardDashboard({
   missedObservations,
   observations,
   incidents,
+  patientTasks,
   staffShiftAssignments,
   staff,
   selectedStaffId,
@@ -83,6 +87,7 @@ export function WardDashboard({
   onOpenEnhanced,
   onOpenPatientCarePlans,
   onOpenPatientNotes,
+  onOpenPatientTasks,
   onOpenPatientSettings,
   onOpenPreviousObservations,
   onOpenSafetyCentre,
@@ -98,12 +103,19 @@ export function WardDashboard({
   const selectedWard = wards.find((ward) => ward.id === selectedWardId);
   const selectedPatient = patients.find((patient) => patient.id === selectedPatientId);
   const selectedStaff = staff.find((member) => member.id === selectedStaffId);
+  const [now, setNow] = useState(() => Date.now());
   const activeIncidents = incidents.filter(
     (incident) => incident.wardId === selectedWardId && incident.status !== "resolved"
   );
   const redIncidentCount = activeIncidents.filter((incident) => incident.severity === "red").length;
   const amberIncidentCount = activeIncidents.filter((incident) => incident.severity === "amber").length;
-  const [now, setNow] = useState(() => Date.now());
+  const activePatientTasks = patientTasks.filter(
+    (task) =>
+      task.wardId === selectedWardId && (task.status === "open" || task.status === "accepted")
+  );
+  const taskAlertCount = activePatientTasks.filter(
+    (task) => task.priority === "red" || new Date(task.dueAt).getTime() < now
+  ).length;
   const currentShift = selectedWard ? getCurrentShift(selectedWard, now) : undefined;
   const currentShiftAssignments = currentShift
     ? staffShiftAssignments.filter(
@@ -322,6 +334,15 @@ export function WardDashboard({
         </TouchableOpacity>
         <TouchableOpacity accessibilityRole="button" onPress={onOpenPatientNotes} style={styles.modeButton}>
           <Text style={styles.modeButtonText}>Notes</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          accessibilityRole="button"
+          onPress={onOpenPatientTasks}
+          style={[styles.modeButton, taskAlertCount > 0 && styles.safetyButtonAmber]}
+        >
+          <Text style={styles.modeButtonText}>
+            Tasks {activePatientTasks.length > 0 ? `(${activePatientTasks.length})` : ""}
+          </Text>
         </TouchableOpacity>
         <TouchableOpacity accessibilityRole="button" onPress={onOpenPatientCarePlans} style={styles.modeButton}>
           <Text style={styles.modeButtonText}>Care plans</Text>

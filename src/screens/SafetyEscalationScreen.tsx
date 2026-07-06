@@ -18,6 +18,7 @@ import type {
   IncidentSeverity,
   IncidentStatus,
   Patient,
+  PatientTask,
   SafetyIncident,
   StaffMember,
   Ward
@@ -84,24 +85,28 @@ type IncidentDraft = {
 type SafetyEscalationScreenProps = {
   incidents: SafetyIncident[];
   patients: Patient[];
+  patientTasks: PatientTask[];
   selectedPatientId: string;
   selectedStaffId: string;
   staff: StaffMember[];
   ward?: Ward;
   onBack: () => void;
   onSaveIncident: (incident: SafetyIncident) => Promise<void>;
+  onOpenPatientTasks: () => void;
   onSelectPatient: (patientId: string) => void;
 };
 
 export function SafetyEscalationScreen({
   incidents,
   patients,
+  patientTasks,
   selectedPatientId,
   selectedStaffId,
   staff,
   ward,
   onBack,
   onSaveIncident,
+  onOpenPatientTasks,
   onSelectPatient
 }: SafetyEscalationScreenProps) {
   const { width: viewportWidth } = useWindowDimensions();
@@ -156,6 +161,18 @@ export function SafetyEscalationScreen({
     [severityFilter, statusFilter, wardIncidents]
   );
   const activeIncidents = wardIncidents.filter((incident) => incident.status !== "resolved");
+  const escalatedTasks = useMemo(
+    () =>
+      patientTasks
+        .filter(
+          (task) =>
+            task.wardId === ward?.id &&
+            (task.status === "open" || task.status === "accepted") &&
+            (task.priority === "red" || new Date(task.dueAt).getTime() < Date.now())
+        )
+        .sort((left, right) => left.dueAt.localeCompare(right.dueAt)),
+    [patientTasks, ward?.id]
+  );
   const redCount = activeIncidents.filter((incident) => incident.severity === "red").length;
   const amberCount = activeIncidents.filter((incident) => incident.severity === "amber").length;
   const greenCount = activeIncidents.filter((incident) => incident.severity === "green").length;
@@ -285,6 +302,41 @@ export function SafetyEscalationScreen({
           <Text style={styles.totalLabel}>Active incidents</Text>
         </View>
       </View>
+
+      {escalatedTasks.length > 0 ? (
+        <View style={styles.taskEscalationPanel}>
+          <View style={styles.taskEscalationHeading}>
+            <View>
+              <Text style={styles.panelTitle}>Patient task escalations</Text>
+              <Text style={styles.panelMeta}>
+                {escalatedTasks.length} overdue or red-priority action
+                {escalatedTasks.length === 1 ? "" : "s"} require attention.
+              </Text>
+            </View>
+            <TouchableOpacity accessibilityRole="button" onPress={onOpenPatientTasks} style={styles.secondaryButton}>
+              <Text style={styles.secondaryButtonText}>Open patient tasks</Text>
+            </TouchableOpacity>
+          </View>
+          {escalatedTasks.slice(0, 4).map((task) => {
+            const patient = patients.find((item) => item.id === task.patientId);
+            const overdue = new Date(task.dueAt).getTime() < Date.now();
+            return (
+              <View key={task.id} style={styles.escalatedTaskRow}>
+                <View style={[styles.ragDot, severityStyle(task.priority)]} />
+                <View style={styles.escalatedTaskCopy}>
+                  <Text style={styles.escalatedTaskTitle}>{task.title}</Text>
+                  <Text style={styles.panelMeta}>
+                    {patient
+                      ? `Room ${patient.roomNumber} · ${patient.firstName} ${patient.surname}`
+                      : "Patient unavailable"}{" "}
+                    · {overdue ? "Overdue" : "Red priority"}
+                  </Text>
+                </View>
+              </View>
+            );
+          })}
+        </View>
+      ) : null}
 
       <View style={[styles.workspace, compactLayout && styles.workspaceCompact]}>
         <View style={[styles.patientPanel, compactLayout && styles.patientPanelCompact]}>
@@ -898,6 +950,31 @@ const styles = StyleSheet.create({
   ragLabel: { color: "#596a71", fontSize: 10, fontWeight: "900", textTransform: "uppercase" },
   totalValue: { color: "#173f4d", fontSize: 24, fontWeight: "900" },
   totalLabel: { color: "#65747a", fontSize: 10, fontWeight: "900", textTransform: "uppercase" },
+  taskEscalationPanel: {
+    backgroundColor: "#fff8e6",
+    borderColor: "#e1c979",
+    borderRadius: 9,
+    borderWidth: 1,
+    gap: 7,
+    padding: 13
+  },
+  taskEscalationHeading: {
+    alignItems: "flex-start",
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10,
+    justifyContent: "space-between"
+  },
+  escalatedTaskRow: {
+    alignItems: "center",
+    backgroundColor: "#ffffff",
+    borderRadius: 7,
+    flexDirection: "row",
+    gap: 9,
+    padding: 9
+  },
+  escalatedTaskCopy: { flex: 1 },
+  escalatedTaskTitle: { color: "#273d45", fontSize: 11, fontWeight: "900" },
   workspace: { alignItems: "flex-start", flexDirection: "row", flexWrap: "nowrap", gap: 14 },
   workspaceCompact: { flexDirection: "column" },
   patientPanel: {

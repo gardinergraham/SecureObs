@@ -227,6 +227,7 @@ const shiftHandoverPatientSummarySchema = z.object({
   news2Summary: z.string().max(5000),
   medicationSummary: z.string().max(5000),
   incidentSummary: z.string().max(5000),
+  taskSummary: z.string().max(5000).default(""),
   narrative: z.string().max(20_000),
   staffNotes: z.string().max(10_000)
 });
@@ -245,6 +246,51 @@ const shiftHandoverSchema = z.object({
   createdByName: z.string().min(1),
   createdByStaffCode: z.string().min(1),
   createdAt: z.string().datetime(),
+  actorStaffId: z.string().optional(),
+  actorStaffCode: z.string().optional()
+});
+
+const patientTaskSchema = z.object({
+  id: z.string().min(1).optional(),
+  organisationId: optionalOrganisationIdSchema,
+  patientId: z.string().min(1),
+  wardId: z.string().min(1),
+  title: z.string().trim().min(1).max(200),
+  details: z.string().trim().max(10_000).default(""),
+  category: z.enum([
+    "Physical health",
+    "Mental health",
+    "Medication",
+    "Nutrition and hydration",
+    "Care plan",
+    "Incident follow-up",
+    "Appointment",
+    "Family or advocate",
+    "Other"
+  ]),
+  priority: z.enum(["green", "amber", "red"]),
+  status: z.enum(["open", "accepted", "completed", "cancelled"]),
+  dueAt: z.string().datetime(),
+  recurrence: z.enum(["none", "every_shift", "daily"]).default("none"),
+  assignedToStaffId: z.string().nullish(),
+  assignedToName: z.string().nullish(),
+  assignedRole: z.enum(["nurse", "hcf", "ot", "security", "manager", "doctor", "super_admin"]).nullish(),
+  sourceType: z.enum(["manual", "incident", "care_plan"]).nullish(),
+  sourceId: z.string().nullish(),
+  createdByStaffId: z.string().min(1),
+  createdByName: z.string().min(1),
+  createdByStaffCode: z.string().min(1),
+  createdAt: z.string().datetime(),
+  acceptedByStaffId: z.string().nullish(),
+  acceptedByName: z.string().nullish(),
+  acceptedAt: z.string().datetime().nullish(),
+  completionNotes: z.string().trim().max(10_000).nullish(),
+  completedByStaffId: z.string().nullish(),
+  completedByName: z.string().nullish(),
+  completedAt: z.string().datetime().nullish(),
+  cancelledByStaffId: z.string().nullish(),
+  cancelledByName: z.string().nullish(),
+  cancelledAt: z.string().datetime().nullish(),
   actorStaffId: z.string().optional(),
   actorStaffCode: z.string().optional()
 });
@@ -1038,6 +1084,274 @@ router.post(
     }
   }
 );
+
+router.get("/patient-tasks", async (request, response, next) => {
+  try {
+    const organisationId = requireOrganisationId(request, response);
+    if (!organisationId) return;
+    const wardId = typeof request.query.wardId === "string" ? request.query.wardId : undefined;
+    const result = await pool.query(
+      `
+        select
+          id,
+          patient_id as "patientId",
+          ward_id as "wardId",
+          title,
+          details,
+          category,
+          priority,
+          status,
+          due_at as "dueAt",
+          recurrence,
+          assigned_to_staff_id as "assignedToStaffId",
+          assigned_to_name as "assignedToName",
+          assigned_role as "assignedRole",
+          source_type as "sourceType",
+          source_id as "sourceId",
+          created_by_staff_id as "createdByStaffId",
+          created_by_name as "createdByName",
+          created_by_staff_code as "createdByStaffCode",
+          created_at as "createdAt",
+          accepted_by_staff_id as "acceptedByStaffId",
+          accepted_by_name as "acceptedByName",
+          accepted_at as "acceptedAt",
+          completion_notes as "completionNotes",
+          completed_by_staff_id as "completedByStaffId",
+          completed_by_name as "completedByName",
+          completed_at as "completedAt",
+          cancelled_by_staff_id as "cancelledByStaffId",
+          cancelled_by_name as "cancelledByName",
+          cancelled_at as "cancelledAt"
+        from patient_tasks
+        where organisation_id = $1
+          and ($2::text is null or ward_id = $2::text)
+        order by
+          case status when 'open' then 0 when 'accepted' then 1 when 'completed' then 2 else 3 end,
+          case priority when 'red' then 0 when 'amber' then 1 else 2 end,
+          due_at asc
+        limit 2000
+      `,
+      [organisationId, wardId ?? null]
+    );
+    response.json({ patientTasks: result.rows });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post("/patient-tasks", requireStaffRole([...anyWardStaff]), async (request, response, next) => {
+  try {
+    const parsed = patientTaskSchema.safeParse(request.body);
+    if (!parsed.success) {
+      const issueSummary = parsed.error.issues
+        .slice(0, 3)
+        .map((issue) => `${issue.path.join(".") || "task"}: ${issue.message}`)
+        .join("; ");
+      response.status(400).json({
+        error: `Invalid patient task${issueSummary ? ` — ${issueSummary}` : ""}`,
+        details: parsed.error.flatten()
+      });
+      return;
+    }
+    const organisationId = requireOrganisationId(request, response);
+    if (!organisationId) return;
+    const authenticatedStaff = (request as AuthenticatedRequest).auth?.staff;
+    if (!authenticatedStaff) {
+      response.status(401).json({ error: "Authenticated staff session required" });
+      return;
+    }
+    if (
+      authenticatedStaff.role !== "super_admin" &&
+      !authenticatedStaff.allowedWardIds.includes(parsed.data.wardId)
+    ) {
+      response.status(403).json({ error: "Staff session is not authorised for this ward" });
+      return;
+    }
+    const patientResult = await pool.query(
+      `select id from patients where id = $1 and organisation_id = $2 and ward_id = $3`,
+      [parsed.data.patientId, organisationId, parsed.data.wardId]
+    );
+    if (!patientResult.rows[0]) {
+      response.status(404).json({ error: "Patient not found for this ward" });
+      return;
+    }
+    const taskId = parsed.data.id ?? `patient-task-${Date.now()}`;
+    const existingResult = await pool.query(
+      `
+        select
+          status,
+          created_by_staff_id as "createdByStaffId",
+          created_by_name as "createdByName",
+          created_by_staff_code as "createdByStaffCode",
+          created_at as "createdAt",
+          accepted_by_staff_id as "acceptedByStaffId",
+          accepted_by_name as "acceptedByName",
+          accepted_at as "acceptedAt"
+        from patient_tasks
+        where id = $1 and organisation_id = $2
+      `,
+      [taskId, organisationId]
+    );
+    const existing = existingResult.rows[0] as
+      | {
+          status: "open" | "accepted" | "completed" | "cancelled";
+          createdByStaffId: string;
+          createdByName: string;
+          createdByStaffCode: string;
+          createdAt: string;
+          acceptedByStaffId?: string;
+          acceptedByName?: string;
+          acceptedAt?: string;
+        }
+      | undefined;
+    const cancellationRoles = ["nurse", "manager", "doctor", "super_admin"];
+    if (
+      existing &&
+      parsed.data.status === "cancelled" &&
+      existing.status !== "cancelled" &&
+      !cancellationRoles.includes(authenticatedStaff.role)
+    ) {
+      response.status(403).json({ error: "Only nurses, doctors and managers can cancel patient tasks" });
+      return;
+    }
+    const now = new Date().toISOString();
+    const accepted = parsed.data.status === "accepted" || parsed.data.status === "completed";
+    const task = {
+      ...parsed.data,
+      id: taskId,
+      organisationId,
+      createdByStaffId: existing?.createdByStaffId ?? authenticatedStaff.id,
+      createdByName: existing?.createdByName ?? authenticatedStaff.name,
+      createdByStaffCode: existing?.createdByStaffCode ?? authenticatedStaff.staffCode,
+      createdAt: existing?.createdAt ?? parsed.data.createdAt,
+      acceptedByStaffId: existing?.acceptedByStaffId ?? (accepted ? authenticatedStaff.id : undefined),
+      acceptedByName: existing?.acceptedByName ?? (accepted ? authenticatedStaff.name : undefined),
+      acceptedAt: existing?.acceptedAt ?? (accepted ? now : undefined),
+      completedByStaffId: parsed.data.status === "completed" ? authenticatedStaff.id : undefined,
+      completedByName: parsed.data.status === "completed" ? authenticatedStaff.name : undefined,
+      completedAt: parsed.data.status === "completed" ? parsed.data.completedAt ?? now : undefined,
+      cancelledByStaffId: parsed.data.status === "cancelled" ? authenticatedStaff.id : undefined,
+      cancelledByName: parsed.data.status === "cancelled" ? authenticatedStaff.name : undefined,
+      cancelledAt: parsed.data.status === "cancelled" ? parsed.data.cancelledAt ?? now : undefined
+    };
+    const result = await pool.query(
+      `
+        insert into patient_tasks (
+          id, organisation_id, patient_id, ward_id, title, details, category, priority, status,
+          due_at, recurrence, assigned_to_staff_id, assigned_to_name, assigned_role, source_type,
+          source_id, created_by_staff_id, created_by_name, created_by_staff_code, created_at,
+          accepted_by_staff_id, accepted_by_name, accepted_at, completion_notes,
+          completed_by_staff_id, completed_by_name, completed_at, cancelled_by_staff_id,
+          cancelled_by_name, cancelled_at
+        ) values (
+          $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,
+          $21,$22,$23,$24,$25,$26,$27,$28,$29,$30
+        )
+        on conflict (id) do update set
+          title = excluded.title,
+          details = excluded.details,
+          category = excluded.category,
+          priority = excluded.priority,
+          status = excluded.status,
+          due_at = excluded.due_at,
+          recurrence = excluded.recurrence,
+          assigned_to_staff_id = excluded.assigned_to_staff_id,
+          assigned_to_name = excluded.assigned_to_name,
+          assigned_role = excluded.assigned_role,
+          accepted_by_staff_id = excluded.accepted_by_staff_id,
+          accepted_by_name = excluded.accepted_by_name,
+          accepted_at = excluded.accepted_at,
+          completion_notes = excluded.completion_notes,
+          completed_by_staff_id = excluded.completed_by_staff_id,
+          completed_by_name = excluded.completed_by_name,
+          completed_at = excluded.completed_at,
+          cancelled_by_staff_id = excluded.cancelled_by_staff_id,
+          cancelled_by_name = excluded.cancelled_by_name,
+          cancelled_at = excluded.cancelled_at
+        returning
+          id,
+          patient_id as "patientId",
+          ward_id as "wardId",
+          title,
+          details,
+          category,
+          priority,
+          status,
+          due_at as "dueAt",
+          recurrence,
+          assigned_to_staff_id as "assignedToStaffId",
+          assigned_to_name as "assignedToName",
+          assigned_role as "assignedRole",
+          source_type as "sourceType",
+          source_id as "sourceId",
+          created_by_staff_id as "createdByStaffId",
+          created_by_name as "createdByName",
+          created_by_staff_code as "createdByStaffCode",
+          created_at as "createdAt",
+          accepted_by_staff_id as "acceptedByStaffId",
+          accepted_by_name as "acceptedByName",
+          accepted_at as "acceptedAt",
+          completion_notes as "completionNotes",
+          completed_by_staff_id as "completedByStaffId",
+          completed_by_name as "completedByName",
+          completed_at as "completedAt",
+          cancelled_by_staff_id as "cancelledByStaffId",
+          cancelled_by_name as "cancelledByName",
+          cancelled_at as "cancelledAt"
+      `,
+      [
+        task.id,
+        task.organisationId,
+        task.patientId,
+        task.wardId,
+        task.title,
+        task.details,
+        task.category,
+        task.priority,
+        task.status,
+        task.dueAt,
+        task.recurrence,
+        task.assignedToStaffId ?? null,
+        task.assignedToName ?? null,
+        task.assignedRole ?? null,
+        task.sourceType ?? null,
+        task.sourceId ?? null,
+        task.createdByStaffId,
+        task.createdByName,
+        task.createdByStaffCode,
+        task.createdAt,
+        task.acceptedByStaffId ?? null,
+        task.acceptedByName ?? null,
+        task.acceptedAt ?? null,
+        task.completionNotes ?? null,
+        task.completedByStaffId ?? null,
+        task.completedByName ?? null,
+        task.completedAt ?? null,
+        task.cancelledByStaffId ?? null,
+        task.cancelledByName ?? null,
+        task.cancelledAt ?? null
+      ]
+    );
+    await recordAuditEvent({
+      organisationId,
+      actorStaffId: authenticatedStaff.id,
+      actorStaffCode: authenticatedStaff.staffCode,
+      eventType: existing ? `patient_task.${task.status}` : "patient_task.create",
+      entityType: "patient_task",
+      entityId: task.id,
+      details: {
+        patientId: task.patientId,
+        wardId: task.wardId,
+        priority: task.priority,
+        status: task.status,
+        dueAt: task.dueAt
+      }
+    });
+    response.status(existing ? 200 : 201).json(result.rows[0]);
+  } catch (error) {
+    next(error);
+  }
+});
 
 router.get("/security-checks", async (request, response, next) => {
   try {

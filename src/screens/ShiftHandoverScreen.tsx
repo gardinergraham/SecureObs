@@ -11,6 +11,7 @@ import type {
   News2Reading,
   Observation,
   Patient,
+  PatientTask,
   SafetyIncident,
   ShiftHandover,
   ShiftHandoverPatientSummary,
@@ -29,6 +30,7 @@ type ShiftHandoverScreenProps = {
   news2Readings: News2Reading[];
   observations: Observation[];
   patients: Patient[];
+  patientTasks: PatientTask[];
   selectedStaffId: string;
   staff: StaffMember[];
   ward?: Ward;
@@ -46,6 +48,7 @@ export function ShiftHandoverScreen({
   news2Readings,
   observations,
   patients,
+  patientTasks,
   selectedStaffId,
   staff,
   ward,
@@ -67,6 +70,10 @@ export function ShiftHandoverScreen({
     () => missedObservations.filter((missed) => missed.wardId === ward?.id),
     [missedObservations, ward?.id]
   );
+  const wardPatientTasks = useMemo(
+    () => patientTasks.filter((task) => task.wardId === ward?.id),
+    [patientTasks, ward?.id]
+  );
 
   const generatedSummaries = useMemo(
     () =>
@@ -83,6 +90,7 @@ export function ShiftHandoverScreen({
                 news2Readings,
                 observations,
                 patient,
+                patientTasks: wardPatientTasks,
                 shiftStartsAt: shift.startsAt
               })
             )
@@ -95,6 +103,7 @@ export function ShiftHandoverScreen({
       news2Readings,
       observations,
       patients,
+      wardPatientTasks,
       shift?.shiftId,
       shift?.startsAt,
       shiftCutoff
@@ -110,6 +119,7 @@ export function ShiftHandoverScreen({
         incidents: wardIncidents,
         missedObservations: wardMissedObservations,
         patientSummaries,
+        patientTasks: wardPatientTasks,
         shiftStartsAt: shift.startsAt
       })
     : "No active shift could be identified from the ward rota.";
@@ -270,6 +280,7 @@ export function ShiftHandoverScreen({
             <SummaryRow label="NEWS2" value={summary.news2Summary} />
             <SummaryRow label="Medication" value={summary.medicationSummary} />
             <SummaryRow label="Incidents" value={summary.incidentSummary} />
+            <SummaryRow label="Outstanding tasks" value={summary.taskSummary ?? "No outstanding patient tasks."} />
             <Text style={styles.fieldLabel}>Staff handover notes</Text>
             <TextInput
               multiline
@@ -347,6 +358,7 @@ function buildPatientSummary({
   news2Readings,
   observations,
   patient,
+  patientTasks,
   shiftStartsAt
 }: {
   cutoff: number;
@@ -357,6 +369,7 @@ function buildPatientSummary({
   news2Readings: News2Reading[];
   observations: Observation[];
   patient: Patient;
+  patientTasks: PatientTask[];
   shiftStartsAt: number;
 }): ShiftHandoverPatientSummary {
   const patientObservations = observations
@@ -442,12 +455,28 @@ function buildPatientSummary({
               `${incident.severity.toUpperCase()} ${incident.title} (${incident.status.replace("_", " ")})`
           )
           .join("; ");
+  const activeTasks = patientTasks
+    .filter(
+      (task) =>
+        task.patientId === patient.id && (task.status === "open" || task.status === "accepted")
+    )
+    .sort((left, right) => left.dueAt.localeCompare(right.dueAt));
+  const taskSummary =
+    activeTasks.length === 0
+      ? "No outstanding patient tasks."
+      : activeTasks
+          .map((task) => {
+            const overdue = new Date(task.dueAt).getTime() < cutoff;
+            return `${task.priority.toUpperCase()} ${task.title} (${overdue ? "overdue" : `due ${formatDateTime(task.dueAt)}`})`;
+          })
+          .join("; ");
 
   const narrative = [
     movementSummary,
     presentationSummary,
     nutrition.length > 0 ? nutritionSummary : "",
-    shiftIncidents.length > 0 ? incidentSummary : ""
+    shiftIncidents.length > 0 ? incidentSummary : "",
+    activeTasks.length > 0 ? `Outstanding actions: ${taskSummary}` : ""
   ]
     .filter(Boolean)
     .join(" ");
@@ -463,6 +492,7 @@ function buildPatientSummary({
     news2Summary,
     medicationSummary,
     incidentSummary,
+    taskSummary,
     narrative,
     staffNotes: ""
   };
@@ -473,25 +503,32 @@ function buildOverallSummary({
   incidents,
   missedObservations,
   patientSummaries,
+  patientTasks,
   shiftStartsAt
 }: {
   cutoff: number;
   incidents: SafetyIncident[];
   missedObservations: MissedObservation[];
   patientSummaries: ShiftHandoverPatientSummary[];
+  patientTasks: PatientTask[];
   shiftStartsAt: number;
 }) {
   const shiftIncidents = incidents.filter((incident) => isWithin(incident.reportedAt, shiftStartsAt, cutoff));
   const activeIncidents = incidents.filter((incident) => incident.status !== "resolved");
   const shiftMissed = missedObservations.filter((missed) => isWithin(missed.recordedAt, shiftStartsAt, cutoff));
   const observations = patientSummaries.reduce((total, summary) => total + summary.observationCount, 0);
+  const outstandingTasks = patientTasks.filter(
+    (task) => task.status === "open" || task.status === "accepted"
+  ).length;
   return `${patientSummaries.length} patients covered with ${observations} general observations recorded. ${
     shiftIncidents.length
   } incident${shiftIncidents.length === 1 ? "" : "s"} reported during the shift; ${
     activeIncidents.length
   } active incident${activeIncidents.length === 1 ? "" : "s"} require onward awareness. ${
     shiftMissed.length
-  } missed observation${shiftMissed.length === 1 ? "" : "s"} recorded.`;
+  } missed observation${shiftMissed.length === 1 ? "" : "s"} recorded. ${outstandingTasks} patient task${
+    outstandingTasks === 1 ? "" : "s"
+  } remain outstanding.`;
 }
 
 function getCurrentShift(ward: Ward, nowValue: number) {
@@ -567,6 +604,7 @@ function buildHandoverHtml(handover: ShiftHandover, wardName: string) {
           ${htmlRow("NEWS2", summary.news2Summary)}
           ${htmlRow("Medication", summary.medicationSummary)}
           ${htmlRow("Incidents", summary.incidentSummary)}
+          ${htmlRow("Outstanding tasks", summary.taskSummary ?? "No outstanding patient tasks.")}
           ${summary.staffNotes ? htmlRow("Staff handover notes", summary.staffNotes) : ""}
         </section>
       `

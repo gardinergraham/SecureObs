@@ -49,6 +49,18 @@ export type IncidentCategory =
   | "Safeguarding"
   | "Security"
   | "Other";
+export type PatientTaskCategory =
+  | "Physical health"
+  | "Mental health"
+  | "Medication"
+  | "Nutrition and hydration"
+  | "Care plan"
+  | "Incident follow-up"
+  | "Appointment"
+  | "Family or advocate"
+  | "Other";
+export type PatientTaskStatus = "open" | "accepted" | "completed" | "cancelled";
+export type PatientTaskRecurrence = "none" | "every_shift" | "daily";
 
 export type Site = {
   id: string;
@@ -128,6 +140,7 @@ export type ShiftHandoverPatientSummary = {
   news2Summary: string;
   medicationSummary: string;
   incidentSummary: string;
+  taskSummary?: string;
   narrative: string;
   staffNotes: string;
 };
@@ -145,6 +158,38 @@ export type ShiftHandover = {
   createdByName: string;
   createdByStaffCode: string;
   createdAt: string;
+};
+
+export type PatientTask = {
+  id: string;
+  patientId: string;
+  wardId: string;
+  title: string;
+  details: string;
+  category: PatientTaskCategory;
+  priority: IncidentSeverity;
+  status: PatientTaskStatus;
+  dueAt: string;
+  recurrence: PatientTaskRecurrence;
+  assignedToStaffId?: string;
+  assignedToName?: string;
+  assignedRole?: StaffMember["role"];
+  sourceType?: "manual" | "incident" | "care_plan";
+  sourceId?: string;
+  createdByStaffId: string;
+  createdByName: string;
+  createdByStaffCode: string;
+  createdAt: string;
+  acceptedByStaffId?: string;
+  acceptedByName?: string;
+  acceptedAt?: string;
+  completionNotes?: string;
+  completedByStaffId?: string;
+  completedByName?: string;
+  completedAt?: string;
+  cancelledByStaffId?: string;
+  cancelledByName?: string;
+  cancelledAt?: string;
 };
 
 export type Ward = {

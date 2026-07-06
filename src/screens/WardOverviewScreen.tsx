@@ -6,6 +6,7 @@ import type {
   News2Reading,
   Observation,
   Patient,
+  PatientTask,
   SafetyIncident,
   SecurityArea,
   SecurityCheck,
@@ -18,6 +19,7 @@ import { normaliseStaffRole } from "../utils/staffRole";
 type WardOverviewScreenProps = {
   foodFluidEntries: FoodFluidEntry[];
   incidents: SafetyIncident[];
+  patientTasks: PatientTask[];
   news2Readings: News2Reading[];
   observations: Observation[];
   patients: Patient[];
@@ -37,6 +39,7 @@ type WardOverviewScreenProps = {
   onOpenPatientManagement: () => void;
   onOpenPatientCarePlans: () => void;
   onOpenPatientNotes: () => void;
+  onOpenPatientTasks: () => void;
   onOpenPatientSettings: () => void;
   onOpenPreviousObservations: () => void;
   onOpenSafetyCentre: () => void;
@@ -57,6 +60,7 @@ type TimedPatient = {
 export function WardOverviewScreen({
   foodFluidEntries,
   incidents,
+  patientTasks,
   news2Readings,
   observations,
   patients,
@@ -76,6 +80,7 @@ export function WardOverviewScreen({
   onOpenPatientManagement,
   onOpenPatientCarePlans,
   onOpenPatientNotes,
+  onOpenPatientTasks,
   onOpenPatientSettings,
   onOpenPreviousObservations,
   onOpenSafetyCentre,
@@ -212,6 +217,16 @@ export function WardOverviewScreen({
         .sort(compareSafetyIncidents),
     [incidents, ward?.id]
   );
+  const activePatientTasks = useMemo(
+    () =>
+      patientTasks
+        .filter(
+          (task) =>
+            task.wardId === ward?.id && (task.status === "open" || task.status === "accepted")
+        )
+        .sort(comparePatientTasks),
+    [patientTasks, ward?.id]
+  );
 
   const overdueGeneralCount = generalPatients.filter((item) => item.status === "overdue").length;
   const soonGeneralCount = generalPatients.filter((item) => item.status === "soon" || item.status === "due").length;
@@ -226,6 +241,13 @@ export function WardOverviewScreen({
   const amberIncidentCount = activeIncidents.filter((incident) => incident.severity === "amber").length;
   const greenIncidentCount = activeIncidents.filter((incident) => incident.severity === "green").length;
   const incidentAttentionCount = redIncidentCount + amberIncidentCount;
+  const overdueTaskCount = activePatientTasks.filter(
+    (task) => new Date(task.dueAt).getTime() < now
+  ).length;
+  const redTaskCount = activePatientTasks.filter((task) => task.priority === "red").length;
+  const taskAttentionCount = activePatientTasks.filter(
+    (task) => task.priority === "red" || new Date(task.dueAt).getTime() < now
+  ).length;
   const nurseInCharge = shiftStaff.filter((entry) => entry.assignment.nurseInCharge).map((entry) => entry.member.name);
   const medicationNurse = shiftStaff.filter((entry) => entry.assignment.medicationNurse).map((entry) => entry.member.name);
   const urgentCount =
@@ -234,12 +256,14 @@ export function WardOverviewScreen({
     activeEnhancedCoverGapCount +
     activeNews2AttentionCount +
     activeSecurityDueCount +
-    incidentAttentionCount;
+    incidentAttentionCount +
+    taskAttentionCount;
   const primaryAction = getPrimaryAction(normaliseStaffRole(selectedStaff?.role), {
     enhancedCoverGapCount: activeEnhancedCoverGapCount,
     news2AttentionCount: activeNews2AttentionCount,
     overdueGeneralCount,
     incidentAttentionCount,
+    taskAttentionCount,
     securityDueCount: activeSecurityDueCount
   });
 
@@ -250,6 +274,7 @@ export function WardOverviewScreen({
 
   const runPrimaryAction = () => {
     if (primaryAction.target === "safety") onOpenSafetyCentre();
+    else if (primaryAction.target === "tasks") onOpenPatientTasks();
     else if (primaryAction.target === "security") onOpenSecurityChecks();
     else if (primaryAction.target === "enhanced") onOpenEnhanced();
     else if (primaryAction.target === "news2") onOpenNews2();
@@ -288,7 +313,7 @@ export function WardOverviewScreen({
           <Text style={styles.attentionMeta}>
             {overdueGeneralCount} general overdue · {activeEnhancedOverdueCount} enhanced overdue ·{" "}
             {activeSecurityDueCount} security due · {incidentAttentionCount} incident alerts ·{" "}
-            {activeEnhancedCoverGapCount} enhanced cover gaps
+            {taskAttentionCount} task alerts · {activeEnhancedCoverGapCount} enhanced cover gaps
           </Text>
         </View>
         <TouchableOpacity accessibilityRole="button" onPress={runPrimaryAction} style={styles.primaryButton}>
@@ -312,6 +337,11 @@ export function WardOverviewScreen({
           label="Active incidents"
           tone={redIncidentCount > 0 ? "danger" : amberIncidentCount > 0 ? "warning" : "neutral"}
           value={activeIncidents.length}
+        />
+        <Metric
+          label="Patient tasks due"
+          tone={overdueTaskCount > 0 || redTaskCount > 0 ? "danger" : activePatientTasks.length > 0 ? "warning" : "neutral"}
+          value={activePatientTasks.length}
         />
         <Metric label="Staff this shift" tone={shiftStaff.length === 0 ? "warning" : "neutral"} value={shiftStaff.length} />
       </View>
@@ -344,6 +374,39 @@ export function WardOverviewScreen({
                     </Text>
                   </View>
                   <IncidentStatusPill status={incident.status} />
+                </View>
+              );
+            })
+          )}
+        </OverviewCard>
+
+        <OverviewCard
+          actionLabel="Open patient tasks"
+          eyebrow={`${activePatientTasks.length} active · ${overdueTaskCount} overdue · ${redTaskCount} red`}
+          title="Patient tasks"
+          onPress={onOpenPatientTasks}
+        >
+          {activePatientTasks.length === 0 ? (
+            <Text style={styles.emptyText}>No outstanding patient tasks.</Text>
+          ) : (
+            activePatientTasks.slice(0, 4).map((task) => {
+              const patient = patients.find((item) => item.id === task.patientId);
+              const overdue = new Date(task.dueAt).getTime() < now;
+              return (
+                <View key={task.id} style={[styles.miniRow, taskRowStyle(task.priority, overdue)]}>
+                  <View style={styles.incidentRagWrap}>
+                    <View style={[styles.incidentRag, incidentRagStyle(task.priority)]} />
+                  </View>
+                  <View style={styles.miniRowCopy}>
+                    <Text style={styles.miniRowTitle}>{task.title}</Text>
+                    <Text style={styles.miniRowMeta}>
+                      {patient
+                        ? `Room ${patient.roomNumber} · ${patient.firstName} ${patient.surname}`
+                        : "Patient unavailable"}{" "}
+                      · due {formatShortDateTime(task.dueAt)}
+                    </Text>
+                  </View>
+                  <TaskStatusPill overdue={overdue} status={task.status} />
                 </View>
               );
             })
@@ -519,6 +582,7 @@ export function WardOverviewScreen({
           <QuickAction label="Patient settings / TESO" onPress={onOpenPatientSettings} />
           <QuickAction label="Patient management" onPress={onOpenPatientManagement} />
           <QuickAction label="Patient notes" onPress={onOpenPatientNotes} />
+          <QuickAction label="Patient tasks" onPress={onOpenPatientTasks} />
           <QuickAction label="Care plans" onPress={onOpenPatientCarePlans} />
           <QuickAction label="Safety centre / incidents" onPress={onOpenSafetyCentre} />
           <QuickAction label="Shift handover" onPress={onOpenShiftHandover} />
@@ -657,6 +721,22 @@ function IncidentStatusPill({ status }: { status: SafetyIncident["status"] }) {
   );
 }
 
+function TaskStatusPill({
+  overdue,
+  status
+}: {
+  overdue: boolean;
+  status: PatientTask["status"];
+}) {
+  return (
+    <View style={[styles.incidentStatusPill, overdue && styles.taskStatusOverdue]}>
+      <Text style={[styles.incidentStatusText, overdue && styles.taskStatusTextOverdue]}>
+        {overdue ? "Overdue" : status === "accepted" ? "Accepted" : "Open"}
+      </Text>
+    </View>
+  );
+}
+
 function LeadDetail({ label, value }: { label: string; value: string }) {
   return (
     <View style={styles.leadDetail}>
@@ -785,6 +865,7 @@ function getPrimaryAction(
   counts: {
     enhancedCoverGapCount: number;
     incidentAttentionCount: number;
+    taskAttentionCount: number;
     news2AttentionCount: number;
     overdueGeneralCount: number;
     securityDueCount: number;
@@ -792,6 +873,9 @@ function getPrimaryAction(
 ) {
   if (counts.incidentAttentionCount > 0) {
     return { label: "Open Safety Centre", target: "safety" as const };
+  }
+  if (counts.taskAttentionCount > 0) {
+    return { label: "Review patient tasks", target: "tasks" as const };
   }
   if (role === "security" && counts.securityDueCount > 0) {
     return { label: "Open security checks", target: "security" as const };
@@ -818,6 +902,24 @@ function compareSafetyIncidents(left: SafetyIncident, right: SafetyIncident) {
     left.status.localeCompare(right.status) ||
     right.reportedAt.localeCompare(left.reportedAt)
   );
+}
+
+function comparePatientTasks(left: PatientTask, right: PatientTask) {
+  const now = Date.now();
+  const leftOverdue = new Date(left.dueAt).getTime() < now;
+  const rightOverdue = new Date(right.dueAt).getTime() < now;
+  const priorityOrder = { red: 0, amber: 1, green: 2 };
+  return (
+    Number(rightOverdue) - Number(leftOverdue) ||
+    priorityOrder[left.priority] - priorityOrder[right.priority] ||
+    left.dueAt.localeCompare(right.dueAt)
+  );
+}
+
+function taskRowStyle(priority: PatientTask["priority"], overdue: boolean) {
+  if (overdue || priority === "red") return styles.incidentRowRed;
+  if (priority === "amber") return styles.incidentRowAmber;
+  return styles.incidentRowGreen;
 }
 
 function incidentRowStyle(severity: SafetyIncident["severity"]) {
@@ -1002,6 +1104,8 @@ const styles = StyleSheet.create({
   foodFluidPillTextLow: { color: "#91382e" },
   incidentStatusPill: { backgroundColor: "#e7edef", borderRadius: 999, paddingHorizontal: 9, paddingVertical: 6 },
   incidentStatusText: { color: "#40555d", fontSize: 8, fontWeight: "900", textTransform: "uppercase" },
+  taskStatusOverdue: { backgroundColor: "#f5b8ae" },
+  taskStatusTextOverdue: { color: "#812d25" },
   leadGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   leadDetail: { backgroundColor: "#f5f8f9", borderRadius: 7, flexGrow: 1, minWidth: 210, padding: 10 },
   leadLabel: { color: "#6b797f", fontSize: 10, fontWeight: "900", textTransform: "uppercase" },
