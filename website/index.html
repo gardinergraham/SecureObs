@@ -6,7 +6,7 @@
     <title>SecureObs | Secure Ward Observation Platform</title>
     <meta
       name="description"
-      content="SecureObs brings ward observations, patient notes, care plans, TESO, NEWS2, medication records, safety escalation, analytics, shift handover, rota cover, offline sync and audit governance into one practical tablet workflow."
+      content="SecureObs brings ward observations, patient voice, consent-controlled family sharing, patient notes, care plans, TESO, NEWS2, medication records, safety escalation, analytics, shift handover, rota cover, offline sync and audit governance into one practical tablet workflow."
     />
     <link rel="stylesheet" href="styles.css" />
   </head>
@@ -20,6 +20,7 @@
         <a href="#workflow">Workflow</a>
         <a href="#bespoke">Bespoke setup</a>
         <a href="#patient-records">Patient records</a>
+        <a href="#shared-care">Patient voice</a>
         <a href="#ward-intelligence">Ward intelligence</a>
         <a href="#screenshots">Screens</a>
         <a href="#governance">Governance</a>
@@ -36,7 +37,7 @@
           <p class="eyebrow">Secure ward observation workflow</p>
           <h1>One practical tablet system for safer ward observations.</h1>
           <p class="lead">
-            SecureObs brings general observations, patient notes, structured care plans, TESO, NEWS2,
+            SecureObs brings general observations, patient voice and family sharing, patient notes, structured care plans, TESO, NEWS2,
             medication records, safety escalation, shift handover, analytics, staff cover and audit
             governance into one simple ward workflow.
             Each site can turn modules on or off so the app fits the service rather than forcing every
@@ -142,6 +143,11 @@
             <h3>Safety and escalation</h3>
             <p>RAG-rated incidents, injury body maps, safeguarding context, assigned ownership, acknowledgement and documented resolution.</p>
           </article>
+          <article>
+            <span class="feature-icon">14</span>
+            <h3>Patient voice and shared care</h3>
+            <p>Patient priorities, regular experience check-ins and tightly permissioned family access with a reviewed contribution workflow.</p>
+          </article>
         </div>
       </section>
 
@@ -166,6 +172,7 @@
           <span>Patient notes</span>
           <span>Care plans</span>
           <span>Patient dashboard and timeline</span>
+          <span>Patient voice and family shared care</span>
           <span>Safety and escalation centre</span>
           <span>Shift handover</span>
           <span>Analytics dashboard</span>
@@ -241,6 +248,82 @@
               </p>
             </div>
           </article>
+        </div>
+      </section>
+
+      <section id="shared-care" class="section shared-care-section">
+        <div class="section-heading">
+          <p class="eyebrow">Patient voice and family shared care</p>
+          <h2>Let patients shape their care—and include family without opening the clinical record.</h2>
+          <p>
+            Patients can record what matters to them, their goals, communication and accessibility
+            needs, preferences and regular feedback about their care. Where the patient agrees,
+            SecureObs creates a separate family website showing only the details approved for that
+            named person.
+          </p>
+        </div>
+
+        <div class="shared-care-showcase">
+          <article class="screenshot-card family-portal-card">
+            <a
+              href="assets/screenshots2/Family_Shared_Care.jpg"
+              target="_blank"
+              rel="noopener"
+              aria-label="Open the full SecureObs family shared-care portal"
+            >
+              <img
+                src="assets/screenshots2/Family_Shared_Care.jpg"
+                alt="SecureObs family shared-care website showing patient-approved progress, patient voice, care-plan goals, approved notes and family input"
+                loading="lazy"
+              />
+            </a>
+            <div>
+              <h3>A calm, patient-approved view for families and advocates</h3>
+              <p>
+                Relatives see the patient’s approved progress summary, what matters to them,
+                agreed care-plan goals and specifically approved notes—never an unrestricted copy
+                of the clinical record.
+              </p>
+            </div>
+          </article>
+
+          <div class="shared-care-details">
+            <article>
+              <p class="card-kicker">Patient details, with permission</p>
+              <h3>The patient decides what can be shared.</h3>
+              <p>
+                Sharing is closed by default. A nurse, doctor or manager records consent, names the
+                approved person and selects the categories they may see. Access can expire or be
+                withdrawn immediately.
+              </p>
+              <ul class="feature-points">
+                <li>Patient voice, care goals and decision-making preferences</li>
+                <li>Latest recorded progress with clear non-continuous-monitoring wording</li>
+                <li>Selected care-plan goals and individually approved notes</li>
+                <li>Separate family username, one-time activation and secure PIN</li>
+              </ul>
+            </article>
+
+            <article class="review-loop-card">
+              <p class="card-kicker">A complete review loop</p>
+              <h3>Family input reaches staff without becoming an unchecked clinical note.</h3>
+              <p>
+                A family member can send an observation, question or useful update from the website.
+                It arrives in Patient Voice clearly labelled as family input and remains
+                <strong> awaiting staff review</strong>.
+              </p>
+              <ol class="review-steps">
+                <li><span>1</span> Family or advocate submits their message</li>
+                <li><span>2</span> Staff refresh the family response queue</li>
+                <li><span>3</span> An authorised clinician records any response or action</li>
+                <li><span>4</span> Reviewer name and time are retained when marked reviewed</li>
+              </ol>
+              <p class="privacy-copy">
+                The family can see that their contribution was reviewed. Internal staff review
+                notes remain private and every change is attributable in the SecureObs record.
+              </p>
+            </article>
+          </div>
         </div>
       </section>
 
@@ -502,6 +585,7 @@
           <p>Immutable audit events for access, observations, patient notes, care plans, medications, TESO, settings and forms</p>
           <p>Signed shift handovers and traceable analytics linked to their underlying ward records</p>
           <p>RAG-rated safety incidents with acknowledgement, ownership and documented resolution</p>
+          <p>Consent-controlled family access with expiring invitations, revocation and attributable staff review</p>
           <p>Organisation and ward filtering for multi-site deployments</p>
           <p>Offline queue with individual retry instead of throwing away pending work</p>
         </div>
