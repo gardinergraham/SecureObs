@@ -231,6 +231,26 @@ export async function savePatient(patient: OrganisationScoped<Patient> & ActorSc
   });
 }
 
+export type FamilyPortalInvitation = {
+  username: string;
+  activationCode: string;
+  activationExpiresAt: string;
+  portalPath: string;
+};
+
+export async function createFamilyPortalInvitation(patientId: string, contactId: string) {
+  return request<{ invitation: FamilyPortalInvitation }>("/api/family-access/invitations", {
+    method: "POST",
+    body: JSON.stringify({ patientId, contactId })
+  });
+}
+
+export async function revokeFamilyPortalAccess(contactId: string) {
+  return request<{ ok: true }>(`/api/family-access/accounts/${encodeURIComponent(contactId)}/revoke`, {
+    method: "POST"
+  });
+}
+
 export async function loadPatientNotes(organisationId?: string, wardId?: string) {
   return request<{ patientNotes: PatientNote[] }>(
     withOptionalQuery(withOrganisationId("/api/patient-notes", organisationId), "wardId", wardId)

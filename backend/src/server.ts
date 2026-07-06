@@ -6,6 +6,7 @@ import { authenticateRequest } from "./auth.js";
 import { config } from "./config.js";
 import { activityRouter } from "./routes/activity.js";
 import { configRouter } from "./routes/config.js";
+import { familyAccessRouter, familyPortalRouter } from "./routes/familyPortal.js";
 import { healthRouter } from "./routes/health.js";
 import { patientRouter } from "./routes/patients.js";
 import { staffRouter } from "./routes/staff.js";
@@ -19,6 +20,8 @@ app.use(authenticateRequest);
 
 app.use("/health", healthRouter);
 app.use("/api/staff", staffRouter);
+app.use("/api/family-access", familyAccessRouter);
+app.use("/api/family-portal", familyPortalRouter);
 app.use("/api/patients", patientRouter);
 app.use("/api/config", configRouter);
 app.use("/api", activityRouter);

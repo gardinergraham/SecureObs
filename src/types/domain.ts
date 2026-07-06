@@ -417,8 +417,10 @@ export type FamilyPortalContribution = {
   contactName: string;
   body: string;
   submittedAt: string;
-  recordedByStaffId: string;
-  recordedByName: string;
+  recordedByStaffId?: string;
+  recordedByName?: string;
+  source?: "Family portal" | "Ward tablet";
+  reviewStatus?: "Awaiting staff review" | "Reviewed";
 };
 
 export type Patient = {

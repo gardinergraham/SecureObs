@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex,nofollow,noarchive" />
+    <meta name="referrer" content="no-referrer" />
+    <title>SecureObs Shared Care</title>
+    <link rel="stylesheet" href="family.css" />
+    <script src="family.js" defer></script>
+  </head>
+  <body>
+    <header class="portal-header">
+      <a class="portal-brand" href="index.html" aria-label="SecureObs home">
+        <img src="assets/SecureObs.png" alt="" />
+        <span>SecureObs <small>Shared Care</small></span>
+      </a>
+      <button id="sign-out" class="quiet-button hidden" type="button">Sign out</button>
+    </header>
+
+    <main>
+      <section id="auth-view" class="auth-shell" aria-labelledby="auth-title">
+        <div class="auth-intro">
+          <p class="eyebrow">Family and advocate portal</p>
+          <h1 id="auth-title">A private view, chosen by the patient.</h1>
+          <p>
+            See only the information the patient and care team have approved for you. This portal
+            is separate from the staff clinical system.
+          </p>
+          <div class="privacy-points">
+            <span>Named access only</span>
+            <span>Time-limited sessions</span>
+            <span>Consent can be changed at any time</span>
+          </div>
+        </div>
+
+        <div class="auth-card">
+          <div class="tab-row" role="tablist" aria-label="Family portal access">
+            <button id="login-tab" class="tab active" role="tab" aria-selected="true" type="button">
+              Sign in
+            </button>
+            <button id="activate-tab" class="tab" role="tab" aria-selected="false" type="button">
+              Activate invitation
+            </button>
+          </div>
+
+          <p id="auth-message" class="message hidden" role="alert"></p>
+
+          <form id="login-form">
+            <label>
+              Family username
+              <input
+                name="username"
+                autocomplete="username"
+                maxlength="80"
+                required
+                spellcheck="false"
+              />
+            </label>
+            <label>
+              Six-digit PIN
+              <input
+                name="pin"
+                autocomplete="current-password"
+                inputmode="numeric"
+                maxlength="6"
+                pattern="[0-9]{6}"
+                required
+                type="password"
+              />
+            </label>
+            <button class="primary-button" type="submit">Open shared care</button>
+          </form>
+
+          <form id="activate-form" class="hidden">
+            <label>
+              Family username
+              <input
+                name="username"
+                autocomplete="username"
+                maxlength="80"
+                required
+                spellcheck="false"
+              />
+            </label>
+            <label>
+              One-time activation code
+              <input
+                name="activationCode"
+                autocomplete="one-time-code"
+                inputmode="numeric"
+                maxlength="20"
+                required
+              />
+            </label>
+            <label>
+              Create a six-digit PIN
+              <input
+                name="pin"
+                autocomplete="new-password"
+                inputmode="numeric"
+                maxlength="6"
+                pattern="[0-9]{6}"
+                required
+                type="password"
+              />
+            </label>
+            <label>
+              Confirm your PIN
+              <input
+                name="confirmPin"
+                autocomplete="new-password"
+                inputmode="numeric"
+                maxlength="6"
+                pattern="[0-9]{6}"
+                required
+                type="password"
+              />
+            </label>
+            <button class="primary-button" type="submit">Activate secure access</button>
+          </form>
+
+          <p class="auth-help">
+            Your username and activation code are provided by the care team. The patient’s name is
+            never used as a security answer.
+          </p>
+        </div>
+      </section>
+
+      <section id="portal-view" class="portal-shell hidden" aria-live="polite">
+        <div class="portal-title-card">
+          <div>
+            <p class="eyebrow">Patient-approved shared view</p>
+            <h1 id="patient-name"></h1>
+            <p id="sharing-summary"></p>
+          </div>
+          <div id="permission-list" class="permission-list"></div>
+        </div>
+
+        <aside class="important-notice">
+          <strong>This is not an emergency or continuously monitored service.</strong>
+          Shared progress reflects the latest recorded information. For urgent concerns, contact
+          the ward or emergency services using the routes already provided to you.
+        </aside>
+
+        <div id="portal-cards" class="portal-grid"></div>
+
+        <section id="contribution-section" class="portal-card full-width hidden">
+          <p class="eyebrow">Family or advocate input</p>
+          <h2>Have your say</h2>
+          <p>
+            Add an observation, question or useful update for the care team. It will be clearly
+            labelled as family input and placed in the staff review queue.
+          </p>
+          <form id="contribution-form">
+            <label>
+              What would you like the care team to know?
+              <textarea name="body" maxlength="20000" required rows="6"></textarea>
+            </label>
+            <button class="primary-button" type="submit">Send for staff review</button>
+          </form>
+          <p id="contribution-message" class="message hidden" role="status"></p>
+          <div id="contribution-history" class="history-list"></div>
+        </section>
+      </section>
+    </main>
+
+    <footer>
+      <span>SecureObs Shared Care</span>
+      <a href="support.html">Support</a>
+      <a href="privacy.html">Privacy</a>
+    </footer>
+  </body>
+</html>

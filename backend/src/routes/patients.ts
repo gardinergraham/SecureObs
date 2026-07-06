@@ -79,8 +79,10 @@ const familyContributionSchema = z.object({
   contactName: z.string().min(1).max(255),
   body: z.string().min(1).max(20_000),
   submittedAt: z.string().datetime(),
-  recordedByStaffId: z.string().min(1),
-  recordedByName: z.string().min(1).max(255)
+  recordedByStaffId: z.string().min(1).optional(),
+  recordedByName: z.string().min(1).max(255).optional(),
+  source: z.enum(["Family portal", "Ward tablet"]).optional(),
+  reviewStatus: z.enum(["Awaiting staff review", "Reviewed"]).optional()
 });
 
 const patientSchema = z.object({

@@ -15,6 +15,11 @@ import type {
   Ward
 } from "../types/domain";
 import { hasAdminAccess, hasStaffRole } from "../utils/staffRole";
+import {
+  createFamilyPortalInvitation,
+  revokeFamilyPortalAccess,
+  type FamilyPortalInvitation
+} from "../services/api";
 
 type PatientVoiceScreenProps = {
   notes: PatientNote[];
@@ -106,6 +111,10 @@ export function PatientVoiceScreen({
   const [contactCategories, setContactCategories] = useState<FamilyShareCategory[]>(["Patient voice"]);
   const [contactCanContribute, setContactCanContribute] = useState(true);
   const [staffResponses, setStaffResponses] = useState<Record<string, string>>({});
+  const [issuedInvitation, setIssuedInvitation] = useState<
+    (FamilyPortalInvitation & { contactName: string }) | undefined
+  >();
+  const [issuingContactId, setIssuingContactId] = useState("");
 
   const patientNotes = useMemo(
     () =>
@@ -260,6 +269,35 @@ export function PatientVoiceScreen({
         contact.id === contactId ? { ...contact, ...updates } : contact
       )
     }));
+  };
+
+  const issueWebInvitation = async (contact: FamilyPortalContact) => {
+    if (!selectedPatient || !canEdit || !sharing.patientConsented || !contact.active) return;
+    setIssuingContactId(contact.id);
+    try {
+      const result = await createFamilyPortalInvitation(selectedPatient.id, contact.id);
+      setIssuedInvitation({ ...result.invitation, contactName: contact.name });
+      Alert.alert(
+        "Web invitation created",
+        "Give these details directly to the approved person. The activation code expires after 48 hours and is only shown here."
+      );
+    } catch (error) {
+      Alert.alert(
+        "Invitation could not be created",
+        error instanceof Error ? error.message : "Check the connection and try again."
+      );
+    } finally {
+      setIssuingContactId("");
+    }
+  };
+
+  const withdrawWebAccess = async (contact: FamilyPortalContact) => {
+    updateContact(contact.id, { active: false });
+    try {
+      await revokeFamilyPortalAccess(contact.id);
+    } catch {
+      // Saving the withdrawn contact still blocks the account on every portal request.
+    }
   };
 
   const toggleSharedNote = (noteId: string) => {
@@ -560,11 +598,60 @@ export function PatientVoiceScreen({
                     <ToggleButton
                       active={contact.active}
                       label={contact.active ? "Access active" : "Access withdrawn"}
-                      onPress={() => updateContact(contact.id, { active: !contact.active })}
+                      onPress={() =>
+                        contact.active
+                          ? void withdrawWebAccess(contact)
+                          : updateContact(contact.id, { active: true })
+                      }
                     />
                   </View>
+                  {contact.active ? (
+                    <TouchableOpacity
+                      accessibilityRole="button"
+                      disabled={
+                        !canEdit ||
+                        !sharing.patientConsented ||
+                        issuingContactId === contact.id
+                      }
+                      onPress={() => void issueWebInvitation(contact)}
+                      style={[
+                        styles.secondaryButton,
+                        (!canEdit ||
+                          !sharing.patientConsented ||
+                          issuingContactId === contact.id) &&
+                          styles.disabled
+                      ]}
+                    >
+                      <Text style={styles.secondaryButtonText}>
+                        {issuingContactId === contact.id
+                          ? "Creating secure invitation…"
+                          : "Create / reissue web invitation"}
+                      </Text>
+                    </TouchableOpacity>
+                  ) : null}
                 </View>
               ))}
+
+              {issuedInvitation ? (
+                <View style={styles.invitationCard}>
+                  <Text style={styles.invitationTitle}>
+                    Invitation for {issuedInvitation.contactName}
+                  </Text>
+                  <Text style={styles.invitationWarning}>
+                    One-time activation details — share privately and do not place them in clinical notes.
+                  </Text>
+                  <Text selectable style={styles.invitationValue}>
+                    Family username: {issuedInvitation.username}
+                  </Text>
+                  <Text selectable style={styles.invitationValue}>
+                    Activation code: {issuedInvitation.activationCode}
+                  </Text>
+                  <Text style={styles.historyMeta}>
+                    Expires {formatDateTime(issuedInvitation.activationExpiresAt)}. The relative
+                    creates their own six-digit PIN during activation.
+                  </Text>
+                </View>
+              ) : null}
 
               <Text style={styles.subheading}>Family and advocate contributions</Text>
               {(selectedPatient.familyContributions ?? []).length === 0 ? (
@@ -574,9 +661,14 @@ export function PatientVoiceScreen({
                   <View key={entry.id} style={styles.contactCard}>
                     <Text style={styles.noteChoiceBody}>{entry.body}</Text>
                     <Text style={styles.historyMeta}>
-                      {formatDateTime(entry.submittedAt)} · {entry.contactName} · witnessed by{" "}
-                      {entry.recordedByName}
+                      {formatDateTime(entry.submittedAt)} · {entry.contactName}
+                      {entry.recordedByName
+                        ? ` · witnessed by ${entry.recordedByName}`
+                        : " · submitted through the family portal"}
                     </Text>
+                    {entry.reviewStatus === "Awaiting staff review" ? (
+                      <Text style={styles.awaitingReview}>Awaiting staff review</Text>
+                    ) : null}
                   </View>
                 ))
               )}
@@ -784,6 +876,11 @@ const styles = StyleSheet.create({
   subheading: { color: "#263f48", fontSize: 13, fontWeight: "900", marginBottom: 9, marginTop: 14 },
   inlineFields: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   contactCard: { borderColor: "#d6e0e3", borderRadius: 8, borderWidth: 1, marginTop: 9, padding: 11 },
+  invitationCard: { backgroundColor: "#fff8df", borderColor: "#dfbf57", borderRadius: 8, borderWidth: 1, marginTop: 10, padding: 12 },
+  invitationTitle: { color: "#574616", fontSize: 13, fontWeight: "900" },
+  invitationWarning: { color: "#765f20", fontSize: 9, lineHeight: 14, marginBottom: 8, marginTop: 3 },
+  invitationValue: { backgroundColor: "#ffffff", borderRadius: 5, color: "#243940", fontSize: 11, fontWeight: "900", marginTop: 5, padding: 8 },
+  awaitingReview: { color: "#8a5c13", fontSize: 9, fontWeight: "900", marginTop: 6 },
   noteChoice: { borderColor: "#d4dee1", borderRadius: 7, borderWidth: 1, marginTop: 7, padding: 10 },
   noteChoiceSelected: { backgroundColor: "#eaf5ef", borderColor: "#5c9278" },
   noteChoiceTitle: { color: "#2d5e4a", fontSize: 9, fontWeight: "900" },
