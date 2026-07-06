@@ -6,23 +6,36 @@ const storageKey = "secureobs.authSession.v1";
 let cachedSession: AuthSession | undefined;
 let restorePromise: Promise<AuthSession | undefined> | undefined;
 let expiryNotificationSent = false;
+let sessionGeneration = 0;
+let storageMutation = Promise.resolve();
 const expiryListeners = new Set<() => void>();
 
 export async function storeAuthSession(session: AuthSession | undefined) {
+  const generation = ++sessionGeneration;
   cachedSession = session;
-  if (!session) {
-    await AsyncStorage.removeItem(storageKey);
-    return;
+  restorePromise = session ? Promise.resolve(session) : undefined;
+
+  if (session) {
+    expiryNotificationSent = false;
   }
 
-  expiryNotificationSent = false;
-  await AsyncStorage.setItem(storageKey, JSON.stringify(session));
+  storageMutation = storageMutation.then(async () => {
+    if (generation !== sessionGeneration) {
+      return;
+    }
+    if (!session) {
+      await AsyncStorage.removeItem(storageKey);
+      return;
+    }
+    await AsyncStorage.setItem(storageKey, JSON.stringify(session));
+  });
+  await storageMutation;
 }
 
 export async function getAuthSession() {
   if (cachedSession) {
     if (isSessionExpired(cachedSession)) {
-      await expireAuthSession();
+      await expireAuthSession(cachedSession.token);
       return undefined;
     }
     return cachedSession;
@@ -36,19 +49,21 @@ export async function getAuthSession() {
 }
 
 export async function clearAuthSession() {
-  restorePromise = undefined;
   await storeAuthSession(undefined);
 }
 
-export async function expireAuthSession() {
+export async function expireAuthSession(expectedToken?: string) {
+  if (expectedToken && cachedSession?.token !== expectedToken) {
+    return false;
+  }
   if (expiryNotificationSent) {
-    return;
+    return false;
   }
 
   expiryNotificationSent = true;
-  restorePromise = undefined;
   await storeAuthSession(undefined);
   expiryListeners.forEach((listener) => listener());
+  return true;
 }
 
 export function subscribeToAuthSessionExpiry(listener: () => void) {
@@ -59,11 +74,16 @@ export function subscribeToAuthSessionExpiry(listener: () => void) {
 }
 
 async function restoreAuthSession() {
+  const restoreGeneration = sessionGeneration;
   const rawSession = await AsyncStorage.getItem(storageKey);
+  if (restoreGeneration !== sessionGeneration) {
+    return cachedSession;
+  }
   const session = rawSession ? (JSON.parse(rawSession) as AuthSession) : undefined;
 
   if (!session) {
-    await storeAuthSession(undefined);
+    cachedSession = undefined;
+    restorePromise = undefined;
     return undefined;
   }
   if (isSessionExpired(session)) {
@@ -72,9 +92,12 @@ async function restoreAuthSession() {
   }
 
   cachedSession = session;
+  expiryNotificationSent = false;
+  restorePromise = Promise.resolve(session);
   return session;
 }
 
 function isSessionExpired(session: AuthSession) {
-  return new Date(session.expiresAt).getTime() <= Date.now();
+  const expiresAt = new Date(session.expiresAt).getTime();
+  return !Number.isFinite(expiresAt) || expiresAt <= Date.now();
 }

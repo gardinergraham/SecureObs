@@ -31,6 +31,7 @@ type WardOverviewScreenProps = {
   syncPendingCount: number;
   ward?: Ward;
   onChangeStaffOrWard: () => void;
+  onOpenAnalytics: () => void;
   onOpenEnhanced: () => void;
   onOpenFoodFluidChart: () => void;
   onOpenGeneralObservations: () => void;
@@ -72,6 +73,7 @@ export function WardOverviewScreen({
   syncPendingCount,
   ward,
   onChangeStaffOrWard,
+  onOpenAnalytics,
   onOpenEnhanced,
   onOpenFoodFluidChart,
   onOpenGeneralObservations,
@@ -574,6 +576,7 @@ export function WardOverviewScreen({
         <Text style={styles.quickActionsTitle}>Quick actions</Text>
         <View style={styles.quickActionRow}>
           <QuickAction label="Record general check" onPress={onOpenGeneralObservations} />
+          <QuickAction label="Analytics dashboard" onPress={onOpenAnalytics} />
           {ward?.enhancedObservationsEnabled ? <QuickAction label="Enhanced / TESO" onPress={onOpenEnhanced} /> : null}
           {ward?.news2Enabled ? <QuickAction label="Record NEWS2" onPress={onOpenNews2} /> : null}
           {ward?.foodFluidChartEnabled ? (

@@ -4,6 +4,7 @@ import { StatusBar } from "expo-status-bar";
 import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 
 import { AdminSettingsScreen } from "./src/screens/AdminSettingsScreen";
+import { AnalyticsDashboardScreen } from "./src/screens/AnalyticsDashboardScreen";
 import { AuditLogScreen } from "./src/screens/AuditLogScreen";
 import { BankAgencyStaffScreen } from "./src/screens/BankAgencyStaffScreen";
 import { EnhancedObservationScreen } from "./src/screens/EnhancedObservationScreen";
@@ -131,6 +132,7 @@ type AppScreen =
   | "wardOverview"
   | "adminSettings"
   | "auditLog"
+  | "analytics"
   | "observations"
   | "enhanced"
   | "patientManagement"
@@ -1143,6 +1145,10 @@ export default function App() {
               setWorkspaceBackScreen("wardOverview");
               setScreen("enhanced");
             }}
+            onOpenAnalytics={() => {
+              setWorkspaceBackScreen("wardOverview");
+              setScreen("analytics");
+            }}
             onOpenGeneralObservations={() => setScreen("observations")}
             onOpenFoodFluidChart={() => {
               setWorkspaceBackScreen("wardOverview");
@@ -1225,6 +1231,10 @@ export default function App() {
               setWorkspaceBackScreen("observations");
               setScreen("enhanced");
             }}
+            onOpenAnalytics={() => {
+              setWorkspaceBackScreen("observations");
+              setScreen("analytics");
+            }}
             onOpenPatientSettings={() => {
               setWorkspaceBackScreen("observations");
               setScreen("patientSettings");
@@ -1284,6 +1294,26 @@ export default function App() {
             onBack={() => setScreen(workspaceBackScreen)}
             onMissedObservationSaved={handleCreateMissedObservation}
             onObservationSaved={handleObservationSaved}
+          />
+        ) : screen === "analytics" ? (
+          <AnalyticsDashboardScreen
+            carePlans={patientCarePlans}
+            foodFluidEntries={foodFluidEntries}
+            handovers={shiftHandovers}
+            incidents={safetyIncidents}
+            medicationAdministrations={medicationAdministrations}
+            medicationPrescriptions={medicationPrescriptions}
+            missedObservations={missedObservations}
+            news2Readings={news2Readings}
+            observations={observations}
+            patientTasks={patientTasks}
+            patients={wardPatients}
+            securityAreas={securityAreas}
+            securityChecks={securityChecks}
+            staff={staffMembers}
+            staffShiftAssignments={staffShiftAssignments}
+            ward={selectedWard}
+            onBack={() => setScreen(workspaceBackScreen)}
           />
         ) : screen === "patientManagement" ? (
           <PatientManagementScreen
