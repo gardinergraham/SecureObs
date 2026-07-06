@@ -366,6 +366,12 @@ function WardOverviewAnalytics({ analytics }: { analytics: AnalyticsResult }) {
           tone="neutral"
           value={String(analytics.securityChecks.length)}
         />
+        <MetricCard
+          detail={`${analytics.lowVoiceRatings.length} overall or safety ratings of 2 or below`}
+          label="Patient voice check-ins"
+          tone={analytics.lowVoiceRatings.length > 0 ? "amber" : "green"}
+          value={String(analytics.voiceCheckIns.length)}
+        />
       </View>
 
       <View style={styles.twoColumn}>
@@ -411,6 +417,12 @@ function PatientAnalytics({
         <MetricCard label="Latest NEWS2" tone={analytics.latestNews2Score >= 5 ? "red" : "green"} value={analytics.latestNews2ScoreLabel} />
         <MetricCard label="Food / fluid entries" tone={analytics.lowIntake.length > 0 ? "amber" : "green"} value={String(analytics.foodFluid.length)} />
         <MetricCard label="Active care-plan reviews due" tone={analytics.carePlansDue.length > 0 ? "amber" : "green"} value={String(analytics.carePlansDue.length)} />
+        <MetricCard
+          detail="Average patient-reported experience rating"
+          label="Patient voice"
+          tone={analytics.lowVoiceRatings.length > 0 ? "amber" : "green"}
+          value={analytics.voiceAverageLabel}
+        />
       </View>
       <View style={styles.twoColumn}>
         <Panel title="Recorded locations" subtitle="Counts of observation locations—not continuous time tracking">
@@ -453,6 +465,12 @@ function PatientAnalytics({
               "NEWS2",
               formatDateTime(item.recordedAt),
               `Score ${item.totalScore}`
+            ]),
+            ...analytics.voiceCheckIns.slice(0, 8).map((item) => [
+              patientName(patients.find((patient) => patient.id === item.patientId)),
+              "Patient voice",
+              formatDateTime(item.submittedAt),
+              `Overall ${item.overallRating}/5 · safety ${item.safetyRating}/5`
             ])
           ].slice(0, 20)}
         />
@@ -793,6 +811,16 @@ function buildAnalytics({
   const scopedTasks = patientTasks.filter(
     (item) => item.wardId === ward?.id && patientIds.has(item.patientId) && inRange(item.createdAt)
   );
+  const scopedVoiceCheckIns = patients
+    .filter((patient) => patientIds.has(patient.id))
+    .flatMap((patient) =>
+      (patient.patientVoiceCheckIns ?? []).map((checkIn) => ({
+        ...checkIn,
+        patientId: patient.id
+      }))
+    )
+    .filter((checkIn) => inRange(checkIn.submittedAt))
+    .sort((left, right) => right.submittedAt.localeCompare(left.submittedAt));
   const scopedHandovers = handovers.filter(
     (item) => item.wardId === ward?.id && inRange(item.createdAt)
   );
@@ -820,6 +848,9 @@ function buildAnalytics({
     (item) => item.intakeLevel === "Refused" || item.intakeLevel === "Less than half"
   );
   const medicationExceptions = scopedAdministrations.filter((item) => item.status !== "Given");
+  const lowVoiceRatings = scopedVoiceCheckIns.filter(
+    (item) => item.overallRating <= 2 || item.safetyRating <= 2
+  );
   const redIncidents = wardIncidents.filter((item) => item.severity === "red");
   const activeIncidents = incidents.filter(
     (item) =>
@@ -907,6 +938,14 @@ function buildAnalytics({
   if (carePlansDue.length > 0) {
     attentionItems.push({ message: `${carePlansDue.length} care-plan review${carePlansDue.length === 1 ? " is" : "s are"} due within the selected period or next 7 days.`, tone: "amber" });
   }
+  if (lowVoiceRatings.length > 0) {
+    attentionItems.push({
+      message: `${lowVoiceRatings.length} patient voice check-in${
+        lowVoiceRatings.length === 1 ? " includes" : "s include"
+      } an overall or safety rating of 2 or below.`,
+      tone: "amber"
+    });
+  }
 
   return {
     activeIncidents,
@@ -925,6 +964,7 @@ function buildAnalytics({
     latestNews2Score: latestNews2?.totalScore ?? 0,
     latestNews2ScoreLabel: latestNews2 ? String(latestNews2.totalScore) : "—",
     lowIntake,
+    lowVoiceRatings,
     medicationAdministrations: scopedAdministrations,
     medicationExceptions,
     medicationPrescriptions,
@@ -940,7 +980,15 @@ function buildAnalytics({
     staffingByRole,
     taskAssignmentByRole,
     tasks: scopedTasks,
-    uniqueAssignedStaff
+    uniqueAssignedStaff,
+    voiceAverageLabel:
+      scopedVoiceCheckIns.length > 0
+        ? `${(
+            scopedVoiceCheckIns.reduce((total, item) => total + item.overallRating, 0) /
+            scopedVoiceCheckIns.length
+          ).toFixed(1)}/5`
+        : "—",
+    voiceCheckIns: scopedVoiceCheckIns
   };
 }
 
@@ -1135,6 +1183,14 @@ function buildAnalyticsCsv(
     `${item.priority}/${item.status}`,
     `${item.title}; due ${item.dueAt}`
   ]));
+  analytics.voiceCheckIns.forEach((item) => rows.push([
+    "patient_voice",
+    patientName(patients.find((patient) => patient.id === item.patientId)),
+    item.submittedAt,
+    item.frequency,
+    `overall ${item.overallRating}/5; safety ${item.safetyRating}/5`,
+    `Going well: ${item.goingWell}; would change: ${item.wouldChange}; concerns: ${item.concerns}`
+  ]));
   return rows.map((row) => row.map(csvCell).join(",")).join("\n");
 }
 
@@ -1180,6 +1236,7 @@ function buildAnalyticsHtml({
       ${htmlMetric("Incidents", String(analytics.incidents.length))}
       ${htmlMetric("Overdue tasks", String(analytics.overdueTasks.length))}
       ${htmlMetric("Medication exceptions", String(analytics.medicationExceptions.length))}
+      ${htmlMetric("Patient voice", analytics.voiceAverageLabel)}
     </div>
     <div class="attention"><strong>Areas needing attention</strong><ul>${attention}</ul></div>
     <h2>Incidents</h2>
@@ -1191,6 +1248,7 @@ function buildAnalyticsHtml({
       <tr><th>NEWS2 readings</th><td>${analytics.news2.length}</td></tr>
       <tr><th>Medication administrations</th><td>${analytics.medicationAdministrations.length}</td></tr>
       <tr><th>Patient tasks</th><td>${analytics.tasks.length}</td></tr>
+      <tr><th>Patient voice check-ins</th><td>${analytics.voiceCheckIns.length}</td></tr>
       <tr><th>Signed handovers</th><td>${analytics.handovers.length}</td></tr>
     </tbody></table>
     <div class="footer">Generated ${escapeHtml(new Date().toLocaleString())} from SecureObs signed records. Rule-based attention statements must be reviewed alongside the underlying clinical record.</div>

@@ -141,6 +141,7 @@ export type ShiftHandoverPatientSummary = {
   medicationSummary: string;
   incidentSummary: string;
   taskSummary?: string;
+  patientVoiceSummary?: string;
   narrative: string;
   staffNotes: string;
 };
@@ -341,6 +342,85 @@ export type PatientFormRecord = {
   sections: PatientFormSection[];
 };
 
+export type PatientVoiceRating = 1 | 2 | 3 | 4 | 5;
+export type PatientVoiceReviewFrequency = "Initial" | "Weekly" | "Monthly";
+
+export type PatientVoiceProfile = {
+  whatMatters: string;
+  careGoals: string;
+  communicationNeeds: string;
+  sensoryNeeds: string;
+  culturalSpiritualNeeds: string;
+  dietaryNeeds: string;
+  accessibilityNeeds: string;
+  distressSupport: string;
+  preferredInvolvement: string;
+  updatedAt: string;
+  updatedWithPatient: boolean;
+  recordedByStaffId: string;
+  recordedByName: string;
+};
+
+export type PatientVoiceCheckIn = {
+  id: string;
+  frequency: PatientVoiceReviewFrequency;
+  foodRating: PatientVoiceRating;
+  staffSupportRating: PatientVoiceRating;
+  accommodationRating: PatientVoiceRating;
+  activitiesRating: PatientVoiceRating;
+  safetyRating: PatientVoiceRating;
+  overallRating: PatientVoiceRating;
+  goingWell: string;
+  wouldChange: string;
+  needsChanged: string;
+  concerns: string;
+  completedBy: "Patient" | "Patient with support";
+  submittedAt: string;
+  witnessedByStaffId: string;
+  witnessedByName: string;
+  staffResponse?: string;
+  acknowledgedAt?: string;
+  acknowledgedByStaffId?: string;
+  acknowledgedByName?: string;
+};
+
+export type FamilyShareCategory =
+  | "Patient voice"
+  | "Progress summary"
+  | "Care-plan goals"
+  | "Approved notes";
+
+export type FamilyPortalContact = {
+  id: string;
+  name: string;
+  relationship: string;
+  categories: FamilyShareCategory[];
+  active: boolean;
+  canContribute: boolean;
+  accessExpiresAt?: string;
+};
+
+export type FamilySharingPreferences = {
+  patientConsented: boolean;
+  consentNotes: string;
+  consentRecordedAt?: string;
+  consentRecordedByStaffId?: string;
+  consentRecordedByName?: string;
+  consentReviewDate?: string;
+  contacts: FamilyPortalContact[];
+  sharedNoteIds: string[];
+};
+
+export type FamilyPortalContribution = {
+  id: string;
+  contactId: string;
+  contactName: string;
+  body: string;
+  submittedAt: string;
+  recordedByStaffId: string;
+  recordedByName: string;
+};
+
 export type Patient = {
   id: string;
   patientNumber: number;
@@ -363,6 +443,10 @@ export type Patient = {
   enhancedObservation?: EnhancedObservationPlan;
   tesoHistory?: TesoEpisode[];
   patientForms?: PatientFormRecord[];
+  patientVoiceProfile?: PatientVoiceProfile;
+  patientVoiceCheckIns?: PatientVoiceCheckIn[];
+  familySharing?: FamilySharingPreferences;
+  familyContributions?: FamilyPortalContribution[];
 };
 
 export type Observation = {

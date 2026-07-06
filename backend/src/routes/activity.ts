@@ -228,6 +228,7 @@ const shiftHandoverPatientSummarySchema = z.object({
   medicationSummary: z.string().max(5000),
   incidentSummary: z.string().max(5000),
   taskSummary: z.string().max(5000).default(""),
+  patientVoiceSummary: z.string().max(5000).default(""),
   narrative: z.string().max(20_000),
   staffNotes: z.string().max(10_000)
 });

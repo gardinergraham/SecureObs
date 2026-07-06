@@ -281,6 +281,10 @@ export function ShiftHandoverScreen({
             <SummaryRow label="Medication" value={summary.medicationSummary} />
             <SummaryRow label="Incidents" value={summary.incidentSummary} />
             <SummaryRow label="Outstanding tasks" value={summary.taskSummary ?? "No outstanding patient tasks."} />
+            <SummaryRow
+              label="Patient voice"
+              value={summary.patientVoiceSummary ?? "No new patient feedback recorded during this shift."}
+            />
             <Text style={styles.fieldLabel}>Staff handover notes</Text>
             <TextInput
               multiline
@@ -470,13 +474,34 @@ function buildPatientSummary({
             return `${task.priority.toUpperCase()} ${task.title} (${overdue ? "overdue" : `due ${formatDateTime(task.dueAt)}`})`;
           })
           .join("; ");
+  const voiceCheckIns = (patient.patientVoiceCheckIns ?? [])
+    .filter((checkIn) => isWithin(checkIn.submittedAt, shiftStartsAt, cutoff))
+    .sort((left, right) => left.submittedAt.localeCompare(right.submittedAt));
+  const latestVoiceCheckIn = voiceCheckIns[voiceCheckIns.length - 1];
+  const profileUpdatedThisShift =
+    patient.patientVoiceProfile &&
+    isWithin(patient.patientVoiceProfile.updatedAt, shiftStartsAt, cutoff);
+  const patientVoiceSummary = latestVoiceCheckIn
+    ? `${latestVoiceCheckIn.frequency} check-in rated overall ${latestVoiceCheckIn.overallRating}/5 and safety ${latestVoiceCheckIn.safetyRating}/5.${
+        latestVoiceCheckIn.concerns
+          ? ` Concern recorded: ${latestVoiceCheckIn.concerns}`
+          : latestVoiceCheckIn.wouldChange
+            ? ` Would change: ${latestVoiceCheckIn.wouldChange}`
+            : ""
+      }`
+    : profileUpdatedThisShift
+      ? `Patient priorities or special needs were updated with ${
+          patient.patientVoiceProfile?.updatedWithPatient ? "the patient" : "staff"
+        } during this shift.`
+      : "No new patient feedback recorded during this shift.";
 
   const narrative = [
     movementSummary,
     presentationSummary,
     nutrition.length > 0 ? nutritionSummary : "",
     shiftIncidents.length > 0 ? incidentSummary : "",
-    activeTasks.length > 0 ? `Outstanding actions: ${taskSummary}` : ""
+    activeTasks.length > 0 ? `Outstanding actions: ${taskSummary}` : "",
+    latestVoiceCheckIn || profileUpdatedThisShift ? `Patient voice: ${patientVoiceSummary}` : ""
   ]
     .filter(Boolean)
     .join(" ");
@@ -493,6 +518,7 @@ function buildPatientSummary({
     medicationSummary,
     incidentSummary,
     taskSummary,
+    patientVoiceSummary,
     narrative,
     staffNotes: ""
   };
@@ -605,6 +631,7 @@ function buildHandoverHtml(handover: ShiftHandover, wardName: string) {
           ${htmlRow("Medication", summary.medicationSummary)}
           ${htmlRow("Incidents", summary.incidentSummary)}
           ${htmlRow("Outstanding tasks", summary.taskSummary ?? "No outstanding patient tasks.")}
+          ${htmlRow("Patient voice", summary.patientVoiceSummary ?? "No new patient feedback recorded during this shift.")}
           ${summary.staffNotes ? htmlRow("Staff handover notes", summary.staffNotes) : ""}
         </section>
       `

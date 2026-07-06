@@ -8,6 +8,81 @@ import { optionalOrganisationIdSchema, requireOrganisationId } from "./organisat
 
 const router = Router();
 
+const patientVoiceProfileSchema = z.object({
+  whatMatters: z.string().max(10_000),
+  careGoals: z.string().max(10_000),
+  communicationNeeds: z.string().max(10_000),
+  sensoryNeeds: z.string().max(10_000),
+  culturalSpiritualNeeds: z.string().max(10_000),
+  dietaryNeeds: z.string().max(10_000),
+  accessibilityNeeds: z.string().max(10_000),
+  distressSupport: z.string().max(10_000),
+  preferredInvolvement: z.string().max(10_000),
+  updatedAt: z.string().datetime(),
+  updatedWithPatient: z.boolean(),
+  recordedByStaffId: z.string().min(1),
+  recordedByName: z.string().min(1).max(255)
+});
+
+const patientVoiceRatingSchema = z.number().int().min(1).max(5);
+const patientVoiceCheckInSchema = z.object({
+  id: z.string().min(1),
+  frequency: z.enum(["Initial", "Weekly", "Monthly"]),
+  foodRating: patientVoiceRatingSchema,
+  staffSupportRating: patientVoiceRatingSchema,
+  accommodationRating: patientVoiceRatingSchema,
+  activitiesRating: patientVoiceRatingSchema,
+  safetyRating: patientVoiceRatingSchema,
+  overallRating: patientVoiceRatingSchema,
+  goingWell: z.string().max(10_000),
+  wouldChange: z.string().max(10_000),
+  needsChanged: z.string().max(10_000),
+  concerns: z.string().max(10_000),
+  completedBy: z.enum(["Patient", "Patient with support"]),
+  submittedAt: z.string().datetime(),
+  witnessedByStaffId: z.string().min(1),
+  witnessedByName: z.string().min(1).max(255),
+  staffResponse: z.string().max(10_000).optional(),
+  acknowledgedAt: z.string().datetime().optional(),
+  acknowledgedByStaffId: z.string().optional(),
+  acknowledgedByName: z.string().max(255).optional()
+});
+
+const familyShareCategorySchema = z.enum([
+  "Patient voice",
+  "Progress summary",
+  "Care-plan goals",
+  "Approved notes"
+]);
+const familyPortalContactSchema = z.object({
+  id: z.string().min(1),
+  name: z.string().min(1).max(255),
+  relationship: z.string().min(1).max(255),
+  categories: z.array(familyShareCategorySchema).max(4),
+  active: z.boolean(),
+  canContribute: z.boolean(),
+  accessExpiresAt: z.string().max(50).optional()
+});
+const familySharingSchema = z.object({
+  patientConsented: z.boolean(),
+  consentNotes: z.string().max(10_000),
+  consentRecordedAt: z.string().datetime().optional(),
+  consentRecordedByStaffId: z.string().optional(),
+  consentRecordedByName: z.string().max(255).optional(),
+  consentReviewDate: z.string().max(50).optional(),
+  contacts: z.array(familyPortalContactSchema).max(50),
+  sharedNoteIds: z.array(z.string().min(1)).max(500)
+});
+const familyContributionSchema = z.object({
+  id: z.string().min(1),
+  contactId: z.string().min(1),
+  contactName: z.string().min(1).max(255),
+  body: z.string().min(1).max(20_000),
+  submittedAt: z.string().datetime(),
+  recordedByStaffId: z.string().min(1),
+  recordedByName: z.string().min(1).max(255)
+});
+
 const patientSchema = z.object({
   id: z.string().min(1).optional(),
   organisationId: optionalOrganisationIdSchema,
@@ -31,6 +106,10 @@ const patientSchema = z.object({
   enhancedObservation: z.record(z.string(), z.unknown()).optional(),
   tesoHistory: z.array(z.record(z.string(), z.unknown())).default([]),
   patientForms: z.array(z.record(z.string(), z.unknown())).default([]),
+  patientVoiceProfile: patientVoiceProfileSchema.optional(),
+  patientVoiceCheckIns: z.array(patientVoiceCheckInSchema).max(1000).default([]),
+  familySharing: familySharingSchema.optional(),
+  familyContributions: z.array(familyContributionSchema).max(1000).default([]),
   actorStaffId: z.string().optional(),
   actorStaffCode: z.string().optional()
 });
@@ -63,6 +142,10 @@ router.get("/", async (request, response, next) => {
           enhanced_observation as "enhancedObservation",
           teso_history as "tesoHistory",
           patient_forms as "patientForms",
+          patient_voice_profile as "patientVoiceProfile",
+          patient_voice_check_ins as "patientVoiceCheckIns",
+          family_sharing as "familySharing",
+          family_contributions as "familyContributions",
           archived
         from patients
         where organisation_id = $1
@@ -104,7 +187,11 @@ router.post("/", requireStaffRole(["nurse", "manager", "doctor", "super_admin"])
           adverse_drug_reactions as "adverseDrugReactions",
           enhanced_observation as "enhancedObservation",
           teso_history as "tesoHistory",
-          patient_forms as "patientForms"
+          patient_forms as "patientForms",
+          patient_voice_profile as "patientVoiceProfile",
+          patient_voice_check_ins as "patientVoiceCheckIns",
+          family_sharing as "familySharing",
+          family_contributions as "familyContributions"
         from patients
         where organisation_id = $1 and id = $2
       `,
@@ -118,6 +205,10 @@ router.post("/", requireStaffRole(["nurse", "manager", "doctor", "super_admin"])
           enhancedObservation?: unknown;
           tesoHistory?: unknown[];
           patientForms?: unknown[];
+          patientVoiceProfile?: unknown;
+          patientVoiceCheckIns?: unknown[];
+          familySharing?: unknown;
+          familyContributions?: unknown[];
         }
       | undefined;
 
@@ -127,8 +218,12 @@ router.post("/", requireStaffRole(["nurse", "manager", "doctor", "super_admin"])
           id, organisation_id, patient_number, hospital_number, first_name, surname, ward_id, room_number,
           observation_level, latest_observation_place, latest_observation_time, latest_observed_by,
           latest_presentation, on_off_ward, seclusion, long_term_seclusion, archived,
-          allergies, adverse_drug_reactions, enhanced_observation, teso_history, patient_forms
-        ) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20::jsonb,$21::jsonb,$22::jsonb)
+          allergies, adverse_drug_reactions, enhanced_observation, teso_history, patient_forms,
+          patient_voice_profile, patient_voice_check_ins, family_sharing, family_contributions
+        ) values (
+          $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,
+          $20::jsonb,$21::jsonb,$22::jsonb,$23::jsonb,$24::jsonb,$25::jsonb,$26::jsonb
+        )
         on conflict (id) do update set
           patient_number = excluded.patient_number,
           hospital_number = excluded.hospital_number,
@@ -149,6 +244,10 @@ router.post("/", requireStaffRole(["nurse", "manager", "doctor", "super_admin"])
           enhanced_observation = excluded.enhanced_observation,
           teso_history = excluded.teso_history,
           patient_forms = excluded.patient_forms,
+          patient_voice_profile = excluded.patient_voice_profile,
+          patient_voice_check_ins = excluded.patient_voice_check_ins,
+          family_sharing = excluded.family_sharing,
+          family_contributions = excluded.family_contributions,
           archived = excluded.archived,
           updated_at = now()
         returning
@@ -172,6 +271,10 @@ router.post("/", requireStaffRole(["nurse", "manager", "doctor", "super_admin"])
           enhanced_observation as "enhancedObservation",
           teso_history as "tesoHistory",
           patient_forms as "patientForms",
+          patient_voice_profile as "patientVoiceProfile",
+          patient_voice_check_ins as "patientVoiceCheckIns",
+          family_sharing as "familySharing",
+          family_contributions as "familyContributions",
           archived
       `,
       [
@@ -196,7 +299,11 @@ router.post("/", requireStaffRole(["nurse", "manager", "doctor", "super_admin"])
         patient.adverseDrugReactions,
         JSON.stringify(patient.enhancedObservation ?? null),
         JSON.stringify(patient.tesoHistory ?? []),
-        JSON.stringify(patient.patientForms ?? [])
+        JSON.stringify(patient.patientForms ?? []),
+        JSON.stringify(patient.patientVoiceProfile ?? null),
+        JSON.stringify(patient.patientVoiceCheckIns ?? []),
+        JSON.stringify(patient.familySharing ?? null),
+        JSON.stringify(patient.familyContributions ?? [])
       ]
     );
 
@@ -238,6 +345,10 @@ async function recordPatientAuditEvents({
     enhancedObservation?: unknown;
     tesoHistory?: unknown[];
     patientForms?: unknown[];
+    patientVoiceProfile?: unknown;
+    patientVoiceCheckIns?: unknown[];
+    familySharing?: unknown;
+    familyContributions?: unknown[];
   };
 }) {
   const actor = auditActorFromBody(requestBody);
@@ -325,6 +436,43 @@ async function recordPatientAuditEvents({
         formTitle: newestForm?.title ?? "Patient form",
         status: newestForm?.status ?? "Updated",
         completedBy: newestForm?.completedBy ?? null
+      }
+    });
+  }
+
+  if (
+    JSON.stringify(existingPatient.patientVoiceProfile ?? null) !==
+      JSON.stringify(patient.patientVoiceProfile ?? null) ||
+    JSON.stringify(existingPatient.patientVoiceCheckIns ?? []) !==
+      JSON.stringify(patient.patientVoiceCheckIns ?? [])
+  ) {
+    await recordAuditEvent({
+      ...baseEvent,
+      eventType: "patient.voice.update",
+      details: {
+        patientId: patient.id,
+        checkInCount: patient.patientVoiceCheckIns?.length ?? 0,
+        profileUpdatedAt: patient.patientVoiceProfile?.updatedAt ?? null
+      }
+    });
+  }
+
+  if (
+    JSON.stringify(existingPatient.familySharing ?? null) !==
+      JSON.stringify(patient.familySharing ?? null) ||
+    JSON.stringify(existingPatient.familyContributions ?? []) !==
+      JSON.stringify(patient.familyContributions ?? [])
+  ) {
+    await recordAuditEvent({
+      ...baseEvent,
+      eventType: "patient.family_sharing.update",
+      details: {
+        patientId: patient.id,
+        consented: patient.familySharing?.patientConsented ?? false,
+        contactCount: Array.isArray(patient.familySharing?.contacts)
+          ? patient.familySharing.contacts.length
+          : 0,
+        contributionCount: patient.familyContributions?.length ?? 0
       }
     });
   }

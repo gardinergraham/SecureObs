@@ -30,6 +30,7 @@ type PatientDashboardScreenProps = {
   selectedPatientId: string;
   ward?: Ward;
   onBack: () => void;
+  onOpenPatientVoice: () => void;
   onSelectPatient: (patientId: string) => void;
 };
 
@@ -77,6 +78,7 @@ export function PatientDashboardScreen({
   selectedPatientId,
   ward,
   onBack,
+  onOpenPatientVoice,
   onSelectPatient
 }: PatientDashboardScreenProps) {
   const orderedPatients = useMemo(
@@ -122,6 +124,7 @@ export function PatientDashboardScreen({
       observations: observations
         .filter((observation) => observation.patientId === patientId)
         .sort((left, right) => right.observedAt.localeCompare(left.observedAt)),
+      patientVoiceCheckIns: selectedPatient.patientVoiceCheckIns ?? [],
       tasks: patientTasks
         .filter((task) => task.patientId === patientId)
         .sort((left, right) => right.createdAt.localeCompare(left.createdAt))
@@ -219,6 +222,13 @@ export function PatientDashboardScreen({
               </Text>
             </View>
             <View style={styles.heroPills}>
+              <TouchableOpacity
+                accessibilityRole="button"
+                onPress={onOpenPatientVoice}
+                style={styles.patientVoiceButton}
+              >
+                <Text style={styles.patientVoiceButtonText}>Patient voice</Text>
+              </TouchableOpacity>
               <StatusPill label={selectedPatient.observationLevel} tone="blue" />
               <StatusPill
                 label={
@@ -369,6 +379,26 @@ export function PatientDashboardScreen({
           </View>
 
           <View style={styles.careGrid}>
+            <CareHighlight
+              eyebrow="Latest patient voice check-in"
+              empty="No patient experience check-in recorded"
+              meta={
+                patientRecords.patientVoiceCheckIns[0]
+                  ? `${patientRecords.patientVoiceCheckIns[0].frequency} · ${formatDateTime(
+                      patientRecords.patientVoiceCheckIns[0].submittedAt
+                    )}`
+                  : undefined
+              }
+              text={
+                patientRecords.patientVoiceCheckIns[0]
+                  ? `Overall ${patientRecords.patientVoiceCheckIns[0].overallRating}/5\n${
+                      patientRecords.patientVoiceCheckIns[0].goingWell ||
+                      patientRecords.patientVoiceCheckIns[0].wouldChange ||
+                      "No free-text feedback recorded."
+                    }`
+                  : undefined
+              }
+            />
             <CareHighlight
               eyebrow="Latest patient note"
               empty="No patient notes recorded"
@@ -652,6 +682,7 @@ type PatientRecordSet = {
   news2Readings: News2Reading[];
   notes: PatientNote[];
   observations: Observation[];
+  patientVoiceCheckIns: Patient["patientVoiceCheckIns"];
   tasks: PatientTask[];
 };
 
@@ -840,6 +871,27 @@ function buildTimeline(
     });
   });
 
+  (records.patientVoiceCheckIns ?? []).forEach((checkIn) => {
+    items.push({
+      id: `patient-voice-${checkIn.id}`,
+      category: "care",
+      occurredAt: checkIn.submittedAt,
+      title: `${checkIn.frequency} patient voice check-in · ${checkIn.overallRating}/5`,
+      detail:
+        checkIn.concerns ||
+        checkIn.wouldChange ||
+        checkIn.goingWell ||
+        "Patient experience ratings recorded without free-text feedback.",
+      meta: `${checkIn.completedBy} · witnessed by ${checkIn.witnessedByName}`,
+      tone:
+        checkIn.safetyRating <= 2 || checkIn.overallRating <= 2
+          ? "red"
+          : checkIn.overallRating === 3
+            ? "amber"
+            : "green"
+    });
+  });
+
   records.incidents.forEach((incident) => {
     items.push({
       id: `incident-${incident.id}`,
@@ -1018,6 +1070,14 @@ const styles = StyleSheet.create({
   patientName: { color: "#17272e", fontSize: 27, fontWeight: "900" },
   patientMeta: { color: "#63747b", fontSize: 12, fontWeight: "800", marginTop: 4 },
   heroPills: { alignItems: "flex-end", flexDirection: "row", flexWrap: "wrap", gap: 7 },
+  patientVoiceButton: {
+    backgroundColor: "#174f61",
+    borderRadius: 999,
+    justifyContent: "center",
+    minHeight: 34,
+    paddingHorizontal: 12
+  },
+  patientVoiceButtonText: { color: "#ffffff", fontSize: 10, fontWeight: "900" },
   statusPill: { borderRadius: 999, paddingHorizontal: 10, paddingVertical: 7 },
   statusPillText: { color: "#263c44", fontSize: 10, fontWeight: "900" },
   statusBlue: { backgroundColor: "#dceff4" },

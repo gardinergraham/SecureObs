@@ -8,6 +8,7 @@ import { AnalyticsDashboardScreen } from "./src/screens/AnalyticsDashboardScreen
 import { AuditLogScreen } from "./src/screens/AuditLogScreen";
 import { BankAgencyStaffScreen } from "./src/screens/BankAgencyStaffScreen";
 import { EnhancedObservationScreen } from "./src/screens/EnhancedObservationScreen";
+import { FamilyPortalScreen } from "./src/screens/FamilyPortalScreen";
 import { FoodFluidChartScreen } from "./src/screens/FoodFluidChartScreen";
 import { HomeScreen } from "./src/screens/HomeScreen";
 import { MedicationChartScreen } from "./src/screens/MedicationChartScreen";
@@ -18,6 +19,7 @@ import { PatientCarePlansScreen } from "./src/screens/PatientCarePlansScreen";
 import { PatientDashboardScreen } from "./src/screens/PatientDashboardScreen";
 import { PatientNotesScreen } from "./src/screens/PatientNotesScreen";
 import { PatientTasksScreen } from "./src/screens/PatientTasksScreen";
+import { PatientVoiceScreen } from "./src/screens/PatientVoiceScreen";
 import { PatientSettingsScreen } from "./src/screens/PatientSettingsScreen";
 import { PreviousObservationsScreen } from "./src/screens/PreviousObservationsScreen";
 import { SecurityCheckSettingsScreen } from "./src/screens/SecurityCheckSettingsScreen";
@@ -142,6 +144,8 @@ type AppScreen =
   | "patientDashboard"
   | "patientNotes"
   | "patientTasks"
+  | "patientVoice"
+  | "familyPortal"
   | "safetyEscalation"
   | "shiftHandover"
   | "patientSettings"
@@ -1381,7 +1385,31 @@ export default function App() {
             selectedPatientId={selectedPatientId}
             ward={selectedWard}
             onBack={() => setScreen(workspaceBackScreen)}
+            onOpenPatientVoice={() => setScreen("patientVoice")}
             onSelectPatient={setSelectedPatientId}
+          />
+        ) : screen === "patientVoice" ? (
+          <PatientVoiceScreen
+            notes={patientNotes}
+            patients={wardPatients}
+            selectedPatientId={selectedPatientId}
+            selectedStaffId={selectedStaffId}
+            staff={staffMembers}
+            ward={selectedWard}
+            onBack={() => setScreen("patientDashboard")}
+            onOpenFamilyPortal={() => setScreen("familyPortal")}
+            onSelectPatient={setSelectedPatientId}
+            onUpdatePatient={handleUpdatePatient}
+          />
+        ) : screen === "familyPortal" ? (
+          <FamilyPortalScreen
+            carePlans={patientCarePlans}
+            notes={patientNotes}
+            patient={wardPatients.find((patient) => patient.id === selectedPatientId)}
+            selectedStaff={selectedStaff}
+            ward={selectedWard}
+            onBack={() => setScreen("patientVoice")}
+            onUpdatePatient={handleUpdatePatient}
           />
         ) : screen === "patientNotes" ? (
           <PatientNotesScreen
