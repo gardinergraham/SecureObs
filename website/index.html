@@ -6,7 +6,7 @@
     <title>SecureObs | Secure Ward Observation Platform</title>
     <meta
       name="description"
-      content="SecureObs brings ward observations, patient notes, care plans, TESO, NEWS2, medication records, rota cover, security checks, offline sync and audit governance into one practical tablet workflow."
+      content="SecureObs brings ward observations, patient notes, care plans, TESO, NEWS2, medication records, safety escalation, analytics, shift handover, rota cover, offline sync and audit governance into one practical tablet workflow."
     />
     <link rel="stylesheet" href="styles.css" />
   </head>
@@ -20,6 +20,7 @@
         <a href="#workflow">Workflow</a>
         <a href="#bespoke">Bespoke setup</a>
         <a href="#patient-records">Patient records</a>
+        <a href="#ward-intelligence">Ward intelligence</a>
         <a href="#screenshots">Screens</a>
         <a href="#governance">Governance</a>
         <a href="#deployment">Deployment</a>
@@ -35,7 +36,8 @@
           <h1>One practical tablet system for safer ward observations.</h1>
           <p class="lead">
             SecureObs brings general observations, patient notes, structured care plans, TESO, NEWS2,
-            medication records, security checks, staff cover, bank staff access and audit governance into one simple ward workflow.
+            medication records, safety escalation, shift handover, analytics, staff cover and audit
+            governance into one simple ward workflow.
             Each site can turn modules on or off so the app fits the service rather than forcing every
             ward into the same setup.
           </p>
@@ -47,6 +49,7 @@
             <span>NFC and PIN access</span>
             <span>Offline sync queue</span>
             <span>Immutable audit trail</span>
+            <span>Analytics and shift handover</span>
           </div>
         </div>
         <div class="hero-showcase" aria-label="SecureObs app screenshots">
@@ -123,6 +126,21 @@
             <h3>Structured care plans</h3>
             <p>Nursing templates for needs, risks, goals, interventions, patient preferences and review dates, with signed history and PDF output.</p>
           </article>
+          <article>
+            <span class="feature-icon">11</span>
+            <h3>Shift handover</h3>
+            <p>Patient-by-patient summaries bring together movements, presentation, nutrition, NEWS2, medication, incidents and outstanding tasks for the incoming shift.</p>
+          </article>
+          <article>
+            <span class="feature-icon">12</span>
+            <h3>Analytics dashboard</h3>
+            <p>Traceable ward and patient trends, attention prompts, underlying evidence tables and CSV or PDF export for operational review.</p>
+          </article>
+          <article>
+            <span class="feature-icon">13</span>
+            <h3>Safety and escalation</h3>
+            <p>RAG-rated incidents, injury body maps, safeguarding context, assigned ownership, acknowledgement and documented resolution.</p>
+          </article>
         </div>
       </section>
 
@@ -146,6 +164,10 @@
           <span>Security checks</span>
           <span>Patient notes</span>
           <span>Care plans</span>
+          <span>Patient dashboard and timeline</span>
+          <span>Safety and escalation centre</span>
+          <span>Shift handover</span>
+          <span>Analytics dashboard</span>
           <span>Assessment forms</span>
           <span>Staff rota</span>
           <span>Session timeout</span>
@@ -219,6 +241,102 @@
             </div>
           </article>
         </div>
+      </section>
+
+      <section id="ward-intelligence" class="section intelligence-section">
+        <div class="section-heading">
+          <p class="eyebrow">Ward intelligence without extra paperwork</p>
+          <h2>Know what happened, what matters and what the next shift needs.</h2>
+          <p>
+            SecureObs turns the records staff already make into practical ward oversight. The analytics
+            dashboard highlights patterns and exceptions, while shift handover gathers the important
+            patient detail into a structured summary that staff can review, add context to and sign.
+          </p>
+        </div>
+
+        <div class="intelligence-grid">
+          <article class="screenshot-card intelligence-card handover-card">
+            <a
+              href="assets/screenshots2/Shift_Handover.jpg"
+              target="_blank"
+              rel="noopener"
+              aria-label="Open the full SecureObs shift handover screen"
+            >
+              <img
+                src="assets/screenshots2/Shift_Handover.jpg"
+                alt="SecureObs shift handover showing a detailed end-of-shift summary for every patient"
+                loading="lazy"
+              />
+            </a>
+            <div>
+              <p class="card-kicker">A clearer end to every shift</p>
+              <h3>In-depth patient handover, assembled from the shift record</h3>
+              <p>
+                At the end of the shift, SecureObs creates a patient-by-patient view of recorded
+                movements and locations, awake or asleep presentation, food and fluid intake, NEWS2,
+                medication activity, incidents and outstanding tasks.
+              </p>
+              <p>
+                It remembers the important recorded details when the ward has been busy, helping the
+                incoming team understand each patient quickly. Staff remain in control: every summary
+                can be checked, clinical context can be added, and the completed handover can be signed,
+                printed or shared as a PDF.
+              </p>
+              <ul class="feature-points">
+                <li>Ward-level overview plus a detailed summary for every patient</li>
+                <li>Outstanding actions and active incidents carried into the handover</li>
+                <li>Review-before-signing workflow keeps professional judgement central</li>
+              </ul>
+            </div>
+          </article>
+
+          <article class="screenshot-card intelligence-card analytics-card">
+            <a
+              href="assets/screenshots2/Analytics_Dashboard.jpg"
+              target="_blank"
+              rel="noopener"
+              aria-label="Open the full SecureObs analytics dashboard"
+            >
+              <img
+                src="assets/screenshots2/Analytics_Dashboard.jpg"
+                alt="SecureObs analytics dashboard showing attention areas, ward metrics, charts and evidence tables"
+                loading="lazy"
+              />
+            </a>
+            <div>
+              <p class="card-kicker">Traceable operational insight</p>
+              <h3>Analytics that lead back to the record</h3>
+              <p>
+                Review observation completion, NEWS2 attention, low intake, medication exceptions,
+                incidents, patient tasks and security activity by period or patient. Clear attention
+                prompts, trend charts and underlying evidence tables help managers see where a closer
+                review is needed.
+              </p>
+              <p>
+                Results can be exported to CSV or printed as a PDF, while visible calculation notes keep
+                the figures understandable rather than presenting unexplained predictions.
+              </p>
+            </div>
+          </article>
+        </div>
+
+        <article class="safety-callout">
+          <div class="rag-visual" aria-label="Red, amber and green safety severity">
+            <span class="rag-dot rag-red"></span>
+            <span class="rag-dot rag-amber"></span>
+            <span class="rag-dot rag-green"></span>
+          </div>
+          <div>
+            <p class="eyebrow">Safety and escalation centre</p>
+            <h3>Incidents and safeguarding concerns stay visible until resolved.</h3>
+            <p>
+              Staff can record RAG severity, incident category, immediate action, the patient’s account
+              and affected body areas. Ownership, acknowledgement and resolution are tracked in one
+              review queue, with active concerns feeding the ward overview, analytics and shift handover.
+              It gives the team an immediate picture of risk without hiding the detail needed for review.
+            </p>
+          </div>
+        </article>
       </section>
 
       <section id="screenshots" class="section screen-section">
@@ -373,13 +491,16 @@
           <p>
             SecureObs is built for environments where the record matters. Staff access, failed sign-ins,
             observations, patient notes, care plans, medication actions, settings changes and patient form
-            completion can all be tied back to staff identity and time.
+            completion can all be tied back to staff identity and time. Analytics and handovers use those
+            attributable records rather than creating a separate, disconnected version of events.
           </p>
         </div>
         <div class="security-list">
           <p>NFC, STAFFCODE and PIN sign-in with lockout controls</p>
           <p>Role permissions for nurses, HCF, OT, security, managers, doctors and super admin</p>
           <p>Immutable audit events for access, observations, patient notes, care plans, medications, TESO, settings and forms</p>
+          <p>Signed shift handovers and traceable analytics linked to their underlying ward records</p>
+          <p>RAG-rated safety incidents with acknowledgement, ownership and documented resolution</p>
           <p>Organisation and ward filtering for multi-site deployments</p>
           <p>Offline queue with individual retry instead of throwing away pending work</p>
         </div>

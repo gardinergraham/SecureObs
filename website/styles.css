@@ -345,6 +345,104 @@ pre {
   background: #e7f0f2;
 }
 
+.intelligence-section {
+  background: #ffffff;
+}
+
+.intelligence-grid {
+  align-items: start;
+  display: grid;
+  gap: 18px;
+  grid-template-columns: minmax(0, 1.08fr) minmax(0, 0.92fr);
+  margin-top: 28px;
+}
+
+.intelligence-card > a {
+  background: #e8eff1;
+  display: block;
+}
+
+.intelligence-card img {
+  aspect-ratio: 4 / 5;
+  object-fit: contain;
+  object-position: center top;
+}
+
+.handover-card img {
+  aspect-ratio: 4 / 5.4;
+}
+
+.analytics-card img {
+  aspect-ratio: 4 / 5;
+}
+
+.card-kicker {
+  color: var(--accent-dark) !important;
+  font-size: 12px;
+  font-weight: 900;
+  margin-bottom: 6px !important;
+  text-transform: uppercase;
+}
+
+.feature-points {
+  color: var(--muted);
+  margin: 16px 0 0;
+  padding-left: 20px;
+}
+
+.feature-points li + li {
+  margin-top: 6px;
+}
+
+.safety-callout {
+  align-items: center;
+  background: #10242b;
+  border-radius: 10px;
+  color: #ffffff;
+  display: grid;
+  gap: 24px;
+  grid-template-columns: 180px minmax(0, 1fr);
+  margin-top: 18px;
+  padding: clamp(22px, 4vw, 38px);
+}
+
+.safety-callout .eyebrow,
+.safety-callout p {
+  color: #c9e6ee;
+}
+
+.safety-callout h3 {
+  font-size: clamp(24px, 3vw, 36px);
+  line-height: 1.1;
+}
+
+.rag-visual {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+}
+
+.rag-dot {
+  border: 5px solid rgba(255, 255, 255, 0.18);
+  border-radius: 999px;
+  display: block;
+  height: 42px;
+  width: 42px;
+}
+
+.rag-red {
+  background: #c94338;
+}
+
+.rag-amber {
+  background: #dda529;
+}
+
+.rag-green {
+  background: #39845f;
+}
+
 .records-showcase {
   display: grid;
   gap: 18px;
@@ -542,7 +640,8 @@ footer {
   .split-section,
   .secure-band,
   .settings-showcase,
-  .screenshot-feature {
+  .screenshot-feature,
+  .intelligence-grid {
     grid-template-columns: 1fr;
   }
 
@@ -565,6 +664,13 @@ footer {
     margin-top: -120px;
     max-width: min(48%, 280px);
     position: relative;
+  }
+
+  .intelligence-card img,
+  .handover-card img,
+  .analytics-card img {
+    aspect-ratio: 16 / 12;
+    object-position: center top;
   }
 }
 
@@ -600,5 +706,13 @@ footer {
   .hero-float-shot {
     margin-top: 12px;
     max-width: 100%;
+  }
+
+  .safety-callout {
+    grid-template-columns: 1fr;
+  }
+
+  .rag-visual {
+    justify-content: flex-start;
   }
 }
