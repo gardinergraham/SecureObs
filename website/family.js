@@ -226,7 +226,12 @@ function renderContribution(contribution) {
   const wrapper = element("article", "", "history-entry");
   wrapper.append(
     paragraph(contribution.body),
-    element("small", formatDate(contribution.submittedAt)),
+    element(
+      "small",
+      `${formatDate(contribution.submittedAt)}${
+        contribution.reviewedAt ? ` · Reviewed ${formatDate(contribution.reviewedAt)}` : ""
+      }`
+    ),
     element("span", contribution.reviewStatus || "Awaiting staff review", "status-pill")
   );
   return wrapper;

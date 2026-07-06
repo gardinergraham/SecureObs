@@ -778,6 +778,11 @@ export default function App() {
     );
   };
 
+  const handleRefreshPatients = async () => {
+    const result = await loadPatients(selectedStaff?.organisationId ?? defaultOrganisationId);
+    setPatients((currentPatients) => mergeById(result.patients, currentPatients));
+  };
+
   const handleSaveManagedPatient = async (patient: Patient) => {
     const result = await persistOrQueue("patient", () =>
       persistPatient({
@@ -1398,6 +1403,7 @@ export default function App() {
             ward={selectedWard}
             onBack={() => setScreen("patientDashboard")}
             onOpenFamilyPortal={() => setScreen("familyPortal")}
+            onRefreshPatients={handleRefreshPatients}
             onSelectPatient={setSelectedPatientId}
             onUpdatePatient={handleUpdatePatient}
           />

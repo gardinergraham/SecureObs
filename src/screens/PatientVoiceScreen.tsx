@@ -30,6 +30,7 @@ type PatientVoiceScreenProps = {
   ward?: Ward;
   onBack: () => void;
   onOpenFamilyPortal: () => void;
+  onRefreshPatients: () => Promise<void>;
   onSelectPatient: (patientId: string) => void;
   onUpdatePatient: (patient: Patient) => Promise<void>;
 };
@@ -71,6 +72,7 @@ export function PatientVoiceScreen({
   ward,
   onBack,
   onOpenFamilyPortal,
+  onRefreshPatients,
   onSelectPatient,
   onUpdatePatient
 }: PatientVoiceScreenProps) {
@@ -111,6 +113,9 @@ export function PatientVoiceScreen({
   const [contactCategories, setContactCategories] = useState<FamilyShareCategory[]>(["Patient voice"]);
   const [contactCanContribute, setContactCanContribute] = useState(true);
   const [staffResponses, setStaffResponses] = useState<Record<string, string>>({});
+  const [contributionReviewNotes, setContributionReviewNotes] = useState<Record<string, string>>({});
+  const [reviewingContributionId, setReviewingContributionId] = useState("");
+  const [refreshingContributions, setRefreshingContributions] = useState(false);
   const [issuedInvitation, setIssuedInvitation] = useState<
     (FamilyPortalInvitation & { contactName: string }) | undefined
   >();
@@ -341,6 +346,67 @@ export function PatientVoiceScreen({
         ? current.sharedNoteIds.filter((id) => id !== noteId)
         : [...current.sharedNoteIds, noteId]
     }));
+  };
+
+  const reviewFamilyContribution = async (contributionId: string) => {
+    if (!selectedPatient || !selectedStaff || !canEdit) {
+      Alert.alert(
+        "Clinical access required",
+        "A nurse, doctor or manager must review family contributions."
+      );
+      return;
+    }
+    const reviewedAt = new Date().toISOString();
+    const reviewNote = contributionReviewNotes[contributionId]?.trim();
+    const updatedPatient: Patient = {
+      ...selectedPatient,
+      familyContributions: (selectedPatient.familyContributions ?? []).map((entry) =>
+        entry.id === contributionId
+          ? {
+              ...entry,
+              reviewStatus: "Reviewed",
+              staffReviewNote: reviewNote || undefined,
+              reviewedAt,
+              reviewedByStaffId: selectedStaff.id,
+              reviewedByName: selectedStaff.name
+            }
+          : entry
+      )
+    };
+    setReviewingContributionId(contributionId);
+    try {
+      await onUpdatePatient(updatedPatient);
+      setContributionReviewNotes((current) => {
+        const next = { ...current };
+        delete next[contributionId];
+        return next;
+      });
+      Alert.alert(
+        "Contribution reviewed",
+        `The review has been signed by ${selectedStaff.name} and retained in the patient record.`
+      );
+    } catch (error) {
+      Alert.alert(
+        "Review could not be saved",
+        error instanceof Error ? error.message : "Check the connection and try again."
+      );
+    } finally {
+      setReviewingContributionId("");
+    }
+  };
+
+  const refreshFamilyContributions = async () => {
+    setRefreshingContributions(true);
+    try {
+      await onRefreshPatients();
+    } catch (error) {
+      Alert.alert(
+        "Responses could not be refreshed",
+        error instanceof Error ? error.message : "Check the connection and try again."
+      );
+    } finally {
+      setRefreshingContributions(false);
+    }
   };
 
   if (!selectedPatient) {
@@ -707,11 +773,26 @@ export function PatientVoiceScreen({
                 </View>
               ) : null}
 
-              <Text style={styles.subheading}>Family and advocate contributions</Text>
+              <View style={styles.contributionHeading}>
+                <Text style={styles.subheading}>Family and advocate contributions</Text>
+                <TouchableOpacity
+                  accessibilityRole="button"
+                  accessibilityState={{ disabled: refreshingContributions }}
+                  disabled={refreshingContributions}
+                  onPress={() => void refreshFamilyContributions()}
+                  style={[styles.refreshButton, refreshingContributions && styles.disabled]}
+                >
+                  <Text style={styles.refreshButtonText}>
+                    {refreshingContributions ? "Refreshing…" : "Refresh family responses"}
+                  </Text>
+                </TouchableOpacity>
+              </View>
               {(selectedPatient.familyContributions ?? []).length === 0 ? (
                 <Text style={styles.emptyText}>No family or advocate contributions recorded.</Text>
               ) : (
-                (selectedPatient.familyContributions ?? []).map((entry) => (
+                [...(selectedPatient.familyContributions ?? [])]
+                  .sort((left, right) => right.submittedAt.localeCompare(left.submittedAt))
+                  .map((entry) => (
                   <View key={entry.id} style={styles.contactCard}>
                     <Text style={styles.noteChoiceBody}>{entry.body}</Text>
                     <Text style={styles.historyMeta}>
@@ -721,10 +802,59 @@ export function PatientVoiceScreen({
                         : " · submitted through the family portal"}
                     </Text>
                     {entry.reviewStatus === "Awaiting staff review" ? (
-                      <Text style={styles.awaitingReview}>Awaiting staff review</Text>
+                      <>
+                        <Text style={styles.awaitingReview}>Awaiting staff review</Text>
+                        {canEdit ? (
+                          <>
+                            <TextInput
+                              multiline
+                              numberOfLines={3}
+                              onChangeText={(value) =>
+                                setContributionReviewNotes((current) => ({
+                                  ...current,
+                                  [entry.id]: value
+                                }))
+                              }
+                              placeholder="Optional review note, response or action taken"
+                              placeholderTextColor="#75858b"
+                              style={styles.responseInput}
+                              value={contributionReviewNotes[entry.id] ?? ""}
+                            />
+                            <TouchableOpacity
+                              accessibilityRole="button"
+                              accessibilityState={{
+                                disabled: reviewingContributionId === entry.id
+                              }}
+                              disabled={reviewingContributionId === entry.id}
+                              onPress={() => void reviewFamilyContribution(entry.id)}
+                              style={[
+                                styles.reviewButton,
+                                reviewingContributionId === entry.id && styles.disabled
+                              ]}
+                            >
+                              <Text style={styles.reviewButtonText}>
+                                {reviewingContributionId === entry.id
+                                  ? "Saving review…"
+                                  : "Mark as reviewed"}
+                              </Text>
+                            </TouchableOpacity>
+                          </>
+                        ) : null}
+                      </>
+                    ) : entry.reviewStatus === "Reviewed" ? (
+                      <View style={styles.reviewedPanel}>
+                        <Text style={styles.reviewedTitle}>Reviewed</Text>
+                        <Text style={styles.historyMeta}>
+                          {entry.reviewedAt ? formatDateTime(entry.reviewedAt) : "Date not recorded"} ·{" "}
+                          {entry.reviewedByName ?? "Staff member"}
+                        </Text>
+                        {entry.staffReviewNote ? (
+                          <Text style={styles.reviewNote}>{entry.staffReviewNote}</Text>
+                        ) : null}
+                      </View>
                     ) : null}
                   </View>
-                ))
+                  ))
               )}
 
               <Text style={styles.subheading}>Notes approved for sharing</Text>
@@ -936,6 +1066,14 @@ const styles = StyleSheet.create({
   invitationWarning: { color: "#765f20", fontSize: 9, lineHeight: 14, marginBottom: 8, marginTop: 3 },
   invitationValue: { backgroundColor: "#ffffff", borderRadius: 5, color: "#243940", fontSize: 11, fontWeight: "900", marginTop: 5, padding: 8 },
   awaitingReview: { color: "#8a5c13", fontSize: 9, fontWeight: "900", marginTop: 6 },
+  reviewButton: { alignItems: "center", backgroundColor: "#18596a", borderRadius: 7, justifyContent: "center", marginTop: 8, minHeight: 40, paddingHorizontal: 12 },
+  reviewButtonText: { color: "#ffffff", fontSize: 10, fontWeight: "900" },
+  reviewedPanel: { backgroundColor: "#eaf5ef", borderRadius: 7, marginTop: 8, padding: 9 },
+  reviewedTitle: { color: "#2d6a4e", fontSize: 10, fontWeight: "900" },
+  reviewNote: { color: "#40575f", fontSize: 9, lineHeight: 14, marginTop: 6 },
+  contributionHeading: { alignItems: "center", flexDirection: "row", flexWrap: "wrap", gap: 8, justifyContent: "space-between", marginTop: 8 },
+  refreshButton: { borderColor: "#1c596a", borderRadius: 7, borderWidth: 1, justifyContent: "center", minHeight: 34, paddingHorizontal: 10 },
+  refreshButtonText: { color: "#1c596a", fontSize: 9, fontWeight: "900" },
   consentPrompt: { color: "#8a5c13", fontSize: 9, fontWeight: "800", marginTop: 6 },
   readOnlyNotice: { backgroundColor: "#f2f5f6", borderColor: "#d2dcdf", borderRadius: 7, borderWidth: 1, marginBottom: 10, padding: 10 },
   readOnlyTitle: { color: "#344b54", fontSize: 10, fontWeight: "900" },

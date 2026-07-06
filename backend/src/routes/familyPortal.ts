@@ -528,7 +528,14 @@ async function buildPortalView(account: FamilyAccount) {
   }
   view.contributions = (patient.familyContributions ?? [])
     .filter((entry) => entry.contactId === contact.id)
-    .sort((left, right) => String(right.submittedAt ?? "").localeCompare(String(left.submittedAt ?? "")));
+    .sort((left, right) => String(right.submittedAt ?? "").localeCompare(String(left.submittedAt ?? "")))
+    .map((entry) => ({
+      id: entry.id,
+      body: entry.body,
+      submittedAt: entry.submittedAt,
+      reviewStatus: entry.reviewStatus ?? "Awaiting staff review",
+      reviewedAt: entry.reviewedAt ?? null
+    }));
   return view;
 }
 

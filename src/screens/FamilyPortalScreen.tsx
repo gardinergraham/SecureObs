@@ -78,7 +78,10 @@ export function FamilyPortalScreen({
       recordedByStaffId: selectedStaff.id,
       recordedByName: selectedStaff.name,
       source: "Ward tablet",
-      reviewStatus: "Reviewed"
+      reviewStatus: "Reviewed",
+      reviewedAt: new Date().toISOString(),
+      reviewedByStaffId: selectedStaff.id,
+      reviewedByName: selectedStaff.name
     };
     onUpdatePatient({
       ...patient,

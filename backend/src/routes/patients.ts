@@ -82,7 +82,11 @@ const familyContributionSchema = z.object({
   recordedByStaffId: z.string().min(1).optional(),
   recordedByName: z.string().min(1).max(255).optional(),
   source: z.enum(["Family portal", "Ward tablet"]).optional(),
-  reviewStatus: z.enum(["Awaiting staff review", "Reviewed"]).optional()
+  reviewStatus: z.enum(["Awaiting staff review", "Reviewed"]).optional(),
+  staffReviewNote: z.string().max(10_000).optional(),
+  reviewedAt: z.string().datetime().optional(),
+  reviewedByStaffId: z.string().min(1).optional(),
+  reviewedByName: z.string().min(1).max(255).optional()
 });
 
 const patientSchema = z.object({
@@ -474,7 +478,14 @@ async function recordPatientAuditEvents({
         contactCount: Array.isArray(patient.familySharing?.contacts)
           ? patient.familySharing.contacts.length
           : 0,
-        contributionCount: patient.familyContributions?.length ?? 0
+        contributionCount: patient.familyContributions?.length ?? 0,
+        awaitingReviewCount:
+          patient.familyContributions?.filter(
+            (entry) => entry.reviewStatus === "Awaiting staff review"
+          ).length ?? 0,
+        reviewedContributionCount:
+          patient.familyContributions?.filter((entry) => entry.reviewStatus === "Reviewed").length ??
+          0
       }
     });
   }

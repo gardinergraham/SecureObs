@@ -421,6 +421,10 @@ export type FamilyPortalContribution = {
   recordedByName?: string;
   source?: "Family portal" | "Ward tablet";
   reviewStatus?: "Awaiting staff review" | "Reviewed";
+  staffReviewNote?: string;
+  reviewedAt?: string;
+  reviewedByStaffId?: string;
+  reviewedByName?: string;
 };
 
 export type Patient = {
