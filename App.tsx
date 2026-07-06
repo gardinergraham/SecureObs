@@ -750,7 +750,7 @@ export default function App() {
     setStaffMembers((currentStaff) => upsertStaffByCode(currentStaff, result.staff));
   };
 
-  const handleUpdatePatient = (updatedPatient: Patient) => {
+  const handleUpdatePatient = async (updatedPatient: Patient) => {
     const previousPatient = patients.find((patient) => patient.id === updatedPatient.id);
     const tesoHasEnded =
       Boolean(previousPatient?.enhancedObservation) &&
@@ -768,7 +768,7 @@ export default function App() {
         )
       );
     }
-    void persistOrQueue("patient update", () =>
+    await persistOrQueue("patient update", () =>
       persistPatient({
         ...updatedPatient,
         organisationId: selectedStaff?.organisationId,

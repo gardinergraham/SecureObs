@@ -31,7 +31,7 @@ type PatientVoiceScreenProps = {
   onBack: () => void;
   onOpenFamilyPortal: () => void;
   onSelectPatient: (patientId: string) => void;
-  onUpdatePatient: (patient: Patient) => void;
+  onUpdatePatient: (patient: Patient) => Promise<void>;
 };
 
 type VoiceTab = "profile" | "check-ins" | "sharing";
@@ -242,7 +242,7 @@ export function PatientVoiceScreen({
     setContactExpiry("");
   };
 
-  const saveSharing = () => {
+  const saveSharing = async () => {
     if (!selectedPatient || !selectedStaff || !canEdit) {
       Alert.alert("Clinical access required", "A nurse, doctor or manager must record sharing consent.");
       return;
@@ -253,7 +253,7 @@ export function PatientVoiceScreen({
       consentRecordedByStaffId: selectedStaff.id,
       consentRecordedByName: selectedStaff.name
     };
-    onUpdatePatient({ ...selectedPatient, familySharing: nextSharing });
+    await onUpdatePatient({ ...selectedPatient, familySharing: nextSharing });
     Alert.alert(
       "Sharing preferences saved",
       nextSharing.patientConsented
@@ -275,6 +275,13 @@ export function PatientVoiceScreen({
     if (!selectedPatient || !canEdit || !sharing.patientConsented || !contact.active) return;
     setIssuingContactId(contact.id);
     try {
+      const nextSharing: FamilySharingPreferences = {
+        ...sharing,
+        consentRecordedAt: new Date().toISOString(),
+        consentRecordedByStaffId: selectedStaff?.id,
+        consentRecordedByName: selectedStaff?.name
+      };
+      await onUpdatePatient({ ...selectedPatient, familySharing: nextSharing });
       const result = await createFamilyPortalInvitation(selectedPatient.id, contact.id);
       setIssuedInvitation({ ...result.invitation, contactName: contact.name });
       Alert.alert(
