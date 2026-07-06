@@ -223,6 +223,10 @@ export function PatientVoiceScreen({
   };
 
   const addContact = () => {
+    if (!canEdit) {
+      Alert.alert("Clinical access required", "Only a nurse, doctor or manager can change family sharing.");
+      return;
+    }
     if (!contactName.trim() || !contactRelationship.trim()) {
       Alert.alert("Contact details needed", "Add the person’s name and relationship to the patient.");
       return;
@@ -263,6 +267,7 @@ export function PatientVoiceScreen({
   };
 
   const updateContact = (contactId: string, updates: Partial<FamilyPortalContact>) => {
+    if (!canEdit) return;
     setSharing((current) => ({
       ...current,
       contacts: current.contacts.map((contact) =>
@@ -272,7 +277,28 @@ export function PatientVoiceScreen({
   };
 
   const issueWebInvitation = async (contact: FamilyPortalContact) => {
-    if (!selectedPatient || !canEdit || !sharing.patientConsented || !contact.active) return;
+    if (!selectedPatient) return;
+    if (!canEdit) {
+      Alert.alert(
+        "Clinical access required",
+        "A nurse, doctor or manager must create family portal access."
+      );
+      return;
+    }
+    if (!sharing.patientConsented) {
+      Alert.alert(
+        "Record patient consent first",
+        "At the top of Family sharing, press “Family sharing closed” so it changes to “Patient consent recorded”. Add the consent context, then press this invitation button again."
+      );
+      return;
+    }
+    if (!contact.active) {
+      Alert.alert(
+        "Contact access is withdrawn",
+        "Set this approved person’s access to active before creating an invitation."
+      );
+      return;
+    }
     setIssuingContactId(contact.id);
     try {
       const nextSharing: FamilySharingPreferences = {
@@ -308,6 +334,7 @@ export function PatientVoiceScreen({
   };
 
   const toggleSharedNote = (noteId: string) => {
+    if (!canEdit) return;
     setSharing((current) => ({
       ...current,
       sharedNoteIds: current.sharedNoteIds.includes(noteId)
@@ -541,18 +568,29 @@ export function PatientVoiceScreen({
               <Text style={styles.sectionMeta}>
                 Sharing is closed by default. Record consent, name each person and choose exactly what they may see.
               </Text>
+              {!canEdit ? (
+                <View style={styles.readOnlyNotice}>
+                  <Text style={styles.readOnlyTitle}>Read-only access</Text>
+                  <Text style={styles.readOnlyText}>
+                    Only a nurse, doctor or manager can record consent, change permissions or create family access.
+                  </Text>
+                </View>
+              ) : null}
               <ToggleButton
                 active={sharing.patientConsented}
+                disabled={!canEdit}
                 label={sharing.patientConsented ? "Patient consent recorded" : "Family sharing closed"}
                 onPress={() => setSharing((current) => ({ ...current, patientConsented: !current.patientConsented }))}
               />
               <FormField
+                disabled={!canEdit}
                 label="Consent, capacity or best-interest context"
                 onChangeText={(value) => setSharing((current) => ({ ...current, consentNotes: value }))}
                 placeholder="Record how consent was obtained, any supported decision-making and local governance context"
                 value={sharing.consentNotes}
               />
               <SingleLineField
+                disabled={!canEdit}
                 label="Consent review date"
                 onChangeText={(value) => setSharing((current) => ({ ...current, consentReviewDate: value }))}
                 placeholder="YYYY-MM-DD"
@@ -562,15 +600,16 @@ export function PatientVoiceScreen({
               <View style={styles.contactBuilder}>
                 <Text style={styles.subheading}>Add an approved person</Text>
                 <View style={styles.inlineFields}>
-                  <SingleLineField label="Name" onChangeText={setContactName} placeholder="Full name" value={contactName} />
-                  <SingleLineField label="Relationship" onChangeText={setContactRelationship} placeholder="Family, carer or advocate" value={contactRelationship} />
-                  <SingleLineField label="Access expiry" onChangeText={setContactExpiry} placeholder="Optional YYYY-MM-DD" value={contactExpiry} />
+                  <SingleLineField disabled={!canEdit} label="Name" onChangeText={setContactName} placeholder="Full name" value={contactName} />
+                  <SingleLineField disabled={!canEdit} label="Relationship" onChangeText={setContactRelationship} placeholder="Family, carer or advocate" value={contactRelationship} />
+                  <SingleLineField disabled={!canEdit} label="Access expiry" onChangeText={setContactExpiry} placeholder="Optional YYYY-MM-DD" value={contactExpiry} />
                 </View>
                 <Text style={styles.fieldLabel}>Information this person may see</Text>
                 <View style={styles.frequencyRow}>
                   {shareCategories.map((category) => (
                     <ToggleButton
                       active={contactCategories.includes(category)}
+                      disabled={!canEdit}
                       key={category}
                       label={category}
                       onPress={() =>
@@ -585,10 +624,17 @@ export function PatientVoiceScreen({
                 </View>
                 <ToggleButton
                   active={contactCanContribute}
+                  disabled={!canEdit}
                   label="May send a family or advocate contribution"
                   onPress={() => setContactCanContribute((current) => !current)}
                 />
-                <TouchableOpacity accessibilityRole="button" onPress={addContact} style={styles.secondaryButton}>
+                <TouchableOpacity
+                  accessibilityRole="button"
+                  accessibilityState={{ disabled: !canEdit }}
+                  disabled={!canEdit}
+                  onPress={addContact}
+                  style={[styles.secondaryButton, !canEdit && styles.disabled]}
+                >
                   <Text style={styles.secondaryButtonText}>Add approved person</Text>
                 </TouchableOpacity>
               </View>
@@ -604,6 +650,7 @@ export function PatientVoiceScreen({
                     </View>
                     <ToggleButton
                       active={contact.active}
+                      disabled={!canEdit}
                       label={contact.active ? "Access active" : "Access withdrawn"}
                       onPress={() =>
                         contact.active
@@ -613,28 +660,28 @@ export function PatientVoiceScreen({
                     />
                   </View>
                   {contact.active ? (
-                    <TouchableOpacity
-                      accessibilityRole="button"
-                      disabled={
-                        !canEdit ||
-                        !sharing.patientConsented ||
-                        issuingContactId === contact.id
-                      }
-                      onPress={() => void issueWebInvitation(contact)}
-                      style={[
-                        styles.secondaryButton,
-                        (!canEdit ||
-                          !sharing.patientConsented ||
-                          issuingContactId === contact.id) &&
-                          styles.disabled
-                      ]}
-                    >
-                      <Text style={styles.secondaryButtonText}>
-                        {issuingContactId === contact.id
-                          ? "Creating secure invitation…"
-                          : "Create / reissue web invitation"}
-                      </Text>
-                    </TouchableOpacity>
+                    <>
+                      <TouchableOpacity
+                        accessibilityRole="button"
+                        disabled={!canEdit || issuingContactId === contact.id}
+                        onPress={() => void issueWebInvitation(contact)}
+                        style={[
+                          styles.secondaryButton,
+                          (!canEdit || issuingContactId === contact.id) && styles.disabled
+                        ]}
+                      >
+                        <Text style={styles.secondaryButtonText}>
+                          {issuingContactId === contact.id
+                            ? "Creating secure invitation…"
+                            : "Create / reissue web invitation"}
+                        </Text>
+                      </TouchableOpacity>
+                      {!sharing.patientConsented ? (
+                        <Text style={styles.consentPrompt}>
+                          Patient consent is not yet recorded. Press the button for guidance.
+                        </Text>
+                      ) : null}
+                    </>
                   ) : null}
                 </View>
               ))}
@@ -687,7 +734,8 @@ export function PatientVoiceScreen({
                 patientNotes.map((note) => (
                   <TouchableOpacity
                     accessibilityRole="checkbox"
-                    accessibilityState={{ checked: sharing.sharedNoteIds.includes(note.id) }}
+                    accessibilityState={{ checked: sharing.sharedNoteIds.includes(note.id), disabled: !canEdit }}
+                    disabled={!canEdit}
                     key={note.id}
                     onPress={() => toggleSharedNote(note.id)}
                     style={[
@@ -754,27 +802,27 @@ function TabButton({ active, label, onPress }: { active: boolean; label: string;
   );
 }
 
-function FormField({ label, onChangeText, placeholder, value }: { label: string; onChangeText: (value: string) => void; placeholder: string; value: string }) {
+function FormField({ disabled = false, label, onChangeText, placeholder, value }: { disabled?: boolean; label: string; onChangeText: (value: string) => void; placeholder: string; value: string }) {
   return (
     <View style={styles.formField}>
       <Text style={styles.fieldLabel}>{label}</Text>
-      <TextInput multiline numberOfLines={3} onChangeText={onChangeText} placeholder={placeholder} placeholderTextColor="#75858b" style={styles.textArea} value={value} />
+      <TextInput editable={!disabled} multiline numberOfLines={3} onChangeText={onChangeText} placeholder={placeholder} placeholderTextColor="#75858b" style={[styles.textArea, disabled && styles.readOnlyInput]} value={value} />
     </View>
   );
 }
 
-function SingleLineField({ label, onChangeText, placeholder, value }: { label: string; onChangeText: (value: string) => void; placeholder: string; value: string }) {
+function SingleLineField({ disabled = false, label, onChangeText, placeholder, value }: { disabled?: boolean; label: string; onChangeText: (value: string) => void; placeholder: string; value: string }) {
   return (
     <View style={styles.singleLineField}>
       <Text style={styles.fieldLabel}>{label}</Text>
-      <TextInput onChangeText={onChangeText} placeholder={placeholder} placeholderTextColor="#75858b" style={styles.textInput} value={value} />
+      <TextInput editable={!disabled} onChangeText={onChangeText} placeholder={placeholder} placeholderTextColor="#75858b" style={[styles.textInput, disabled && styles.readOnlyInput]} value={value} />
     </View>
   );
 }
 
-function ToggleButton({ active, label, onPress }: { active: boolean; label: string; onPress: () => void }) {
+function ToggleButton({ active, disabled = false, label, onPress }: { active: boolean; disabled?: boolean; label: string; onPress: () => void }) {
   return (
-    <TouchableOpacity accessibilityRole="button" accessibilityState={{ selected: active }} onPress={onPress} style={[styles.toggleButton, active && styles.toggleButtonActive]}>
+    <TouchableOpacity accessibilityRole="button" accessibilityState={{ disabled, selected: active }} disabled={disabled} onPress={onPress} style={[styles.toggleButton, active && styles.toggleButtonActive, disabled && styles.disabled]}>
       <Text style={[styles.toggleButtonText, active && styles.toggleButtonTextActive]}>{label}</Text>
     </TouchableOpacity>
   );
@@ -888,6 +936,11 @@ const styles = StyleSheet.create({
   invitationWarning: { color: "#765f20", fontSize: 9, lineHeight: 14, marginBottom: 8, marginTop: 3 },
   invitationValue: { backgroundColor: "#ffffff", borderRadius: 5, color: "#243940", fontSize: 11, fontWeight: "900", marginTop: 5, padding: 8 },
   awaitingReview: { color: "#8a5c13", fontSize: 9, fontWeight: "900", marginTop: 6 },
+  consentPrompt: { color: "#8a5c13", fontSize: 9, fontWeight: "800", marginTop: 6 },
+  readOnlyNotice: { backgroundColor: "#f2f5f6", borderColor: "#d2dcdf", borderRadius: 7, borderWidth: 1, marginBottom: 10, padding: 10 },
+  readOnlyTitle: { color: "#344b54", fontSize: 10, fontWeight: "900" },
+  readOnlyText: { color: "#687a81", fontSize: 9, lineHeight: 14, marginTop: 2 },
+  readOnlyInput: { backgroundColor: "#eef2f3", color: "#687a81" },
   noteChoice: { borderColor: "#d4dee1", borderRadius: 7, borderWidth: 1, marginTop: 7, padding: 10 },
   noteChoiceSelected: { backgroundColor: "#eaf5ef", borderColor: "#5c9278" },
   noteChoiceTitle: { color: "#2d5e4a", fontSize: 9, fontWeight: "900" },
