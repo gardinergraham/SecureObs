@@ -39,6 +39,7 @@ type WardOverviewScreenProps = {
   onOpenNews2: () => void;
   onOpenPatientManagement: () => void;
   onOpenPatientCarePlans: () => void;
+  onOpenPatientDashboard: () => void;
   onOpenPatientNotes: () => void;
   onOpenPatientTasks: () => void;
   onOpenPatientSettings: () => void;
@@ -81,6 +82,7 @@ export function WardOverviewScreen({
   onOpenNews2,
   onOpenPatientManagement,
   onOpenPatientCarePlans,
+  onOpenPatientDashboard,
   onOpenPatientNotes,
   onOpenPatientTasks,
   onOpenPatientSettings,
@@ -584,6 +586,7 @@ export function WardOverviewScreen({
           ) : null}
           <QuickAction label="Patient settings / TESO" onPress={onOpenPatientSettings} />
           <QuickAction label="Patient management" onPress={onOpenPatientManagement} />
+          <QuickAction label="Patient dashboard" onPress={onOpenPatientDashboard} />
           <QuickAction label="Patient notes" onPress={onOpenPatientNotes} />
           <QuickAction label="Patient tasks" onPress={onOpenPatientTasks} />
           <QuickAction label="Care plans" onPress={onOpenPatientCarePlans} />

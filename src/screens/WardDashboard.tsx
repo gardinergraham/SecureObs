@@ -53,6 +53,7 @@ type WardDashboardProps = {
   onOpenNews2: () => void;
   onOpenEnhanced: () => void;
   onOpenPatientCarePlans: () => void;
+  onOpenPatientDashboard: () => void;
   onOpenPatientNotes: () => void;
   onOpenPatientTasks: () => void;
   onOpenPatientSettings: () => void;
@@ -88,6 +89,7 @@ export function WardDashboard({
   onOpenNews2,
   onOpenEnhanced,
   onOpenPatientCarePlans,
+  onOpenPatientDashboard,
   onOpenPatientNotes,
   onOpenPatientTasks,
   onOpenPatientSettings,
@@ -336,6 +338,9 @@ export function WardDashboard({
         </TouchableOpacity>
         <TouchableOpacity accessibilityRole="button" onPress={onOpenPatientManagement} style={styles.modeButton}>
           <Text style={styles.modeButtonText}>Patient management</Text>
+        </TouchableOpacity>
+        <TouchableOpacity accessibilityRole="button" onPress={onOpenPatientDashboard} style={styles.modeButton}>
+          <Text style={styles.modeButtonText}>Patient dashboard</Text>
         </TouchableOpacity>
         <TouchableOpacity accessibilityRole="button" onPress={onOpenPatientNotes} style={styles.modeButton}>
           <Text style={styles.modeButtonText}>Notes</Text>
@@ -1044,6 +1049,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     borderWidth: StyleSheet.hairlineWidth,
     flexDirection: "row",
+    flexWrap: "wrap",
     gap: 8,
     padding: 8
   },
@@ -1052,10 +1058,14 @@ const styles = StyleSheet.create({
     borderColor: "#c7d2d6",
     borderRadius: 6,
     borderWidth: 1,
-    flex: 1,
+    flexBasis: "10%",
+    flexGrow: 1,
+    flexShrink: 0,
     justifyContent: "center",
-    minHeight: 42,
-    paddingHorizontal: 10
+    minHeight: 54,
+    minWidth: 112,
+    paddingHorizontal: 9,
+    paddingVertical: 7
   },
   modeButtonActive: {
     backgroundColor: "#1f5262",
@@ -1067,7 +1077,9 @@ const styles = StyleSheet.create({
   modeButtonText: {
     color: "#30434a",
     fontSize: 13,
-    fontWeight: "900"
+    fontWeight: "900",
+    lineHeight: 16,
+    textAlign: "center"
   },
   modeButtonTextActive: {
     color: "#ffffff"

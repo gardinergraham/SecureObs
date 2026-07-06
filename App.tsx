@@ -15,6 +15,7 @@ import { News2Screen } from "./src/screens/News2Screen";
 import { PatientManagementScreen } from "./src/screens/PatientManagementScreen";
 import { PatientAssessmentFormsScreen } from "./src/screens/PatientAssessmentFormsScreen";
 import { PatientCarePlansScreen } from "./src/screens/PatientCarePlansScreen";
+import { PatientDashboardScreen } from "./src/screens/PatientDashboardScreen";
 import { PatientNotesScreen } from "./src/screens/PatientNotesScreen";
 import { PatientTasksScreen } from "./src/screens/PatientTasksScreen";
 import { PatientSettingsScreen } from "./src/screens/PatientSettingsScreen";
@@ -138,6 +139,7 @@ type AppScreen =
   | "patientManagement"
   | "patientAssessmentForms"
   | "patientCarePlans"
+  | "patientDashboard"
   | "patientNotes"
   | "patientTasks"
   | "safetyEscalation"
@@ -1170,6 +1172,10 @@ export default function App() {
               setWorkspaceBackScreen("wardOverview");
               setScreen("patientCarePlans");
             }}
+            onOpenPatientDashboard={() => {
+              setWorkspaceBackScreen("wardOverview");
+              setScreen("patientDashboard");
+            }}
             onOpenPatientNotes={() => {
               setWorkspaceBackScreen("wardOverview");
               setScreen("patientNotes");
@@ -1258,6 +1264,10 @@ export default function App() {
             onOpenPatientCarePlans={() => {
               setWorkspaceBackScreen("observations");
               setScreen("patientCarePlans");
+            }}
+            onOpenPatientDashboard={() => {
+              setWorkspaceBackScreen("observations");
+              setScreen("patientDashboard");
             }}
             onOpenPatientNotes={() => {
               setWorkspaceBackScreen("observations");
@@ -1354,6 +1364,23 @@ export default function App() {
             ward={selectedWard}
             onBack={() => setScreen(workspaceBackScreen)}
             onCreateCarePlan={handleCreatePatientCarePlan}
+            onSelectPatient={setSelectedPatientId}
+          />
+        ) : screen === "patientDashboard" ? (
+          <PatientDashboardScreen
+            carePlans={patientCarePlans}
+            foodFluidEntries={foodFluidEntries}
+            incidents={safetyIncidents}
+            medicationAdministrations={medicationAdministrations}
+            medicationPrescriptions={medicationPrescriptions}
+            news2Readings={news2Readings}
+            notes={patientNotes}
+            observations={observations}
+            patients={wardPatients}
+            patientTasks={patientTasks}
+            selectedPatientId={selectedPatientId}
+            ward={selectedWard}
+            onBack={() => setScreen(workspaceBackScreen)}
             onSelectPatient={setSelectedPatientId}
           />
         ) : screen === "patientNotes" ? (
