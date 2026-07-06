@@ -312,89 +312,55 @@ export function WardDashboard({
       </View>
 
       <View style={styles.modeBar}>
-        <TouchableOpacity accessibilityRole="button" style={[styles.modeButton, styles.modeButtonActive]}>
-          <Text style={[styles.modeButtonText, styles.modeButtonTextActive]}>General observations</Text>
-        </TouchableOpacity>
-        <TouchableOpacity accessibilityRole="button" onPress={onOpenAnalytics} style={styles.modeButton}>
-          <Text style={styles.modeButtonText}>Analytics</Text>
-        </TouchableOpacity>
-        {selectedWard?.news2Enabled ? (
-          <TouchableOpacity accessibilityRole="button" onPress={onOpenNews2} style={styles.modeButton}>
-            <Text style={styles.modeButtonText}>NEWS2</Text>
-          </TouchableOpacity>
-        ) : null}
-        {selectedWard?.foodFluidChartEnabled ? (
-          <TouchableOpacity accessibilityRole="button" onPress={onOpenFoodFluidChart} style={styles.modeButton}>
-            <Text style={styles.modeButtonText}>Food &amp; fluid</Text>
-          </TouchableOpacity>
-        ) : null}
-        {selectedWard?.enhancedObservationsEnabled ? (
-          <TouchableOpacity accessibilityRole="button" onPress={onOpenEnhanced} style={styles.modeButton}>
-            <Text style={styles.modeButtonText}>Enhanced/TESO</Text>
-          </TouchableOpacity>
-        ) : null}
-        <TouchableOpacity accessibilityRole="button" onPress={onOpenPatientSettings} style={styles.modeButton}>
-          <Text style={styles.modeButtonText}>Patient settings</Text>
-        </TouchableOpacity>
-        <TouchableOpacity accessibilityRole="button" onPress={onOpenPatientManagement} style={styles.modeButton}>
-          <Text style={styles.modeButtonText}>Patient management</Text>
-        </TouchableOpacity>
-        <TouchableOpacity accessibilityRole="button" onPress={onOpenPatientDashboard} style={styles.modeButton}>
-          <Text style={styles.modeButtonText}>Patient dashboard</Text>
-        </TouchableOpacity>
-        <TouchableOpacity accessibilityRole="button" onPress={onOpenPatientNotes} style={styles.modeButton}>
-          <Text style={styles.modeButtonText}>Notes</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          accessibilityRole="button"
+        <ModeButton active label="General observations" />
+        <ModeButton label="Analytics" onPress={onOpenAnalytics} />
+        <ModeButton
+          disabled={!selectedWard?.news2Enabled}
+          label="NEWS2"
+          onPress={onOpenNews2}
+        />
+        <ModeButton
+          disabled={!selectedWard?.foodFluidChartEnabled}
+          label="Food & fluid"
+          onPress={onOpenFoodFluidChart}
+        />
+        <ModeButton
+          disabled={!selectedWard?.enhancedObservationsEnabled}
+          label="Enhanced/TESO"
+          onPress={onOpenEnhanced}
+        />
+        <ModeButton label="Patient settings" onPress={onOpenPatientSettings} />
+        <ModeButton label="Patient management" onPress={onOpenPatientManagement} />
+        <ModeButton label="Patient dashboard" onPress={onOpenPatientDashboard} />
+        <ModeButton label="Notes" onPress={onOpenPatientNotes} />
+        <ModeButton
+          label={`Tasks ${activePatientTasks.length > 0 ? `(${activePatientTasks.length})` : ""}`}
           onPress={onOpenPatientTasks}
-          style={[styles.modeButton, taskAlertCount > 0 && styles.safetyButtonAmber]}
-        >
-          <Text style={styles.modeButtonText}>
-            Tasks {activePatientTasks.length > 0 ? `(${activePatientTasks.length})` : ""}
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity accessibilityRole="button" onPress={onOpenPatientCarePlans} style={styles.modeButton}>
-          <Text style={styles.modeButtonText}>Care plans</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          accessibilityRole="button"
+          tone={taskAlertCount > 0 ? "amber" : undefined}
+        />
+        <ModeButton label="Care plans" onPress={onOpenPatientCarePlans} />
+        <ModeButton
+          label={`Safety centre ${activeIncidents.length > 0 ? `(${activeIncidents.length})` : ""}`}
           onPress={onOpenSafetyCentre}
-          style={[
-            styles.modeButton,
-            redIncidentCount > 0 && styles.safetyButtonRed,
-            redIncidentCount === 0 && amberIncidentCount > 0 && styles.safetyButtonAmber
-          ]}
-        >
-          <Text style={[styles.modeButtonText, redIncidentCount > 0 && styles.safetyButtonTextRed]}>
-            Safety centre {activeIncidents.length > 0 ? `(${activeIncidents.length})` : ""}
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity accessibilityRole="button" onPress={onOpenShiftHandover} style={styles.modeButton}>
-          <Text style={styles.modeButtonText}>Shift handover</Text>
-        </TouchableOpacity>
-        <TouchableOpacity accessibilityRole="button" onPress={onOpenPreviousObservations} style={styles.modeButton}>
-          <Text style={styles.modeButtonText}>Previous obs</Text>
-        </TouchableOpacity>
-        {selectedWard?.securityChecksEnabled ? (
-          <TouchableOpacity accessibilityRole="button" onPress={onOpenSecurityChecks} style={styles.modeButton}>
-            <Text style={styles.modeButtonText}>Security checks</Text>
-          </TouchableOpacity>
-        ) : null}
-        {selectedWard?.medicationChartEnabled ? (
-          <TouchableOpacity
-            accessibilityRole="button"
-            onPress={onOpenMedicationChart}
-            style={styles.modeButton}
-          >
-            <Text style={styles.modeButtonText}>Medication chart</Text>
-          </TouchableOpacity>
-        ) : null}
-        {selectedWard?.staffRotaEnabled ? (
-          <TouchableOpacity accessibilityRole="button" onPress={onOpenStaffRota} style={styles.modeButton}>
-            <Text style={styles.modeButtonText}>Staff rota</Text>
-          </TouchableOpacity>
-        ) : null}
+          tone={redIncidentCount > 0 ? "red" : amberIncidentCount > 0 ? "amber" : undefined}
+        />
+        <ModeButton label="Shift handover" onPress={onOpenShiftHandover} />
+        <ModeButton label="Previous obs" onPress={onOpenPreviousObservations} />
+        <ModeButton
+          disabled={!selectedWard?.securityChecksEnabled}
+          label="Security checks"
+          onPress={onOpenSecurityChecks}
+        />
+        <ModeButton
+          disabled={!selectedWard?.medicationChartEnabled}
+          label="Medication chart"
+          onPress={onOpenMedicationChart}
+        />
+        <ModeButton
+          disabled={!selectedWard?.staffRotaEnabled}
+          label="Staff rota"
+          onPress={onOpenStaffRota}
+        />
       </View>
 
       <ClockStrip
@@ -548,6 +514,48 @@ export function WardDashboard({
         ) : null}
       </View>
     </View>
+  );
+}
+
+function ModeButton({
+  active = false,
+  disabled = false,
+  label,
+  onPress,
+  tone
+}: {
+  active?: boolean;
+  disabled?: boolean;
+  label: string;
+  onPress?: () => void;
+  tone?: "amber" | "red";
+}) {
+  return (
+    <TouchableOpacity
+      accessibilityRole="button"
+      accessibilityState={{ disabled: disabled || active, selected: active }}
+      disabled={disabled || active}
+      onPress={onPress}
+      style={[
+        styles.modeButton,
+        active && styles.modeButtonActive,
+        tone === "amber" && styles.safetyButtonAmber,
+        tone === "red" && styles.safetyButtonRed,
+        disabled && styles.modeButtonDisabled
+      ]}
+    >
+      <Text
+        style={[
+          styles.modeButtonText,
+          active && styles.modeButtonTextActive,
+          tone === "red" && styles.safetyButtonTextRed,
+          disabled && styles.modeButtonTextDisabled
+        ]}
+      >
+        {label}
+      </Text>
+      {disabled ? <Text style={styles.modeButtonDisabledReason}>Not enabled</Text> : null}
+    </TouchableOpacity>
   );
 }
 
@@ -1071,6 +1079,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#1f5262",
     borderColor: "#1f5262"
   },
+  modeButtonDisabled: { backgroundColor: "#f0f3f4", borderColor: "#d6dfe2" },
   safetyButtonRed: { backgroundColor: "#f7c2b9", borderColor: "#bd4034" },
   safetyButtonAmber: { backgroundColor: "#fff0b8", borderColor: "#d19a24" },
   safetyButtonTextRed: { color: "#7f2b23" },
@@ -1083,6 +1092,13 @@ const styles = StyleSheet.create({
   },
   modeButtonTextActive: {
     color: "#ffffff"
+  },
+  modeButtonTextDisabled: { color: "#77878d" },
+  modeButtonDisabledReason: {
+    color: "#8a5b28",
+    fontSize: 9,
+    fontWeight: "900",
+    marginTop: 2
   },
   filters: {
     backgroundColor: "#ffffff",

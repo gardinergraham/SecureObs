@@ -205,11 +205,23 @@ export function PatientSettingsScreen({
           </Text>
         </View>
         <View style={styles.headerActions}>
-          {assessmentFormsEnabled ? (
-            <TouchableOpacity accessibilityRole="button" onPress={onOpenAssessmentForms} style={styles.assessmentButton}>
-              <Text style={styles.assessmentButtonText}>Assessment forms</Text>
-            </TouchableOpacity>
-          ) : null}
+          <TouchableOpacity
+            accessibilityRole="button"
+            accessibilityState={{ disabled: !assessmentFormsEnabled }}
+            disabled={!assessmentFormsEnabled}
+            onPress={onOpenAssessmentForms}
+            style={[styles.assessmentButton, !assessmentFormsEnabled && styles.assessmentButtonDisabled]}
+          >
+            <Text
+              style={[
+                styles.assessmentButtonText,
+                !assessmentFormsEnabled && styles.assessmentButtonTextDisabled
+              ]}
+            >
+              Assessment forms
+            </Text>
+            {!assessmentFormsEnabled ? <Text style={styles.assessmentButtonReason}>Not enabled</Text> : null}
+          </TouchableOpacity>
           <TouchableOpacity accessibilityRole="button" onPress={onBack} style={styles.backButton}>
             <Text style={styles.backButtonText}>Back to observations</Text>
           </TouchableOpacity>
@@ -832,6 +844,9 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "900"
   },
+  assessmentButtonDisabled: { backgroundColor: "#e3e8ea" },
+  assessmentButtonTextDisabled: { color: "#687980" },
+  assessmentButtonReason: { color: "#805c2e", fontSize: 8, fontWeight: "900", marginTop: 2 },
   split: {
     alignItems: "stretch",
     flexDirection: "row",

@@ -4,6 +4,7 @@ import * as FileSystem from "expo-file-system/legacy";
 import * as Print from "expo-print";
 import * as Sharing from "expo-sharing";
 
+import { FeatureAvailabilityNotice } from "../components/FeatureAvailabilityNotice";
 import type {
   FoodFluidEntry,
   MedicationAdministration,
@@ -211,6 +212,8 @@ export function AnalyticsDashboardScreen({
           </TouchableOpacity>
         </View>
       </View>
+
+      <FeatureAvailabilityNotice ward={ward} />
 
       <View style={styles.filterPanel}>
         <View>

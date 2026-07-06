@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 
+import { FeatureAvailabilityNotice } from "../components/FeatureAvailabilityNotice";
 import type {
   FoodFluidEntry,
   News2Reading,
@@ -309,6 +310,8 @@ export function WardOverviewScreen({
         </View>
       </View>
 
+      <FeatureAvailabilityNotice ward={ward} />
+
       <View style={[styles.attentionBar, urgentCount > 0 && styles.attentionBarUrgent]}>
         <View style={styles.attentionCopy}>
           <Text style={[styles.attentionTitle, urgentCount > 0 && styles.attentionTitleUrgent]}>
@@ -579,11 +582,17 @@ export function WardOverviewScreen({
         <View style={styles.quickActionRow}>
           <QuickAction label="Record general check" onPress={onOpenGeneralObservations} />
           <QuickAction label="Analytics dashboard" onPress={onOpenAnalytics} />
-          {ward?.enhancedObservationsEnabled ? <QuickAction label="Enhanced / TESO" onPress={onOpenEnhanced} /> : null}
-          {ward?.news2Enabled ? <QuickAction label="Record NEWS2" onPress={onOpenNews2} /> : null}
-          {ward?.foodFluidChartEnabled ? (
-            <QuickAction label="Food & fluid" onPress={onOpenFoodFluidChart} />
-          ) : null}
+          <QuickAction
+            disabled={!ward?.enhancedObservationsEnabled}
+            label="Enhanced / TESO"
+            onPress={onOpenEnhanced}
+          />
+          <QuickAction disabled={!ward?.news2Enabled} label="Record NEWS2" onPress={onOpenNews2} />
+          <QuickAction
+            disabled={!ward?.foodFluidChartEnabled}
+            label="Food & fluid"
+            onPress={onOpenFoodFluidChart}
+          />
           <QuickAction label="Patient settings / TESO" onPress={onOpenPatientSettings} />
           <QuickAction label="Patient management" onPress={onOpenPatientManagement} />
           <QuickAction label="Patient dashboard" onPress={onOpenPatientDashboard} />
@@ -593,9 +602,17 @@ export function WardOverviewScreen({
           <QuickAction label="Safety centre / incidents" onPress={onOpenSafetyCentre} />
           <QuickAction label="Shift handover" onPress={onOpenShiftHandover} />
           <QuickAction label="Previous observations" onPress={onOpenPreviousObservations} />
-          {ward?.securityChecksEnabled ? <QuickAction label="Security check" onPress={onOpenSecurityChecks} /> : null}
-          {ward?.medicationChartEnabled ? <QuickAction label="Medication chart" onPress={onOpenMedicationChart} /> : null}
-          {ward?.staffRotaEnabled ? <QuickAction label="Staff rota" onPress={onOpenStaffRota} /> : null}
+          <QuickAction
+            disabled={!ward?.securityChecksEnabled}
+            label="Security check"
+            onPress={onOpenSecurityChecks}
+          />
+          <QuickAction
+            disabled={!ward?.medicationChartEnabled}
+            label="Medication chart"
+            onPress={onOpenMedicationChart}
+          />
+          <QuickAction disabled={!ward?.staffRotaEnabled} label="Staff rota" onPress={onOpenStaffRota} />
         </View>
       </View>
     </View>
@@ -752,10 +769,25 @@ function LeadDetail({ label, value }: { label: string; value: string }) {
   );
 }
 
-function QuickAction({ label, onPress }: { label: string; onPress: () => void }) {
+function QuickAction({
+  disabled = false,
+  label,
+  onPress
+}: {
+  disabled?: boolean;
+  label: string;
+  onPress: () => void;
+}) {
   return (
-    <TouchableOpacity accessibilityRole="button" onPress={onPress} style={styles.quickAction}>
-      <Text style={styles.quickActionText}>{label}</Text>
+    <TouchableOpacity
+      accessibilityRole="button"
+      accessibilityState={{ disabled }}
+      disabled={disabled}
+      onPress={onPress}
+      style={[styles.quickAction, disabled && styles.quickActionDisabled]}
+    >
+      <Text style={[styles.quickActionText, disabled && styles.quickActionTextDisabled]}>{label}</Text>
+      {disabled ? <Text style={styles.quickActionReason}>Not enabled</Text> : null}
     </TouchableOpacity>
   );
 }
@@ -1134,5 +1166,8 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     paddingHorizontal: 12
   },
-  quickActionText: { color: "#164e60", fontSize: 11, fontWeight: "900" }
+  quickActionDisabled: { backgroundColor: "#dce3e5" },
+  quickActionText: { color: "#164e60", fontSize: 11, fontWeight: "900" },
+  quickActionTextDisabled: { color: "#64767d" },
+  quickActionReason: { color: "#805c2e", fontSize: 8, fontWeight: "900", marginTop: 2 }
 });

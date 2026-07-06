@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from "react";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 
+import { FeatureAvailabilityNotice } from "../components/FeatureAvailabilityNotice";
 import type {
   FoodFluidEntry,
   MedicationAdministration,
@@ -179,6 +180,7 @@ export function PatientDashboardScreen({
   return (
     <View style={styles.screen}>
       <ScreenHeader onBack={onBack} wardName={ward?.name} />
+      <FeatureAvailabilityNotice ward={ward} />
 
       <View style={styles.workspace}>
         <View style={styles.patientRail}>
@@ -251,7 +253,7 @@ export function PatientDashboardScreen({
 
           <View style={styles.snapshotGrid}>
             <SnapshotMetric
-              label="Latest NEWS2"
+              label={ward?.news2Enabled ? "Latest NEWS2" : "Historical NEWS2 · feature off"}
               value={dashboard.latestNews2?.totalScore.toString() ?? "—"}
               detail={
                 dashboard.latestNews2
@@ -261,13 +263,21 @@ export function PatientDashboardScreen({
               tone={news2Tone(dashboard.latestNews2?.totalScore)}
             />
             <SnapshotMetric
-              label="Fluid recorded today"
+              label={
+                ward?.foodFluidChartEnabled
+                  ? "Fluid recorded today"
+                  : "Historical food & fluid · feature off"
+              }
               value={`${dashboard.fluidToday} ml`}
               detail={`${dashboard.foodFluidToday} food/fluid entries`}
               tone="blue"
             />
             <SnapshotMetric
-              label="Medication records · 7d"
+              label={
+                ward?.medicationChartEnabled
+                  ? "Medication records · 7d"
+                  : "Historical medication · feature off"
+              }
               value={`${dashboard.medicationGiven}/${dashboard.medicationRecorded}`}
               detail={
                 dashboard.medicationRecorded === 0
@@ -294,7 +304,9 @@ export function PatientDashboardScreen({
               <View style={styles.panelHeader}>
                 <View>
                   <Text style={styles.panelEyebrow}>Physical health</Text>
-                  <Text style={styles.panelTitle}>NEWS2 pattern · 7 days</Text>
+                  <Text style={styles.panelTitle}>
+                    {ward?.news2Enabled ? "NEWS2 pattern · 7 days" : "Historical NEWS2 pattern"}
+                  </Text>
                 </View>
                 <StatusPill
                   label={
