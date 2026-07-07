@@ -1,7 +1,9 @@
 import React, { useState } from "react";
 import { Alert, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 
-import type { StaffMember, Ward } from "../types/domain";
+import type { OrganisationSettings, StaffMember, Ward } from "../types/domain";
+import { buildStaffCardPayload } from "../utils/nfcStaffCard";
+import { writeNfcTextPayload } from "../utils/nfcWriter";
 import { hasAdminAccess, hasStaffRole, normaliseStaffRole } from "../utils/staffRole";
 
 const shiftCountOptions = [1, 2, 3, 4];
@@ -18,6 +20,7 @@ const fallbackRotaShift = { id: "shift-fallback", startsAt: "07:00", endsAt: "15
 type WardSettingsScreenProps = {
   selectedStaffId: string;
   selectedWardId: string;
+  organisationSettings: OrganisationSettings;
   staff: StaffMember[];
   wards: Ward[];
   onBack: () => void;
@@ -32,6 +35,7 @@ type WardSettingsScreenProps = {
 export function WardSettingsScreen({
   selectedStaffId,
   selectedWardId,
+  organisationSettings,
   staff,
   wards,
   onBack,
@@ -57,6 +61,8 @@ export function WardSettingsScreen({
   const [staffSearch, setStaffSearch] = useState("");
   const [isSavingStaff, setIsSavingStaff] = useState(false);
   const [isResettingPin, setIsResettingPin] = useState(false);
+  const [isWritingStaffTag, setIsWritingStaffTag] = useState(false);
+  const [lastSavedStaff, setLastSavedStaff] = useState<StaffMember | null>(null);
   const selectedSiteId = selectedWard?.siteId;
   const siteWardIds = wards.filter((ward) => ward.siteId === selectedSiteId).map((ward) => ward.id);
   const siteStaff = staff
@@ -153,6 +159,52 @@ export function WardSettingsScreen({
     setNewStaffWardIds(selectedWardId ? [selectedWardId] : []);
   };
 
+  const writeStaffNfcTag = async (staffMember: StaffMember) => {
+    if (!canEditWardSettings) return;
+    if (staffMember.employmentType !== "permanent") {
+      Alert.alert("Permanent staff only", "NFC staff tags can only be written for permanent staff records.");
+      return;
+    }
+
+    const payload = buildStaffCardPayload(staffMember.staffCode, organisationSettings.nfcStaffCodeFormat);
+
+    setIsWritingStaffTag(true);
+    try {
+      await writeNfcTextPayload(payload);
+      Alert.alert(
+        "NFC staff tag written",
+        `${staffMember.name}'s tag now contains STAFFCODE ${staffMember.staffCode}.`
+      );
+      setLastSavedStaff(staffMember);
+    } catch (error) {
+      Alert.alert("NFC tag not written", error instanceof Error ? error.message : "Unable to write that NFC tag.");
+    } finally {
+      setIsWritingStaffTag(false);
+    }
+  };
+
+  const writeDraftStaffNfcTag = () => {
+    const staffMember = editingStaffId
+      ? staff.find((member) => member.id === editingStaffId)
+      : newStaffCode.trim()
+        ? lastSavedStaff?.staffCode.toLowerCase() === newStaffCode.trim().toLowerCase()
+          ? lastSavedStaff
+          : null
+        : lastSavedStaff;
+
+    if (staffMember) {
+      void writeStaffNfcTag(staffMember);
+      return;
+    }
+
+    if (!newStaffCode.trim() || !newStaffName.trim()) {
+      Alert.alert("Save staff first", "Enter and save the permanent staff member before writing their NFC tag.");
+      return;
+    }
+
+    Alert.alert("Save staff first", "Save this staff member, then write the NFC tag from the confirmation prompt.");
+  };
+
   const toggleStaffWard = (wardId: string) => {
     setNewStaffWardIds((currentWardIds) => {
       if (currentWardIds.includes(wardId)) {
@@ -210,8 +262,17 @@ export function WardSettingsScreen({
     setIsSavingStaff(true);
     try {
       await onCreateStaff(staffMember);
+      setLastSavedStaff(staffMember);
       clearStaffDraft();
-      Alert.alert("Staff saved", `${staffMember.name} can use STAFFCODE ${staffMember.staffCode}.`);
+      Alert.alert("Staff saved", `${staffMember.name} can use STAFFCODE ${staffMember.staffCode}.`, [
+        { text: "Later", style: "cancel" },
+        {
+          text: "Write NFC tag",
+          onPress: () => {
+            void writeStaffNfcTag(staffMember);
+          }
+        }
+      ]);
     } finally {
       setIsSavingStaff(false);
     }
@@ -408,6 +469,22 @@ export function WardSettingsScreen({
               {isSavingStaff ? "Saving..." : editingStaffId ? "Update staff member" : "Add staff member"}
             </Text>
           </TouchableOpacity>
+          <View style={styles.nfcWriterPanel}>
+            <View style={styles.nfcWriterCopy}>
+              <Text style={styles.nfcWriterTitle}>NFC staff tag</Text>
+              <Text style={styles.nfcWriterMeta}>
+                Writes {buildStaffCardPayload(newStaffCode || lastSavedStaff?.staffCode || "STAFFCODE", organisationSettings.nfcStaffCodeFormat)} to a blank or reusable staff tag.
+              </Text>
+            </View>
+            <TouchableOpacity
+              accessibilityRole="button"
+              disabled={!canEditWardSettings || isWritingStaffTag}
+              onPress={writeDraftStaffNfcTag}
+              style={[styles.writeTagButton, (!canEditWardSettings || isWritingStaffTag) && styles.disabledControl]}
+            >
+              <Text style={styles.writeTagButtonText}>{isWritingStaffTag ? "Hold tag..." : "Write NFC tag"}</Text>
+            </TouchableOpacity>
+          </View>
           {editingStaffId ? (
             <View style={styles.staffActionRow}>
               {staff.find((member) => member.id === editingStaffId)?.employmentType !== "bank" ? (
@@ -922,6 +999,30 @@ const styles = StyleSheet.create({
     minHeight: 44
   },
   saveStaffButtonText: { color: "#ffffff", fontSize: 14, fontWeight: "900" },
+  nfcWriterPanel: {
+    alignItems: "center",
+    backgroundColor: "#eef6f7",
+    borderColor: "#c5dde2",
+    borderRadius: 7,
+    borderWidth: 1,
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10,
+    justifyContent: "space-between",
+    padding: 10
+  },
+  nfcWriterCopy: { flex: 1, minWidth: 220 },
+  nfcWriterTitle: { color: "#1f5262", fontSize: 13, fontWeight: "900" },
+  nfcWriterMeta: { color: "#4f626a", fontSize: 11, fontWeight: "800", marginTop: 3 },
+  writeTagButton: {
+    alignItems: "center",
+    backgroundColor: "#1f5262",
+    borderRadius: 6,
+    justifyContent: "center",
+    minHeight: 38,
+    paddingHorizontal: 12
+  },
+  writeTagButtonText: { color: "#ffffff", fontSize: 13, fontWeight: "900" },
   staffActionRow: {
     flexDirection: "row",
     flexWrap: "wrap",

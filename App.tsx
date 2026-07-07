@@ -1115,6 +1115,7 @@ export default function App() {
           <WardSettingsScreen
             selectedStaffId={selectedStaffId}
             selectedWardId={selectedWardId}
+            organisationSettings={organisationSettings}
             staff={staffMembers}
             wards={siteWards}
             onBack={() => setScreen("home")}

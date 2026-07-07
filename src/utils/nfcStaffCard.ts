@@ -6,6 +6,12 @@ export type StaffCardData = {
 
 const fallbackFormats = ["passcode={STAFFCODE}", "STAFFCODE={STAFFCODE}", "staffCode={STAFFCODE}"];
 
+export function buildStaffCardPayload(staffCode: string, configuredFormat?: string) {
+  const cleanStaffCode = staffCode.trim();
+  const format = configuredFormat?.includes("{STAFFCODE}") ? configuredFormat : "passcode={STAFFCODE}";
+  return format.replaceAll("{STAFFCODE}", cleanStaffCode);
+}
+
 export function parseStaffCardData(rawValue: string, configuredFormat?: string): StaffCardData | null {
   const trimmedValue = rawValue.trim();
   const formattedStaffCode = parseConfiguredStaffCode(trimmedValue, configuredFormat);
