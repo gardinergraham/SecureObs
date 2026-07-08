@@ -19,6 +19,7 @@ export type SyncQueueStateItem = {
   createdAt: string;
   attempts: number;
   lastError?: string;
+  needsReview?: boolean;
 };
 
 type SerializableRequestInit = {
@@ -35,6 +36,7 @@ type SyncQueueItem = {
   createdAt: string;
   attempts: number;
   lastError?: string;
+  needsReview?: boolean;
 };
 
 type SyncQueueListener = (state: SyncQueueState) => void;
@@ -91,7 +93,8 @@ function toStateItem(item: SyncQueueItem): SyncQueueStateItem {
     path: item.path,
     createdAt: item.createdAt,
     attempts: item.attempts,
-    lastError: item.lastError
+    lastError: item.lastError,
+    needsReview: item.needsReview
   };
 }
 
@@ -125,7 +128,7 @@ export async function enqueueFailedRequest(label: string, path: string, init: Re
   notify();
 }
 
-export async function flushSyncQueue() {
+export async function flushSyncQueue(options: { includeNeedsReview?: boolean } = {}) {
   await restoreSyncQueue();
 
   if (isSyncing || queue.length === 0 || !requestRunner) {
@@ -143,6 +146,10 @@ export async function flushSyncQueue() {
     for (const itemId of itemIds) {
       const item = queue.find((queuedItem) => queuedItem.id === itemId);
       if (!item) continue;
+      if (item.needsReview && !options.includeNeedsReview) {
+        failedCount += 1;
+        continue;
+      }
 
       try {
         item.attempts += 1;
@@ -158,6 +165,7 @@ export async function flushSyncQueue() {
       } catch (error) {
         failedCount += 1;
         item.lastError = toErrorMessage(error);
+        item.needsReview = isPermanentUploadError(error);
         lastError = `${item.label}: ${item.lastError}`;
         await persistQueue();
         notify();
@@ -166,6 +174,9 @@ export async function flushSyncQueue() {
 
     if (queue.length === 0) {
       lastError = undefined;
+    } else if (queue.some((item) => item.needsReview)) {
+      const reviewCount = queue.filter((item) => item.needsReview).length;
+      lastError = `${reviewCount} upload${reviewCount === 1 ? "" : "s"} need review before retry`;
     } else if (failedCount > 1) {
       lastError = `${failedCount} uploads still need attention`;
     }
@@ -188,6 +199,25 @@ export async function removeSyncQueueItem(itemId: string) {
   }
   await persistQueue();
   notify();
+}
+
+export async function removeSyncQueueItemsNeedingReview() {
+  await restoreSyncQueue();
+  const nextQueue = queue.filter((item) => !item.needsReview);
+  if (nextQueue.length === queue.length) {
+    return 0;
+  }
+
+  const removedCount = queue.length - nextQueue.length;
+  queue.splice(0, queue.length, ...nextQueue);
+  if (queue.length === 0) {
+    lastError = undefined;
+  } else {
+    lastError = `${queue.length} uploads still need attention`;
+  }
+  await persistQueue();
+  notify();
+  return removedCount;
 }
 
 export async function clearSyncQueue() {
@@ -250,4 +280,14 @@ function normaliseHeaders(headers?: HeadersInit): Record<string, string> | undef
 
 function toErrorMessage(error: unknown) {
   return error instanceof Error ? error.message : "Unable to reach backend";
+}
+
+function isPermanentUploadError(error: unknown) {
+  const status = typeof error === "object" && error !== null && "status" in error ? Number(error.status) : 0;
+  if (status >= 400 && status < 500 && status !== 401 && status !== 408 && status !== 429) {
+    return true;
+  }
+
+  const message = toErrorMessage(error).toLowerCase();
+  return message.includes("parse error") || message.includes("invalid input syntax");
 }

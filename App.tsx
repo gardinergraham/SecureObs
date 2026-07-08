@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Alert, AppState, Image, Modal, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { Alert, AppState, Image, Keyboard, Modal, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 
@@ -89,6 +89,7 @@ import {
   flushSyncQueue,
   isQueuedSyncError,
   removeSyncQueueItem,
+  removeSyncQueueItemsNeedingReview,
   restoreSyncQueue,
   subscribeToSyncQueue,
   type SyncQueueState,
@@ -198,6 +199,8 @@ export default function App() {
   const selectedWard = wards.find((ward) => ward.id === selectedWardId);
   const [selectedPatientId, setSelectedPatientId] = useState(seedData.patients[0]?.id ?? "");
   const lastActivityAtRef = useRef(Date.now());
+  const inactivityCountdownStartedAtRef = useRef<number | null>(null);
+  const keyboardActiveRef = useRef(false);
   const [syncQueueState, setSyncQueueState] = useState<SyncQueueState>({
     pendingCount: 0,
     isReady: false,
@@ -374,6 +377,28 @@ export default function App() {
     );
   };
 
+  const confirmRemoveReviewSyncItems = () => {
+    const reviewCount = syncQueueState.items.filter((item) => item.needsReview).length;
+    if (reviewCount === 0) {
+      return;
+    }
+
+    Alert.alert(
+      "Remove uploads needing review?",
+      `${reviewCount} upload${reviewCount === 1 ? "" : "s"} failed with a permanent issue such as malformed data or a parse error.\n\nOnly remove them if they are stale, invalid, or have already been recorded another way.`,
+      [
+        { text: "Keep", style: "cancel" },
+        {
+          text: "Remove",
+          style: "destructive",
+          onPress: () => {
+            void removeSyncQueueItemsNeedingReview();
+          }
+        }
+      ]
+    );
+  };
+
   const accessibleSites = useMemo(() => {
     if (!selectedStaff) {
       return [];
@@ -478,7 +503,24 @@ export default function App() {
 
   const resetActivityTimer = useCallback(() => {
     lastActivityAtRef.current = Date.now();
+    inactivityCountdownStartedAtRef.current = null;
   }, []);
+
+  useEffect(() => {
+    const keyboardShowSubscription = Keyboard.addListener("keyboardDidShow", () => {
+      keyboardActiveRef.current = true;
+      resetActivityTimer();
+    });
+    const keyboardHideSubscription = Keyboard.addListener("keyboardDidHide", () => {
+      keyboardActiveRef.current = false;
+      resetActivityTimer();
+    });
+
+    return () => {
+      keyboardShowSubscription.remove();
+      keyboardHideSubscription.remove();
+    };
+  }, [resetActivityTimer]);
 
   useEffect(() => {
     if (Platform.OS !== "web" || typeof document === "undefined") {
@@ -515,10 +557,28 @@ export default function App() {
       return;
     }
 
-    lastActivityAtRef.current = Date.now();
-    const timeoutMs = Math.max(1, selectedWard?.sessionTimeoutMinutes ?? 15) * 60 * 1000;
+    resetActivityTimer();
+    const inactivityGraceMs = getInactivityGraceMs();
+    const timeoutMs = getSessionTimeoutMs(selectedWard);
     const timer = setInterval(() => {
-      if (Date.now() - lastActivityAtRef.current >= timeoutMs) {
+      if (keyboardActiveRef.current) {
+        resetActivityTimer();
+        return;
+      }
+
+      const now = Date.now();
+      const inactiveForMs = now - lastActivityAtRef.current;
+      if (inactiveForMs < inactivityGraceMs) {
+        inactivityCountdownStartedAtRef.current = null;
+        return;
+      }
+
+      if (!inactivityCountdownStartedAtRef.current) {
+        inactivityCountdownStartedAtRef.current = now;
+        return;
+      }
+
+      if (now - inactivityCountdownStartedAtRef.current >= timeoutMs) {
         void lockInactiveStaffSession();
       }
     }, 10000);
@@ -526,7 +586,7 @@ export default function App() {
     return () => {
       clearInterval(timer);
     };
-  }, [lockInactiveStaffSession, selectedStaffId, selectedWard?.sessionTimeoutMinutes]);
+  }, [lockInactiveStaffSession, resetActivityTimer, selectedStaffId, selectedWard?.sessionTimeoutMinutes]);
 
   useEffect(() => {
     if (!selectedStaffId) {
@@ -538,8 +598,14 @@ export default function App() {
         return;
       }
 
-      const timeoutMs = Math.max(1, selectedWard?.sessionTimeoutMinutes ?? 15) * 60 * 1000;
-      if (Date.now() - lastActivityAtRef.current >= timeoutMs) {
+      const now = Date.now();
+      const inactiveForMs = now - lastActivityAtRef.current;
+      const countdownStartedAt = inactivityCountdownStartedAtRef.current;
+      if (
+        inactiveForMs >= getInactivityGraceMs() &&
+        countdownStartedAt &&
+        now - countdownStartedAt >= getSessionTimeoutMs(selectedWard)
+      ) {
         void lockInactiveStaffSession();
       }
     });
@@ -1615,7 +1681,7 @@ export default function App() {
                 accessibilityRole="button"
                 disabled={syncQueueState.pendingCount === 0 || syncQueueState.isSyncing}
                 onPress={() => {
-                  void flushSyncQueue();
+                  void flushSyncQueue({ includeNeedsReview: true });
                 }}
                 style={[
                   styles.syncPrimaryButton,
@@ -1624,6 +1690,16 @@ export default function App() {
               >
                 <Text style={styles.syncPrimaryButtonText}>{syncQueueState.isSyncing ? "Retrying" : "Retry all"}</Text>
               </TouchableOpacity>
+              {syncQueueState.items.some((item) => item.needsReview) ? (
+                <TouchableOpacity
+                  accessibilityRole="button"
+                  disabled={syncQueueState.isSyncing}
+                  onPress={confirmRemoveReviewSyncItems}
+                  style={[styles.syncReviewButton, syncQueueState.isSyncing && styles.syncButtonDisabled]}
+                >
+                  <Text style={styles.syncReviewButtonText}>Remove review uploads</Text>
+                </TouchableOpacity>
+              ) : null}
             </View>
 
             <ScrollView style={styles.syncList} contentContainerStyle={styles.syncListContent}>
@@ -1643,6 +1719,9 @@ export default function App() {
                     </View>
                     <Text style={styles.syncItemMeta}>Path: {item.path}</Text>
                     <Text style={styles.syncItemMeta}>Queued: {formatSyncDate(item.createdAt)}</Text>
+                    {item.needsReview ? (
+                      <Text style={styles.syncItemReview}>Needs review before automatic retry</Text>
+                    ) : null}
                     {item.lastError ? <Text style={styles.syncItemError}>Issue: {item.lastError}</Text> : null}
                     <TouchableOpacity
                       accessibilityRole="button"
@@ -1837,6 +1916,14 @@ function syncStatusLabel(state: SyncQueueState) {
   return state.lastSyncedAt ? "Synced" : "Ready";
 }
 
+function getSessionTimeoutMs(ward: Ward | undefined) {
+  return Math.max(15, ward?.sessionTimeoutMinutes ?? 15) * 60 * 1000;
+}
+
+function getInactivityGraceMs() {
+  return 2 * 60 * 1000;
+}
+
 function formatSyncDate(value: string) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) {
@@ -1995,6 +2082,20 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "900"
   },
+  syncReviewButton: {
+    alignItems: "center",
+    borderColor: "#9f6b00",
+    borderRadius: 6,
+    borderWidth: 1,
+    justifyContent: "center",
+    minHeight: 42,
+    paddingHorizontal: 12
+  },
+  syncReviewButtonText: {
+    color: "#795518",
+    fontSize: 13,
+    fontWeight: "900"
+  },
   syncButtonDisabled: {
     opacity: 0.45
   },
@@ -2057,6 +2158,16 @@ const styles = StyleSheet.create({
     color: "#8a2d2d",
     fontSize: 12,
     fontWeight: "900"
+  },
+  syncItemReview: {
+    backgroundColor: "#fff4d6",
+    borderRadius: 6,
+    color: "#795518",
+    fontSize: 12,
+    fontWeight: "900",
+    overflow: "hidden",
+    paddingHorizontal: 8,
+    paddingVertical: 5
   },
   syncRemoveButton: {
     alignItems: "center",

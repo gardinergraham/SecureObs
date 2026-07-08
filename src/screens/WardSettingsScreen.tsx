@@ -8,7 +8,7 @@ import { hasAdminAccess, hasStaffRole, normaliseStaffRole } from "../utils/staff
 
 const shiftCountOptions = [1, 2, 3, 4];
 const breakDurationOptions = [15, 30, 60];
-const sessionTimeoutOptions = [5, 10, 15, 30, 60];
+const sessionTimeoutOptions = [15, 30, 60, 120, 240];
 const defaultRotaShifts = [
   { id: "shift-1", startsAt: "07:00", endsAt: "15:00" },
   { id: "shift-2", startsAt: "13:30", endsAt: "23:00" },
@@ -660,7 +660,7 @@ export function WardSettingsScreen({
 
         <Text style={styles.settingLabel}>Staff session timeout</Text>
         <Text style={styles.meta}>
-          If the tablet is left untouched, the signed-in staff member is locked out after this time.
+          The lock countdown starts after 2 minutes without touch or typing. Any activity cancels it and starts again.
         </Text>
         <View style={styles.optionRow}>
           {sessionTimeoutOptions.map((minutes) => (
@@ -681,7 +681,7 @@ export function WardSettingsScreen({
                   selectedWard?.sessionTimeoutMinutes === minutes && styles.optionTextActive
                 ]}
               >
-                {minutes === 60 ? "1 hour" : `${minutes} min`}
+                {formatSessionTimeout(minutes)}
               </Text>
             </TouchableOpacity>
           ))}
@@ -891,6 +891,15 @@ function defaultDesignation(role: StaffMember["role"]) {
   if (role === "doctor") return "Doctor";
   if (role === "security") return "Security";
   return "Manager";
+}
+
+function formatSessionTimeout(minutes: number) {
+  if (minutes < 60) {
+    return `${minutes} min`;
+  }
+
+  const hours = minutes / 60;
+  return `${hours} hour${hours === 1 ? "" : "s"}`;
 }
 
 const styles = StyleSheet.create({
