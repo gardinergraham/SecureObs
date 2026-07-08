@@ -57,10 +57,10 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   });
 
   if (!response.ok) {
-    if (response.status === 401 && session?.token) {
+    const message = await readErrorMessage(response);
+    if (response.status === 401 && session?.token && shouldExpireSessionFromUnauthorized(message)) {
       await expireAuthSession(session.token);
     }
-    const message = await readErrorMessage(response);
     throw new ApiRequestError(message || `API request failed: ${response.status}`, response.status);
   }
 
@@ -74,6 +74,10 @@ async function readErrorMessage(response: Response) {
   } catch {
     return "";
   }
+}
+
+function shouldExpireSessionFromUnauthorized(message?: string) {
+  return !message || message.toLowerCase().includes("authenticated staff session required");
 }
 
 export async function loadBootstrapData() {

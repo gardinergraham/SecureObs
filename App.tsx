@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Alert, AppState, Image, Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { Alert, AppState, Image, Modal, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 
@@ -479,6 +479,22 @@ export default function App() {
   const resetActivityTimer = useCallback(() => {
     lastActivityAtRef.current = Date.now();
   }, []);
+
+  useEffect(() => {
+    if (Platform.OS !== "web" || typeof document === "undefined") {
+      return;
+    }
+
+    document.addEventListener("keydown", resetActivityTimer);
+    document.addEventListener("pointerdown", resetActivityTimer);
+    document.addEventListener("wheel", resetActivityTimer);
+
+    return () => {
+      document.removeEventListener("keydown", resetActivityTimer);
+      document.removeEventListener("pointerdown", resetActivityTimer);
+      document.removeEventListener("wheel", resetActivityTimer);
+    };
+  }, [resetActivityTimer]);
 
   const lockInactiveStaffSession = useCallback(async () => {
     if (!selectedStaffId) {
