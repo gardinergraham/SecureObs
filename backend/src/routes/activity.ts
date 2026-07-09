@@ -2034,7 +2034,7 @@ router.get("/rota-assignments", async (request, response, next) => {
   }
 });
 
-router.post("/rota-assignments", requireStaffRole(["nurse", "manager"]), async (request, response, next) => {
+router.post("/rota-assignments", requireStaffRole(["nurse", "manager", "super_admin"]), async (request, response, next) => {
   try {
     const parsed = rotaAssignmentSchema.safeParse(request.body);
     if (!parsed.success) {
@@ -2096,7 +2096,7 @@ router.post("/rota-assignments", requireStaffRole(["nurse", "manager"]), async (
   }
 });
 
-router.delete("/rota-assignments/:id", requireStaffRole(["nurse", "manager"]), async (request, response, next) => {
+router.delete("/rota-assignments/:id", requireStaffRole(["nurse", "manager", "super_admin"]), async (request, response, next) => {
   try {
     const organisationId = requireOrganisationId(request, response);
     if (!organisationId) return;
@@ -2145,7 +2145,7 @@ router.get("/staff-shift-assignments", async (request, response, next) => {
   }
 });
 
-router.post("/staff-shift-assignments", requireStaffRole(["nurse", "manager"]), async (request, response, next) => {
+router.post("/staff-shift-assignments", requireStaffRole(["nurse", "manager", "super_admin"]), async (request, response, next) => {
   try {
     const parsed = staffShiftAssignmentSchema.safeParse(request.body);
     if (!parsed.success) {
@@ -2219,7 +2219,7 @@ router.post("/staff-shift-assignments", requireStaffRole(["nurse", "manager"]), 
   }
 });
 
-router.delete("/staff-shift-assignments/:id", requireStaffRole(["nurse", "manager"]), async (request, response, next) => {
+router.delete("/staff-shift-assignments/:id", requireStaffRole(["nurse", "manager", "super_admin"]), async (request, response, next) => {
   try {
     const organisationId = requireOrganisationId(request, response);
     if (!organisationId) return;

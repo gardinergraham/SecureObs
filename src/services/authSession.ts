@@ -3,6 +3,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import type { AuthSession } from "../types/domain";
 
 const storageKey = "secureobs.authSession.v1";
+const lockDeadlineStorageKey = "secureobs.authSessionLockDeadline.v1";
 let cachedSession: AuthSession | undefined;
 let restorePromise: Promise<AuthSession | undefined> | undefined;
 let expiryNotificationSent = false;
@@ -25,11 +26,28 @@ export async function storeAuthSession(session: AuthSession | undefined) {
     }
     if (!session) {
       await AsyncStorage.removeItem(storageKey);
+      await AsyncStorage.removeItem(lockDeadlineStorageKey);
       return;
     }
+    await AsyncStorage.removeItem(lockDeadlineStorageKey);
     await AsyncStorage.setItem(storageKey, JSON.stringify(session));
   });
   await storageMutation;
+}
+
+export async function storeAuthSessionLockDeadline(deadlineAt: number | undefined) {
+  if (!deadlineAt || !Number.isFinite(deadlineAt)) {
+    await AsyncStorage.removeItem(lockDeadlineStorageKey);
+    return;
+  }
+
+  await AsyncStorage.setItem(lockDeadlineStorageKey, String(Math.round(deadlineAt)));
+}
+
+export async function getAuthSessionLockDeadline() {
+  const rawDeadline = await AsyncStorage.getItem(lockDeadlineStorageKey);
+  const deadlineAt = rawDeadline ? Number(rawDeadline) : undefined;
+  return deadlineAt && Number.isFinite(deadlineAt) ? deadlineAt : undefined;
 }
 
 export async function getAuthSession() {

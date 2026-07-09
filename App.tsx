@@ -84,7 +84,12 @@ import {
   unlockStaffAccess,
   updateMedicationPrescription as persistMedicationPrescriptionUpdate
 } from "./src/services/api";
-import { clearAuthSession, subscribeToAuthSessionExpiry } from "./src/services/authSession";
+import {
+  clearAuthSession,
+  getAuthSessionLockDeadline,
+  storeAuthSessionLockDeadline,
+  subscribeToAuthSessionExpiry
+} from "./src/services/authSession";
 import {
   flushSyncQueue,
   isQueuedSyncError,
@@ -200,6 +205,7 @@ export default function App() {
   const [selectedPatientId, setSelectedPatientId] = useState(seedData.patients[0]?.id ?? "");
   const lastActivityAtRef = useRef(Date.now());
   const inactivityCountdownStartedAtRef = useRef<number | null>(null);
+  const lastActivityDeadlinePersistedAtRef = useRef(0);
   const keyboardActiveRef = useRef(false);
   const [syncQueueState, setSyncQueueState] = useState<SyncQueueState>({
     pendingCount: 0,
@@ -479,13 +485,46 @@ export default function App() {
     setSelectedPatientId(firstPatient?.id ?? "");
   };
 
+  const persistActivityDeadline = useCallback(
+    (now = Date.now(), force = false) => {
+      if (!selectedStaffId) {
+        return;
+      }
+
+      const deadlineAt = now + getInactivityGraceMs() + getSessionTimeoutMs(selectedWard);
+      if (force || now - lastActivityDeadlinePersistedAtRef.current >= 30000) {
+        lastActivityDeadlinePersistedAtRef.current = now;
+        void storeAuthSessionLockDeadline(deadlineAt);
+      }
+    },
+    [selectedStaffId, selectedWard?.sessionTimeoutMinutes]
+  );
+
+  const resetActivityTimer = useCallback(() => {
+    const now = Date.now();
+    lastActivityAtRef.current = now;
+    inactivityCountdownStartedAtRef.current = null;
+    persistActivityDeadline(now);
+  }, [persistActivityDeadline]);
+
   useEffect(() => {
     if (selectedStaffId) {
       return;
     }
 
     let cancelled = false;
-    void loadCurrentStaffSession()
+    void (async () => {
+      const lockDeadlineAt = await getAuthSessionLockDeadline();
+      if (lockDeadlineAt && Date.now() >= lockDeadlineAt) {
+        await clearAuthSession();
+        if (!cancelled) {
+          Alert.alert("Staff session expired", "Sign in again to continue.");
+        }
+        return undefined;
+      }
+
+      return loadCurrentStaffSession();
+    })()
       .then((staff) => {
         if (!staff || cancelled) return;
         setStaffMembers((currentStaff) => upsertStaffByCode(currentStaff, staff));
@@ -501,10 +540,14 @@ export default function App() {
     };
   }, [selectedStaffId, patients, wards]);
 
-  const resetActivityTimer = useCallback(() => {
-    lastActivityAtRef.current = Date.now();
-    inactivityCountdownStartedAtRef.current = null;
-  }, []);
+  useEffect(() => {
+    if (!selectedStaffId) {
+      lastActivityDeadlinePersistedAtRef.current = 0;
+      return;
+    }
+
+    resetActivityTimer();
+  }, [resetActivityTimer, selectedStaffId, selectedWard?.sessionTimeoutMinutes]);
 
   useEffect(() => {
     const keyboardShowSubscription = Keyboard.addListener("keyboardDidShow", () => {
@@ -595,25 +638,34 @@ export default function App() {
 
     const subscription = AppState.addEventListener("change", (state) => {
       if (state !== "active") {
+        persistActivityDeadline(Date.now(), true);
         return;
       }
 
-      const now = Date.now();
-      const inactiveForMs = now - lastActivityAtRef.current;
-      const countdownStartedAt = inactivityCountdownStartedAtRef.current;
-      if (
-        inactiveForMs >= getInactivityGraceMs() &&
-        countdownStartedAt &&
-        now - countdownStartedAt >= getSessionTimeoutMs(selectedWard)
-      ) {
-        void lockInactiveStaffSession();
-      }
+      void (async () => {
+        const now = Date.now();
+        const lockDeadlineAt = await getAuthSessionLockDeadline();
+        if (lockDeadlineAt && now >= lockDeadlineAt) {
+          await lockInactiveStaffSession();
+          return;
+        }
+
+        const inactiveForMs = now - lastActivityAtRef.current;
+        const countdownStartedAt = inactivityCountdownStartedAtRef.current;
+        if (
+          inactiveForMs >= getInactivityGraceMs() &&
+          countdownStartedAt &&
+          now - countdownStartedAt >= getSessionTimeoutMs(selectedWard)
+        ) {
+          await lockInactiveStaffSession();
+        }
+      })();
     });
 
     return () => {
       subscription.remove();
     };
-  }, [lockInactiveStaffSession, selectedStaffId, selectedWard?.sessionTimeoutMinutes]);
+  }, [lockInactiveStaffSession, persistActivityDeadline, selectedStaffId, selectedWard?.sessionTimeoutMinutes]);
 
   const handleReadStaffCardData = async (cardData: string) => {
     const parsedCard = parseStaffCardData(cardData, organisationSettings.nfcStaffCodeFormat);
