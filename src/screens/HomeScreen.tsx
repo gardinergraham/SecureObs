@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from "react";
 import { StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 
+import appConfig from "../../app.json";
 import type { Site, StaffMember, Ward } from "../types/domain";
 import { hasAdminAccess, hasStaffRole } from "../utils/staffRole";
 
@@ -43,6 +44,7 @@ export function HomeScreen({
   onOpenWardSettings,
   onStart
 }: HomeScreenProps) {
+  const appVersion = appConfig.expo.version;
   const [staffCardMessage, setStaffCardMessage] = useState("");
   const [staffPinCode, setStaffPinCode] = useState("");
   const [staffPin, setStaffPin] = useState("");
@@ -440,6 +442,9 @@ export function HomeScreen({
           onPress={onOpenAdminSettings}
         />
       </View>
+      <Text accessibilityLabel={`SecureObs version ${appVersion}`} style={styles.versionText}>
+        SecureObs version {appVersion}
+      </Text>
     </View>
   );
 }
@@ -824,5 +829,11 @@ const styles = StyleSheet.create({
   },
   menuMetaPrimary: {
     color: "#d8edf2"
+  },
+  versionText: {
+    color: "#607078",
+    fontSize: 12,
+    fontWeight: "800",
+    textAlign: "center"
   }
 });

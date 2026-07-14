@@ -64,7 +64,12 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     throw new ApiRequestError(message || `API request failed: ${response.status}`, response.status);
   }
 
-  return response.json() as Promise<T>;
+  const responseText = await response.text();
+  if (!responseText.trim()) {
+    return undefined as T;
+  }
+
+  return JSON.parse(responseText) as T;
 }
 
 async function readErrorMessage(response: Response) {

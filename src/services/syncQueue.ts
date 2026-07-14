@@ -232,13 +232,21 @@ async function loadQueueFromStorage() {
   try {
     const rawQueue = await AsyncStorage.getItem(storageKey);
     const storedQueue = rawQueue ? (JSON.parse(rawQueue) as SyncQueueItem[]) : [];
-    queue.splice(0, queue.length, ...storedQueue);
+    queue.splice(0, queue.length, ...storedQueue.map(makePreviouslyEmptyResponseRetryable));
   } catch (error) {
     lastError = `offline queue: ${toErrorMessage(error)}`;
   } finally {
     isReady = true;
     notify();
   }
+}
+
+function makePreviouslyEmptyResponseRetryable(item: SyncQueueItem): SyncQueueItem {
+  if (!item.lastError?.toLowerCase().includes("unexpected end of input")) {
+    return item;
+  }
+
+  return { ...item, needsReview: false };
 }
 
 async function persistQueue() {
@@ -289,5 +297,5 @@ function isPermanentUploadError(error: unknown) {
   }
 
   const message = toErrorMessage(error).toLowerCase();
-  return message.includes("parse error") || message.includes("invalid input syntax");
+  return message.includes("invalid input syntax");
 }
