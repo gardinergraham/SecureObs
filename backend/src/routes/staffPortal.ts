@@ -18,10 +18,11 @@ router.get("/bootstrap", requireStaffRole([...portalRoles]), async (request: Aut
     const wardIds = staff.allowedWardIds;
     const [wardsResult, patientsResult, notesResult, carePlansResult] = await Promise.all([
       pool.query(
-        `select id, name, site_id as "siteId"
+        `select wards.id, wards.name, wards.site_id as "siteId"
          from wards
-         where organisation_id = $1 and id = any($2::text[])
-         order by name`,
+         inner join sites on sites.id = wards.site_id
+         where sites.organisation_id = $1 and wards.id = any($2::text[])
+         order by wards.name`,
         [staff.organisationId, wardIds]
       ),
       pool.query(
