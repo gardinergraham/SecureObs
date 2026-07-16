@@ -215,6 +215,43 @@ export default function App() {
   });
   const [isSyncStatusVisible, setIsSyncStatusVisible] = useState(false);
 
+  const refreshClinicalDocuments = useCallback(async () => {
+    if (!selectedStaff || !selectedWardId) {
+      return;
+    }
+
+    const organisationId = selectedStaff.organisationId ?? defaultOrganisationId;
+    const [notesResult, carePlansResult] = await Promise.allSettled([
+      loadPatientNotes(organisationId, selectedWardId),
+      loadPatientCarePlans(organisationId, selectedWardId)
+    ]);
+
+    if (notesResult.status === "fulfilled") {
+      setPatientNotes((currentNotes) => mergeById(notesResult.value.patientNotes, currentNotes));
+    } else {
+      console.warn("Unable to refresh patient notes", notesResult.reason);
+    }
+
+    if (carePlansResult.status === "fulfilled") {
+      setPatientCarePlans((currentPlans) => mergeById(carePlansResult.value.patientCarePlans, currentPlans));
+    } else {
+      console.warn("Unable to refresh patient care plans", carePlansResult.reason);
+    }
+  }, [selectedStaff, selectedWardId]);
+
+  const refreshWardSettings = useCallback(async () => {
+    if (!selectedStaff) {
+      return;
+    }
+
+    try {
+      const result = await loadWards(selectedStaff.organisationId ?? defaultOrganisationId);
+      setWards((currentWards) => mergeById(result.wards, currentWards));
+    } catch (error) {
+      console.warn("Unable to refresh ward settings", error);
+    }
+  }, [selectedStaff]);
+
   useEffect(() => {
     const unsubscribe = subscribeToSyncQueue(setSyncQueueState);
     void restoreSyncQueue().then(() => flushSyncQueue());
@@ -227,6 +264,35 @@ export default function App() {
       unsubscribe();
     };
   }, []);
+
+  useEffect(() => {
+    void refreshClinicalDocuments();
+    const refreshTimer = setInterval(() => {
+      void refreshClinicalDocuments();
+    }, 2 * 60 * 1000);
+    const subscription = AppState.addEventListener("change", (nextState) => {
+      if (nextState === "active") {
+        void refreshClinicalDocuments();
+      }
+    });
+
+    return () => {
+      clearInterval(refreshTimer);
+      subscription.remove();
+    };
+  }, [refreshClinicalDocuments]);
+
+  useEffect(() => {
+    if (screen === "patientNotes" || screen === "patientCarePlans") {
+      void refreshClinicalDocuments();
+    }
+  }, [refreshClinicalDocuments, screen]);
+
+  useEffect(() => {
+    if (screen === "wardSettings") {
+      void refreshWardSettings();
+    }
+  }, [refreshWardSettings, screen]);
 
   useEffect(
     () =>
@@ -823,13 +889,16 @@ export default function App() {
     );
   };
 
-  const handleUpdateWardRotaSettings = (updatedWard: Ward) => {
+  const handleUpdateWardRotaSettings = async (updatedWard: Ward) => {
     setWards((currentWards) =>
       currentWards.map((ward) => (ward.id === updatedWard.id ? updatedWard : ward))
     );
-    void persistOrQueue("ward", () =>
+    const savedWard = await persistOrQueue("ward", () =>
       persistWard({ ...updatedWard, organisationId: selectedStaff?.organisationId })
     );
+    if (savedWard) {
+      setWards((currentWards) => upsertWard(currentWards, savedWard));
+    }
   };
 
   const handleCreateSite = async (site: Site) => {

@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Alert, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { ActivityIndicator, Alert, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 
 import type { OrganisationSettings, StaffMember, Ward } from "../types/domain";
 import { buildStaffCardPayload } from "../utils/nfcStaffCard";
@@ -26,7 +26,7 @@ type WardSettingsScreenProps = {
   onBack: () => void;
   onUpdateWardInterval: (wardId: string, observationIntervalMinutes: number) => void;
   onUpdateWardRotaEnabled: (wardId: string, staffRotaEnabled: boolean) => void;
-  onUpdateWardRotaSettings: (ward: Ward) => void;
+  onUpdateWardRotaSettings: (ward: Ward) => Promise<void>;
   onOpenSecurityCheckSettings: () => void;
   onCreateStaff: (staff: StaffMember) => Promise<void>;
   onResetStaffPin: (staffId: string) => Promise<void>;
@@ -60,6 +60,8 @@ export function WardSettingsScreen({
   const [editingStaffId, setEditingStaffId] = useState("");
   const [staffSearch, setStaffSearch] = useState("");
   const [isSavingStaff, setIsSavingStaff] = useState(false);
+  const [isSavingWard, setIsSavingWard] = useState(false);
+  const [wardSaveMessage, setWardSaveMessage] = useState("");
   const [isResettingPin, setIsResettingPin] = useState(false);
   const [isWritingStaffTag, setIsWritingStaffTag] = useState(false);
   const [lastSavedStaff, setLastSavedStaff] = useState<StaffMember | null>(null);
@@ -87,7 +89,8 @@ export function WardSettingsScreen({
 
   const updateWardSettings = (updates: Partial<Ward>) => {
     if (!selectedWard || !canEditWardSettings) return;
-    onUpdateWardRotaSettings({ ...selectedWard, ...updates });
+    setWardSaveMessage("");
+    void onUpdateWardRotaSettings({ ...selectedWard, ...updates });
   };
 
   const toggleRota = () => {
@@ -109,13 +112,15 @@ export function WardSettingsScreen({
       };
     });
 
-    onUpdateWardRotaSettings({ ...selectedWard, rotaShiftCount: shiftCount, rotaShifts });
+    setWardSaveMessage("");
+    void onUpdateWardRotaSettings({ ...selectedWard, rotaShiftCount: shiftCount, rotaShifts });
   };
 
   const updateShiftTime = (shiftId: string, field: "startsAt" | "endsAt", value: string) => {
     if (!selectedWard || !canEditWardSettings) return;
 
-    onUpdateWardRotaSettings({
+    setWardSaveMessage("");
+    void onUpdateWardRotaSettings({
       ...selectedWard,
       rotaShifts: selectedWard.rotaShifts.map((shift) =>
         shift.id === shiftId ? { ...shift, [field]: value } : shift
@@ -125,12 +130,28 @@ export function WardSettingsScreen({
 
   const updateBreakDuration = (breakDurationMinutes: number) => {
     if (!selectedWard || !canEditWardSettings) return;
-    onUpdateWardRotaSettings({ ...selectedWard, breakDurationMinutes });
+    setWardSaveMessage("");
+    void onUpdateWardRotaSettings({ ...selectedWard, breakDurationMinutes });
   };
 
   const updateSessionTimeout = (sessionTimeoutMinutes: number) => {
     if (!selectedWard || !canEditWardSettings) return;
-    onUpdateWardRotaSettings({ ...selectedWard, sessionTimeoutMinutes });
+    setWardSaveMessage("");
+    void onUpdateWardRotaSettings({ ...selectedWard, sessionTimeoutMinutes });
+  };
+
+  const saveWardSettings = async () => {
+    if (!selectedWard || !canEditWardSettings || isSavingWard) return;
+    setIsSavingWard(true);
+    setWardSaveMessage("");
+    try {
+      await onUpdateWardRotaSettings(selectedWard);
+      setWardSaveMessage("Ward settings saved.");
+    } catch (error) {
+      setWardSaveMessage(error instanceof Error ? error.message : "Ward settings could not be saved.");
+    } finally {
+      setIsSavingWard(false);
+    }
   };
 
   const selectStaffForEditing = (member: StaffMember) => {
@@ -689,12 +710,17 @@ export function WardSettingsScreen({
 
         <TouchableOpacity
           accessibilityRole="button"
-          disabled={!selectedWard || !canEditWardSettings}
-          onPress={() => selectedWard && onUpdateWardRotaSettings(selectedWard)}
-          style={[styles.saveStaffButton, (!selectedWard || !canEditWardSettings) && styles.disabledControl]}
+          disabled={!selectedWard || !canEditWardSettings || isSavingWard}
+          onPress={() => void saveWardSettings()}
+          style={[
+            styles.saveStaffButton,
+            (!selectedWard || !canEditWardSettings || isSavingWard) && styles.disabledControl
+          ]}
         >
-          <Text style={styles.saveStaffButtonText}>Update ward settings</Text>
+          {isSavingWard ? <ActivityIndicator color="#ffffff" size="small" /> : null}
+          <Text style={styles.saveStaffButtonText}>{isSavingWard ? "Saving ward settings…" : "Update ward settings"}</Text>
         </TouchableOpacity>
+        {wardSaveMessage ? <Text style={styles.cardMessage}>{wardSaveMessage}</Text> : null}
 
         <View style={styles.settingBlock}>
           <View>
@@ -1004,10 +1030,13 @@ const styles = StyleSheet.create({
     alignItems: "center",
     backgroundColor: "#1f5262",
     borderRadius: 6,
+    flexDirection: "row",
+    gap: 8,
     justifyContent: "center",
     minHeight: 44
   },
   saveStaffButtonText: { color: "#ffffff", fontSize: 14, fontWeight: "900" },
+  cardMessage: { color: "#315748", fontSize: 12, fontWeight: "800", marginTop: 8 },
   nfcWriterPanel: {
     alignItems: "center",
     backgroundColor: "#eef6f7",
