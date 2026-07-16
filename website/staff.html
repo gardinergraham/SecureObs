@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex,nofollow,noarchive" />
+    <meta name="referrer" content="no-referrer" />
+    <title>SecureObs Staff Workspace</title>
+    <link rel="stylesheet" href="staff.css" />
+    <script src="staff.js" defer></script>
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="brand"><img src="assets/SecureObs.png" alt="" /><span>SecureObs <small>Staff workspace</small></span></div>
+      <div class="top-actions"><span id="staff-summary"></span><button id="sign-out" class="quiet hidden" type="button">Sign out</button></div>
+    </header>
+
+    <main>
+      <section id="login-view" class="login-shell">
+        <div class="login-intro">
+          <p class="eyebrow">Secure clinical workspace</p>
+          <h1>Patient notes and care plans, from your desktop.</h1>
+          <p>Sign in with your SecureObs STAFFCODE and PIN. You will only see patients on wards you are authorised to access.</p>
+          <div class="assurance"><span>Named staff access</span><span>Ward permissions enforced</span><span>Every save is attributable</span></div>
+        </div>
+        <form id="login-form" class="card login-card">
+          <h2>Staff sign in</h2>
+          <p id="login-message" class="message hidden" role="alert"></p>
+          <label>STAFFCODE<input name="staffCode" autocomplete="username" required spellcheck="false" /></label>
+          <label>PIN<input name="loginPin" autocomplete="current-password" inputmode="numeric" maxlength="6" pattern="[0-9]{4,6}" required type="password" /></label>
+          <button class="primary" type="submit">Open staff workspace</button>
+          <p class="help">Use your own account. Do not leave this workspace open on a shared computer.</p>
+        </form>
+      </section>
+
+      <section id="workspace-view" class="workspace hidden">
+        <aside class="sidebar card">
+          <label>Ward<select id="ward-select"></select></label>
+          <label>Find a patient<input id="patient-search" type="search" placeholder="Name, room or hospital number" /></label>
+          <div id="patient-list" class="patient-list" aria-label="Patients"></div>
+        </aside>
+
+        <div class="clinical-area">
+          <section id="patient-banner" class="patient-banner card">
+            <div><p class="eyebrow">Selected patient</p><h1 id="patient-name">Choose a patient</h1><p id="patient-meta"></p></div>
+            <div id="patient-alerts" class="patient-alerts"></div>
+          </section>
+
+          <nav class="tabs" aria-label="Clinical pages">
+            <button id="notes-tab" class="tab active" type="button">Patient notes</button>
+            <button id="careplans-tab" class="tab" type="button">Care plans</button>
+          </nav>
+
+          <section id="notes-page" class="page-grid">
+            <form id="note-form" class="card editor-card">
+              <p class="eyebrow">New entry</p><h2>Write a patient note</h2>
+              <label>Clinical note<textarea name="body" maxlength="20000" rows="10" required></textarea></label>
+              <button class="primary" type="submit">Save patient note</button>
+              <p id="note-message" class="message hidden" role="status"></p>
+            </form>
+            <section class="card history-card"><h2>Previous notes</h2><div id="notes-list" class="history-list"></div></section>
+          </section>
+
+          <section id="careplans-page" class="page-grid hidden">
+            <form id="careplan-form" class="card editor-card">
+              <p class="eyebrow">New plan</p><h2>Create a care plan</h2>
+              <label>Care plan title *<input name="title" maxlength="200" required /></label>
+              <label>Identified needs *<textarea name="identifiedNeeds" maxlength="20000" rows="4" required></textarea></label>
+              <label>Risks and triggers<textarea name="risksAndTriggers" maxlength="20000" rows="4"></textarea></label>
+              <label>Goals *<textarea name="goals" maxlength="20000" rows="4" required></textarea></label>
+              <label>Interventions *<textarea name="interventions" maxlength="20000" rows="5" required></textarea></label>
+              <label>Patient views<textarea name="patientViews" maxlength="20000" rows="4"></textarea></label>
+              <label>Review date *<input name="reviewDate" type="date" required /></label>
+              <label>Additional notes<textarea name="additionalNotes" maxlength="20000" rows="4"></textarea></label>
+              <button class="primary" type="submit">Save care plan</button>
+              <p id="careplan-message" class="message hidden" role="status"></p>
+            </form>
+            <section class="card history-card"><h2>Previous care plans</h2><div id="careplans-list" class="history-list"></div></section>
+          </section>
+        </div>
+      </section>
+    </main>
+    <footer>SecureObs clinical system · Sign out when finished</footer>
+  </body>
+</html>
