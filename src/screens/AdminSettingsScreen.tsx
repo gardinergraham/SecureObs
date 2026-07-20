@@ -124,8 +124,12 @@ export function AdminSettingsScreen({
     }
     setIsSaving(true);
     try {
-      await onCreateCustomerOrganisation(customerName.trim());
+      const createdName = customerName.trim();
+      await onCreateCustomerOrganisation(createdName);
       setCustomerName("");
+      Alert.alert("Customer created", `${createdName} is selected. You can now choose and save its package.`);
+    } catch (error) {
+      Alert.alert("Customer not created", error instanceof Error ? error.message : "The customer organisation could not be created.");
     } finally {
       setIsSaving(false);
     }

@@ -88,6 +88,8 @@ import {
 } from "./src/services/api";
 import {
   clearAuthSession,
+  expireAuthSession,
+  getAuthSession,
   getAuthSessionLockDeadline,
   storeAuthSessionLockDeadline,
   subscribeToAuthSessionExpiry
@@ -228,7 +230,7 @@ export default function App() {
   const [isSyncStatusVisible, setIsSyncStatusVisible] = useState(false);
 
   const refreshClinicalDocuments = useCallback(async () => {
-    if (!selectedStaff || !selectedWardId) {
+    if (screen === "adminSettings" || !selectedStaff || !selectedWardId) {
       return;
     }
 
@@ -249,7 +251,7 @@ export default function App() {
     } else {
       console.warn("Unable to refresh patient care plans", carePlansResult.reason);
     }
-  }, [selectedStaff, selectedWardId]);
+  }, [screen, selectedStaff, selectedWardId]);
 
   const refreshWardSettings = useCallback(async () => {
     if (!selectedStaff) {
@@ -696,13 +698,18 @@ export default function App() {
       return;
     }
 
-    await clearAuthSession();
-    setSelectedStaffId("");
-    setSelectedSiteId("");
-    setSelectedWardId("");
-    setSelectedPatientId("");
-    setScreen("home");
-    Alert.alert("Session locked", "The staff session was locked after inactivity. Sign in again to continue.");
+    const session = await getAuthSession();
+    if (session) {
+      const expired = await expireAuthSession(session.token);
+      if (!expired) return;
+    } else {
+      setSelectedStaffId("");
+      setSelectedSiteId("");
+      setSelectedWardId("");
+      setSelectedPatientId("");
+      setScreen("home");
+      Alert.alert("Session locked", "The staff session was locked after inactivity. Sign in again to continue.");
+    }
   }, [selectedStaffId]);
 
   useEffect(() => {
