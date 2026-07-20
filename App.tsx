@@ -133,7 +133,11 @@ const defaultOrganisationId = "00000000-0000-0000-0000-000000000001";
 const defaultOrganisationSettings: OrganisationSettings = {
   organisationId: defaultOrganisationId,
   nfcStaffCodeFormat: "passcode={STAFFCODE}",
-  logoDataUri: null
+  logoDataUri: null,
+  subscriptionPlan: "hospital",
+  featureOverrides: {},
+  serviceStatus: "active",
+  suspensionMessage: ""
 };
 
 type AppScreen =
@@ -202,6 +206,7 @@ export default function App() {
   const [selectedSiteId, setSelectedSiteId] = useState("");
   const [selectedWardId, setSelectedWardId] = useState("");
   const selectedWard = wards.find((ward) => ward.id === selectedWardId);
+  const analyticsEnabled = isOrganisationFeatureEnabled(organisationSettings, "dashboard");
   const [selectedPatientId, setSelectedPatientId] = useState(seedData.patients[0]?.id ?? "");
   const lastActivityAtRef = useRef(Date.now());
   const inactivityCountdownStartedAtRef = useRef<number | null>(null);
@@ -293,6 +298,13 @@ export default function App() {
       void refreshWardSettings();
     }
   }, [refreshWardSettings, screen]);
+
+  useEffect(() => {
+    if (!selectedStaff) return;
+    void loadOrganisationSettings(selectedStaff.organisationId ?? defaultOrganisationId)
+      .then((result) => setOrganisationSettings(result.settings))
+      .catch((error) => console.warn("Unable to refresh subscription status", error));
+  }, [selectedStaff]);
 
   useEffect(
     () =>
@@ -1361,6 +1373,10 @@ export default function App() {
               setScreen("enhanced");
             }}
             onOpenAnalytics={() => {
+              if (!analyticsEnabled) {
+                Alert.alert("Feature not included", "Analytics dashboard is not enabled for this SecureObs package.");
+                return;
+              }
               setWorkspaceBackScreen("wardOverview");
               setScreen("analytics");
             }}
@@ -1451,6 +1467,10 @@ export default function App() {
               setScreen("enhanced");
             }}
             onOpenAnalytics={() => {
+              if (!analyticsEnabled) {
+                Alert.alert("Feature not included", "Analytics dashboard is not enabled for this SecureObs package.");
+                return;
+              }
               setWorkspaceBackScreen("observations");
               setScreen("analytics");
             }}
@@ -1858,6 +1878,30 @@ export default function App() {
           </View>
         </View>
         </Modal>
+      <Modal
+        animationType="fade"
+        transparent
+        visible={Boolean(
+          selectedStaff && !hasAdminAccess(selectedStaff) && organisationSettings.serviceStatus === "suspended"
+        )}
+      >
+        <View style={styles.modalBackdrop}>
+          <View style={styles.syncModal}>
+            <Text style={styles.syncModalTitle}>SecureObs service suspended</Text>
+            <Text style={styles.syncEmptyText}>
+              {organisationSettings.suspensionMessage ||
+                "SecureObs access is temporarily suspended. Please contact your account administrator."}
+            </Text>
+            <TouchableOpacity
+              accessibilityRole="button"
+              onPress={() => void handleSelectStaff("")}
+              style={styles.syncPrimaryButton}
+            >
+              <Text style={styles.syncPrimaryButtonText}>Return to sign in</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
       </SafeAreaView>
     </SafeAreaProvider>
   );
@@ -2057,6 +2101,14 @@ function formatSyncDate(value: string) {
     minute: "2-digit",
     month: "short"
   });
+}
+
+function isOrganisationFeatureEnabled(
+  settings: OrganisationSettings,
+  feature: "dashboard"
+) {
+  const packageDefault = settings.subscriptionPlan !== "essential";
+  return settings.featureOverrides[feature] ?? packageDefault;
 }
 
 const styles = StyleSheet.create({

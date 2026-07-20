@@ -71,7 +71,24 @@ export type OrganisationSettings = {
   organisationId: string;
   nfcStaffCodeFormat: string;
   logoDataUri?: string | null;
+  subscriptionPlan: "essential" | "professional" | "enterprise" | "hospital";
+  featureOverrides: Partial<Record<OrganisationFeatureKey, boolean>>;
+  serviceStatus: "active" | "suspended";
+  suspensionMessage: string;
 };
+
+export type OrganisationFeatureKey =
+  | "medication"
+  | "rostering"
+  | "dashboard"
+  | "securityChecks"
+  | "multiSite"
+  | "multiWard"
+  | "prioritySupport"
+  | "dedicatedSupport"
+  | "staffTraining"
+  | "dedicatedDatabase"
+  | "sqlIntegration";
 
 export type PatientNote = {
   id: string;

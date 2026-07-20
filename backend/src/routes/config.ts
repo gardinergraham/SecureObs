@@ -22,7 +22,11 @@ const organisationSettingsSchema = z.object({
     .max(900_000)
     .regex(/^data:image\/(?:jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/)
     .nullable()
-    .optional()
+    .optional(),
+  subscriptionPlan: z.enum(["essential", "professional", "enterprise", "hospital"]).default("hospital"),
+  featureOverrides: z.record(z.boolean()).default({}),
+  serviceStatus: z.enum(["active", "suspended"]).default("active"),
+  suspensionMessage: z.string().max(2000).default("")
 });
 
 const wardSchema = z.object({
@@ -77,7 +81,11 @@ router.get("/organisation-settings", async (request, response, next) => {
         select
           organisation_id as "organisationId",
           nfc_staff_code_format as "nfcStaffCodeFormat",
-          logo_data_uri as "logoDataUri"
+          logo_data_uri as "logoDataUri",
+          subscription_plan as "subscriptionPlan",
+          feature_overrides as "featureOverrides",
+          service_status as "serviceStatus",
+          suspension_message as "suspensionMessage"
         from organisation_settings
         where organisation_id = $1
       `,
@@ -88,13 +96,50 @@ router.get("/organisation-settings", async (request, response, next) => {
       settings: result.rows[0] ?? {
         organisationId,
         nfcStaffCodeFormat: "passcode={STAFFCODE}",
-        logoDataUri: null
+        logoDataUri: null,
+        subscriptionPlan: "hospital",
+        featureOverrides: {},
+        serviceStatus: "active",
+        suspensionMessage: ""
       }
     });
   } catch (error) {
     next(error);
   }
 });
+
+function subscriptionFeatures(plan: "essential" | "professional" | "enterprise" | "hospital") {
+  const professional = plan !== "essential";
+  const enterprise = plan === "enterprise" || plan === "hospital";
+  const hospital = plan === "hospital";
+  return {
+    medication: professional,
+    rostering: professional,
+    dashboard: professional,
+    securityChecks: professional,
+    multiSite: enterprise,
+    multiWard: enterprise,
+    prioritySupport: professional,
+    dedicatedSupport: enterprise,
+    staffTraining: enterprise,
+    dedicatedDatabase: hospital,
+    sqlIntegration: hospital
+  };
+}
+
+async function organisationFeatureEnabled(
+  organisationId: string,
+  feature: keyof ReturnType<typeof subscriptionFeatures>
+) {
+  const result = await pool.query(
+    `select subscription_plan as "subscriptionPlan", feature_overrides as "featureOverrides"
+     from organisation_settings where organisation_id = $1`,
+    [organisationId]
+  );
+  const plan = (result.rows[0]?.subscriptionPlan ?? "hospital") as "essential" | "professional" | "enterprise" | "hospital";
+  const overrides = (result.rows[0]?.featureOverrides ?? {}) as Record<string, boolean>;
+  return overrides[feature] ?? subscriptionFeatures(plan)[feature];
+}
 
 router.post("/organisation-settings", requireStaffRole(["super_admin"]), async (request, response, next) => {
   try {
@@ -108,18 +153,49 @@ router.post("/organisation-settings", requireStaffRole(["super_admin"]), async (
 
     const result = await pool.query(
       `
-        insert into organisation_settings (organisation_id, nfc_staff_code_format, logo_data_uri)
-        values ($1, $2, $3)
+        insert into organisation_settings (
+          organisation_id, nfc_staff_code_format, logo_data_uri, subscription_plan,
+          feature_overrides, service_status, suspension_message
+        )
+        values ($1, $2, $3, $4, $5::jsonb, $6, $7)
         on conflict (organisation_id) do update set
           nfc_staff_code_format = excluded.nfc_staff_code_format,
           logo_data_uri = excluded.logo_data_uri,
+          subscription_plan = excluded.subscription_plan,
+          feature_overrides = excluded.feature_overrides,
+          service_status = excluded.service_status,
+          suspension_message = excluded.suspension_message,
           updated_at = now()
         returning
           organisation_id as "organisationId",
           nfc_staff_code_format as "nfcStaffCodeFormat",
-          logo_data_uri as "logoDataUri"
+          logo_data_uri as "logoDataUri",
+          subscription_plan as "subscriptionPlan",
+          feature_overrides as "featureOverrides",
+          service_status as "serviceStatus",
+          suspension_message as "suspensionMessage"
       `,
-      [organisationId, parsed.data.nfcStaffCodeFormat, parsed.data.logoDataUri ?? null]
+      [
+        organisationId,
+        parsed.data.nfcStaffCodeFormat,
+        parsed.data.logoDataUri ?? null,
+        parsed.data.subscriptionPlan,
+        JSON.stringify(parsed.data.featureOverrides),
+        parsed.data.serviceStatus,
+        parsed.data.suspensionMessage
+      ]
+    );
+
+    const packageFeatures = subscriptionFeatures(parsed.data.subscriptionPlan);
+    const featureEnabled = (key: keyof typeof packageFeatures) =>
+      parsed.data.featureOverrides[key] ?? packageFeatures[key];
+    await pool.query(
+      `update wards
+       set medication_chart_enabled = $2,
+           staff_rota_enabled = $3,
+           security_checks_enabled = $4
+       where site_id in (select id from sites where organisation_id = $1)`,
+      [organisationId, featureEnabled("medication"), featureEnabled("rostering"), featureEnabled("securityChecks")]
     );
 
     await recordAuditEvent({
@@ -130,7 +206,10 @@ router.post("/organisation-settings", requireStaffRole(["super_admin"]), async (
       entityId: organisationId,
       details: {
         nfcStaffCodeFormat: parsed.data.nfcStaffCodeFormat,
-        logoUpdated: parsed.data.logoDataUri !== undefined
+        logoUpdated: parsed.data.logoDataUri !== undefined,
+        subscriptionPlan: parsed.data.subscriptionPlan,
+        serviceStatus: parsed.data.serviceStatus,
+        featureOverrides: parsed.data.featureOverrides
       }
     });
     response.status(201).json({ settings: result.rows[0] });
@@ -161,6 +240,15 @@ router.post("/sites", requireStaffRole(["super_admin"]), async (request, respons
     }
     const organisationId = requireOrganisationId(request, response);
     if (!organisationId) return;
+
+    if (!(await organisationFeatureEnabled(organisationId, "multiSite"))) {
+      const existingSites = await pool.query("select id from sites where organisation_id = $1", [organisationId]);
+      const isExisting = parsed.data.id && existingSites.rows.some((site) => site.id === parsed.data.id);
+      if (!isExisting && existingSites.rowCount) {
+        response.status(403).json({ error: "This SecureObs package includes one site. Upgrade or enable the multi-site override to add another." });
+        return;
+      }
+    }
 
     const site = {
       ...parsed.data,
@@ -240,8 +328,26 @@ router.post("/wards", requireStaffRole(["manager", "super_admin"]), async (reque
     const organisationId = requireOrganisationId(request, response);
     if (!organisationId) return;
 
+    if (!(await organisationFeatureEnabled(organisationId, "multiWard"))) {
+      const existingWards = await pool.query(
+        "select wards.id from wards inner join sites on sites.id = wards.site_id where sites.organisation_id = $1",
+        [organisationId]
+      );
+      const isExisting = parsed.data.id && existingWards.rows.some((ward) => ward.id === parsed.data.id);
+      if (!isExisting && existingWards.rowCount) {
+        response.status(403).json({ error: "This SecureObs package includes one ward. Upgrade or enable the multi-ward override to add another." });
+        return;
+      }
+    }
+
     const ward = {
       ...parsed.data,
+      securityChecksEnabled:
+        parsed.data.securityChecksEnabled && (await organisationFeatureEnabled(organisationId, "securityChecks")),
+      medicationChartEnabled:
+        parsed.data.medicationChartEnabled && (await organisationFeatureEnabled(organisationId, "medication")),
+      staffRotaEnabled:
+        parsed.data.staffRotaEnabled && (await organisationFeatureEnabled(organisationId, "rostering")),
       id: parsed.data.id ?? createId("ward", parsed.data.name)
     };
 

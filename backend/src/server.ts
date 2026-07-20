@@ -4,6 +4,7 @@ import helmet from "helmet";
 
 import { authenticateRequest } from "./auth.js";
 import { config } from "./config.js";
+import { enforceActiveSubscription } from "./subscription.js";
 import { activityRouter } from "./routes/activity.js";
 import { configRouter } from "./routes/config.js";
 import { familyAccessRouter, familyPortalRouter } from "./routes/familyPortal.js";
@@ -18,6 +19,7 @@ app.use(helmet());
 app.use(cors({ origin: config.corsOrigin === "*" ? true : config.corsOrigin }));
 app.use(express.json({ limit: "1mb" }));
 app.use(authenticateRequest);
+app.use(enforceActiveSubscription);
 
 app.use("/health", healthRouter);
 app.use("/api/staff", staffRouter);

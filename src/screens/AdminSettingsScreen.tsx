@@ -3,10 +3,35 @@ import { Alert, Image, StyleSheet, Text, TextInput, TouchableOpacity, View } fro
 import { manipulateAsync, SaveFormat } from "expo-image-manipulator";
 import * as ImagePicker from "expo-image-picker";
 
-import type { OrganisationSettings, ServiceType, Site, StaffMember, Ward } from "../types/domain";
+import type { OrganisationFeatureKey, OrganisationSettings, ServiceType, Site, StaffMember, Ward } from "../types/domain";
 
 const serviceTypes: ServiceType[] = ["High secure hospital", "Medium secure hospital", "Care home"];
 const intervals = [5, 10, 15, 30, 60];
+const plans: Array<{ id: OrganisationSettings["subscriptionPlan"]; label: string; price: string }> = [
+  { id: "essential", label: "Essential", price: "£149/month" },
+  { id: "professional", label: "Professional", price: "£299/month" },
+  { id: "enterprise", label: "Enterprise", price: "From £1,499/month" },
+  { id: "hospital", label: "Hospital", price: "Custom pricing" }
+];
+const featureLabels: Array<{ key: OrganisationFeatureKey; label: string }> = [
+  { key: "medication", label: "Medication" },
+  { key: "rostering", label: "Rostering" },
+  { key: "dashboard", label: "Analytics dashboard" },
+  { key: "securityChecks", label: "Security checks" },
+  { key: "multiSite", label: "Multiple sites" },
+  { key: "multiWard", label: "Multiple wards" },
+  { key: "prioritySupport", label: "Priority support" },
+  { key: "dedicatedSupport", label: "Dedicated support" },
+  { key: "staffTraining", label: "Staff training" },
+  { key: "dedicatedDatabase", label: "Dedicated database" },
+  { key: "sqlIntegration", label: "SQL integration" }
+];
+const planFeatures: Record<OrganisationSettings["subscriptionPlan"], Record<OrganisationFeatureKey, boolean>> = {
+  essential: { medication: false, rostering: false, dashboard: false, securityChecks: false, multiSite: false, multiWard: false, prioritySupport: false, dedicatedSupport: false, staffTraining: false, dedicatedDatabase: false, sqlIntegration: false },
+  professional: { medication: true, rostering: true, dashboard: true, securityChecks: true, multiSite: false, multiWard: false, prioritySupport: true, dedicatedSupport: false, staffTraining: false, dedicatedDatabase: false, sqlIntegration: false },
+  enterprise: { medication: true, rostering: true, dashboard: true, securityChecks: true, multiSite: true, multiWard: true, prioritySupport: true, dedicatedSupport: true, staffTraining: true, dedicatedDatabase: false, sqlIntegration: false },
+  hospital: { medication: true, rostering: true, dashboard: true, securityChecks: true, multiSite: true, multiWard: true, prioritySupport: true, dedicatedSupport: true, staffTraining: true, dedicatedDatabase: true, sqlIntegration: true }
+};
 
 type AdminSettingsScreenProps = {
   organisationSettings: OrganisationSettings;
@@ -41,6 +66,10 @@ export function AdminSettingsScreen({
   const [nfcStaffCodeFormat, setNfcStaffCodeFormat] = useState(organisationSettings.nfcStaffCodeFormat);
   const [logoDataUri, setLogoDataUri] = useState(organisationSettings.logoDataUri ?? null);
   const [isSaving, setIsSaving] = useState(false);
+  const [subscriptionPlan, setSubscriptionPlan] = useState(organisationSettings.subscriptionPlan);
+  const [featureOverrides, setFeatureOverrides] = useState(organisationSettings.featureOverrides);
+  const [serviceStatus, setServiceStatus] = useState(organisationSettings.serviceStatus);
+  const [suspensionMessage, setSuspensionMessage] = useState(organisationSettings.suspensionMessage);
   const selectedSiteWards = useMemo(
     () => wards.filter((ward) => ward.siteId === selectedSiteId),
     [selectedSiteId, wards]
@@ -53,6 +82,37 @@ export function AdminSettingsScreen({
   useEffect(() => {
     setLogoDataUri(organisationSettings.logoDataUri ?? null);
   }, [organisationSettings.logoDataUri]);
+
+  useEffect(() => {
+    setSubscriptionPlan(organisationSettings.subscriptionPlan);
+    setFeatureOverrides(organisationSettings.featureOverrides);
+    setServiceStatus(organisationSettings.serviceStatus);
+    setSuspensionMessage(organisationSettings.suspensionMessage);
+  }, [organisationSettings]);
+
+  const saveSubscription = async () => {
+    setIsSaving(true);
+    try {
+      await onUpdateOrganisationSettings({
+        ...organisationSettings,
+        subscriptionPlan,
+        featureOverrides,
+        serviceStatus,
+        suspensionMessage: suspensionMessage.trim()
+      });
+      Alert.alert(
+        serviceStatus === "suspended" ? "Service suspended" : "Subscription saved",
+        serviceStatus === "suspended" ? "Non-admin access has been temporarily suspended." : "Package and feature access have been updated."
+      );
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const toggleFeature = (key: OrganisationFeatureKey) => {
+    const enabled = featureOverrides[key] ?? planFeatures[subscriptionPlan][key];
+    setFeatureOverrides((current) => ({ ...current, [key]: !enabled }));
+  };
 
   const chooseLogo = async () => {
     const result = await ImagePicker.launchImageLibraryAsync({
@@ -226,6 +286,51 @@ export function AdminSettingsScreen({
         </View>
         <Text style={styles.auditButtonArrow}>Open</Text>
       </TouchableOpacity>
+
+      <View style={styles.panel}>
+        <Text style={styles.panelTitle}>Subscription and service control</Text>
+        <Text style={styles.meta}>SecureObs super-admin only. Select a package, then use overrides for an agreed customer variation.</Text>
+        <View style={styles.optionRow}>
+          {plans.map((plan) => (
+            <TouchableOpacity
+              accessibilityRole="button"
+              key={plan.id}
+              onPress={() => { setSubscriptionPlan(plan.id); setFeatureOverrides({}); }}
+              style={[styles.planButton, subscriptionPlan === plan.id && styles.optionButtonActive]}
+            >
+              <Text style={[styles.optionText, subscriptionPlan === plan.id && styles.optionTextActive]}>{plan.label}</Text>
+              <Text style={[styles.planPrice, subscriptionPlan === plan.id && styles.optionTextActive]}>{plan.price}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+        <Text style={styles.label}>Feature access</Text>
+        <View style={styles.featureGrid}>
+          {featureLabels.map((feature) => {
+            const enabled = featureOverrides[feature.key] ?? planFeatures[subscriptionPlan][feature.key];
+            const overridden = featureOverrides[feature.key] !== undefined;
+            return (
+              <TouchableOpacity accessibilityRole="checkbox" accessibilityState={{ checked: enabled }} key={feature.key} onPress={() => toggleFeature(feature.key)} style={[styles.featureButton, enabled && styles.featureButtonActive]}>
+                <Text style={[styles.featureText, enabled && styles.optionTextActive]}>{enabled ? "✓ " : ""}{feature.label}</Text>
+                <Text style={[styles.featureSource, enabled && styles.optionTextActive]}>{overridden ? "Override" : "Package"}</Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+        <Text style={styles.label}>Service status</Text>
+        <View style={styles.optionRow}>
+          {(["active", "suspended"] as const).map((status) => (
+            <TouchableOpacity accessibilityRole="button" key={status} onPress={() => setServiceStatus(status)} style={[styles.optionButton, serviceStatus === status && (status === "active" ? styles.optionButtonActive : styles.suspendButtonActive)]}>
+              <Text style={[styles.optionText, serviceStatus === status && styles.optionTextActive]}>{status === "active" ? "Active" : "Suspended"}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+        {serviceStatus === "suspended" ? (
+          <TextInput placeholderTextColor="#6f7f87" multiline onChangeText={setSuspensionMessage} placeholder="SecureObs access is temporarily suspended. Please contact your account administrator." style={[styles.input, styles.messageInput]} value={suspensionMessage} />
+        ) : null}
+        <TouchableOpacity accessibilityRole="button" disabled={isSaving} onPress={saveSubscription} style={[styles.primaryButton, isSaving && styles.disabledButton]}>
+          <Text style={styles.primaryButtonText}>{isSaving ? "Saving subscription…" : "Save subscription and service status"}</Text>
+        </TouchableOpacity>
+      </View>
 
       <View style={styles.panel}>
         <View>
@@ -546,6 +651,15 @@ const styles = StyleSheet.create({
   optionButtonActive: { backgroundColor: "#1f5262", borderColor: "#1f5262" },
   optionText: { color: "#31454d", fontSize: 12, fontWeight: "900" },
   optionTextActive: { color: "#ffffff" },
+  planButton: { borderColor: "#c7d2d6", borderRadius: 7, borderWidth: 1, minWidth: 150, padding: 11 },
+  planPrice: { color: "#617078", fontSize: 11, fontWeight: "800", marginTop: 3 },
+  featureGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  featureButton: { borderColor: "#c7d2d6", borderRadius: 7, borderWidth: 1, minWidth: 180, padding: 10 },
+  featureButtonActive: { backgroundColor: "#1f5262", borderColor: "#1f5262" },
+  featureText: { color: "#31454d", fontSize: 12, fontWeight: "900" },
+  featureSource: { color: "#738289", fontSize: 10, fontWeight: "800", marginTop: 3 },
+  suspendButtonActive: { backgroundColor: "#9f2d28", borderColor: "#9f2d28" },
+  messageInput: { minHeight: 84, paddingTop: 10, textAlignVertical: "top" },
   primaryButton: {
     alignItems: "center",
     backgroundColor: "#1f5262",
