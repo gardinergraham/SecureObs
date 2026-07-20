@@ -2,11 +2,12 @@ import "dotenv/config";
 
 const defaultPort = 3000;
 const defaultSessionTtlMinutes = 12 * 60;
+const minimumSessionTtlMinutes = 12 * 60;
 const configuredSessionTtlMinutes = Number(
   process.env.SESSION_TTL_MINUTES ?? defaultSessionTtlMinutes
 );
 const sessionTtlMinutes =
-  Number.isFinite(configuredSessionTtlMinutes) && configuredSessionTtlMinutes > 0
+  Number.isFinite(configuredSessionTtlMinutes) && configuredSessionTtlMinutes >= minimumSessionTtlMinutes
     ? configuredSessionTtlMinutes
     : defaultSessionTtlMinutes;
 
@@ -24,6 +25,6 @@ if (!config.databaseUrl) {
 }
 if (sessionTtlMinutes !== configuredSessionTtlMinutes) {
   console.warn(
-    `SESSION_TTL_MINUTES must be a positive number. Falling back to ${defaultSessionTtlMinutes}.`
+    `SESSION_TTL_MINUTES must be at least ${minimumSessionTtlMinutes}. Falling back to ${defaultSessionTtlMinutes}.`
   );
 }

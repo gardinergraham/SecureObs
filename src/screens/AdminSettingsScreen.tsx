@@ -4,6 +4,8 @@ import { manipulateAsync, SaveFormat } from "expo-image-manipulator";
 import * as ImagePicker from "expo-image-picker";
 
 import type { CustomerOrganisation, OrganisationFeatureKey, OrganisationSettings, ServiceType, Site, StaffMember, Ward } from "../types/domain";
+import { buildStaffCardPayload } from "../utils/nfcStaffCard";
+import { writeNfcTextPayload } from "../utils/nfcWriter";
 
 const serviceTypes: ServiceType[] = ["High secure hospital", "Medium secure hospital", "Care home"];
 const intervals = [5, 10, 15, 30, 60];
@@ -75,6 +77,7 @@ export function AdminSettingsScreen({
   const [nfcStaffCodeFormat, setNfcStaffCodeFormat] = useState(organisationSettings.nfcStaffCodeFormat);
   const [logoDataUri, setLogoDataUri] = useState(organisationSettings.logoDataUri ?? null);
   const [isSaving, setIsSaving] = useState(false);
+  const [isWritingManagerTag, setIsWritingManagerTag] = useState(false);
   const [subscriptionPlan, setSubscriptionPlan] = useState(organisationSettings.subscriptionPlan);
   const [featureOverrides, setFeatureOverrides] = useState(organisationSettings.featureOverrides);
   const [serviceStatus, setServiceStatus] = useState(organisationSettings.serviceStatus);
@@ -263,8 +266,9 @@ export function AdminSettingsScreen({
     setIsSaving(true);
     try {
       await onCreateWard(ward);
+      let manager: StaffMember | undefined;
       if (managerName.trim() && managerStaffCode.trim()) {
-        await onCreateStaff({
+        manager = {
           id: `staff-${managerStaffCode.trim().toLowerCase()}`,
           organisationId: selectedOrganisationId,
           keyNumber: Date.now() % 100000,
@@ -277,16 +281,37 @@ export function AdminSettingsScreen({
           allowedSiteIds: [selectedSiteId],
           allowedWardIds: [ward.id],
           active: true
-        });
+        };
+        await onCreateStaff(manager);
       }
       setWardName("");
       setManagerName("");
       setManagerStaffCode("");
-      Alert.alert("Ward added", `${ward.name} has been added${managerName.trim() ? " with a manager" : ""}.`);
+      if (manager) {
+        Alert.alert("Ward and manager added", `${manager.name} can use STAFFCODE ${manager.staffCode}.`, [
+          { text: "Write later", style: "cancel" },
+          { text: "Write NFC tag", onPress: () => void writeManagerNfcTag(manager) }
+        ]);
+      } else {
+        Alert.alert("Ward added", `${ward.name} has been added.`);
+      }
     } catch (error) {
       Alert.alert("Ward not added", error instanceof Error ? error.message : "The ward could not be added.");
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const writeManagerNfcTag = async (manager: StaffMember) => {
+    const payload = buildStaffCardPayload(manager.staffCode, organisationSettings.nfcStaffCodeFormat);
+    setIsWritingManagerTag(true);
+    try {
+      await writeNfcTextPayload(payload);
+      Alert.alert("NFC manager tag written", `${manager.name}'s tag now contains STAFFCODE ${manager.staffCode}.`);
+    } catch (error) {
+      Alert.alert("NFC tag not written", error instanceof Error ? error.message : "Unable to write that NFC tag.");
+    } finally {
+      setIsWritingManagerTag(false);
     }
   };
 
@@ -579,11 +604,11 @@ export function AdminSettingsScreen({
 
           <TouchableOpacity
             accessibilityRole="button"
-            disabled={isSaving || !canAddWard}
+            disabled={isSaving || isWritingManagerTag || !canAddWard}
             onPress={saveWard}
-            style={[styles.primaryButton, (isSaving || !canAddWard) && styles.disabledButton]}
+            style={[styles.primaryButton, (isSaving || isWritingManagerTag || !canAddWard) && styles.disabledButton]}
           >
-            <Text style={styles.primaryButtonText}>Add ward</Text>
+            <Text style={styles.primaryButtonText}>{isWritingManagerTag ? "Hold NFC tag…" : "Add ward"}</Text>
           </TouchableOpacity>
 
           <View style={styles.list}>
