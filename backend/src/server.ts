@@ -10,6 +10,7 @@ import { configRouter } from "./routes/config.js";
 import { familyAccessRouter, familyPortalRouter } from "./routes/familyPortal.js";
 import { healthRouter } from "./routes/health.js";
 import { patientRouter } from "./routes/patients.js";
+import { organisationsRouter } from "./routes/organisations.js";
 import { staffRouter } from "./routes/staff.js";
 import { staffPortalRouter } from "./routes/staffPortal.js";
 
@@ -23,6 +24,7 @@ app.use(enforceActiveSubscription);
 
 app.use("/health", healthRouter);
 app.use("/api/staff", staffRouter);
+app.use("/api/organisations", organisationsRouter);
 app.use("/api/staff-portal", staffPortalRouter);
 app.use("/api/family-access", familyAccessRouter);
 app.use("/api/family-portal", familyPortalRouter);

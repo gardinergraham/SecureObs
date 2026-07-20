@@ -51,6 +51,7 @@ import {
   deleteSecurityArea as persistSecurityAreaDelete,
   deleteStaffShiftAssignment as persistStaffShiftAssignmentDelete,
   createWard as persistWard,
+  createCustomerOrganisation,
   loadSecurityAreas,
   loadSites,
   loadMedicationAdministrations,
@@ -70,6 +71,7 @@ import {
   loadSecurityChecks,
   loadStaffShiftAssignments,
   loadWards,
+  loadCustomerOrganisations,
   loadCurrentStaffSession,
   loadStaff,
   changeStaffPin,
@@ -105,6 +107,7 @@ import { readNfcTextPayload } from "./src/utils/nfcReader";
 import { calculateNews2Score } from "./src/utils/news2";
 import { hasAdminAccess, hasStaffRole } from "./src/utils/staffRole";
 import type {
+  CustomerOrganisation,
   FoodFluidEntry,
   MedicationAdministration,
   MissedObservation,
@@ -137,7 +140,9 @@ const defaultOrganisationSettings: OrganisationSettings = {
   subscriptionPlan: "hospital",
   featureOverrides: {},
   serviceStatus: "active",
-  suspensionMessage: ""
+  suspensionMessage: "",
+  siteLimitOverride: null,
+  wardsPerSiteLimitOverride: null
 };
 
 type AppScreen =
@@ -198,6 +203,8 @@ export default function App() {
   const [wards, setWards] = useState<Ward[]>(seedData.wards);
   const [sites, setSites] = useState<Site[]>(seedData.sites);
   const [organisationSettings, setOrganisationSettings] = useState<OrganisationSettings>(defaultOrganisationSettings);
+  const [customerOrganisations, setCustomerOrganisations] = useState<CustomerOrganisation[]>([]);
+  const [adminOrganisationId, setAdminOrganisationId] = useState(defaultOrganisationId);
   const [staffMembers, setStaffMembers] = useState<StaffMember[]>(seedData.staff);
   const [selectedStaffId, setSelectedStaffId] = useState("");
   const selectedStaff = staffMembers.find((staff) => staff.id === selectedStaffId);
@@ -257,6 +264,26 @@ export default function App() {
     }
   }, [selectedStaff]);
 
+  const selectAdminOrganisation = useCallback(async (organisationId: string) => {
+    const [siteResult, wardResult, settingsResult] = await Promise.all([
+      loadSites(organisationId),
+      loadWards(organisationId),
+      loadOrganisationSettings(organisationId)
+    ]);
+    setAdminOrganisationId(organisationId);
+    setSites(siteResult.sites);
+    setWards(wardResult.wards);
+    setOrganisationSettings(settingsResult.settings);
+    setSelectedSiteId(siteResult.sites[0]?.id ?? "");
+    setSelectedWardId(wardResult.wards[0]?.id ?? "");
+  }, []);
+
+  const refreshCustomerOrganisations = useCallback(async () => {
+    if (!hasAdminAccess(selectedStaff)) return;
+    const result = await loadCustomerOrganisations();
+    setCustomerOrganisations(result.organisations);
+  }, [selectedStaff]);
+
   useEffect(() => {
     const unsubscribe = subscribeToSyncQueue(setSyncQueueState);
     void restoreSyncQueue().then(() => flushSyncQueue());
@@ -306,6 +333,10 @@ export default function App() {
       .catch((error) => console.warn("Unable to refresh subscription status", error));
   }, [selectedStaff]);
 
+  useEffect(() => {
+    void refreshCustomerOrganisations();
+  }, [refreshCustomerOrganisations]);
+
   useEffect(
     () =>
       subscribeToAuthSessionExpiry(() => {
@@ -321,6 +352,7 @@ export default function App() {
 
   useEffect(() => {
     const loadConfiguration = async () => {
+      if (screen === "adminSettings" && hasAdminAccess(selectedStaff)) return;
       const organisationId = selectedStaff?.organisationId ?? defaultOrganisationId;
       try {
         const [
@@ -418,7 +450,7 @@ export default function App() {
     };
 
     void loadConfiguration();
-  }, [selectedStaff?.organisationId, selectedWardId]);
+  }, [screen, selectedStaff?.organisationId, selectedWardId]);
 
   const persistOrQueue = async <T,>(
     label: string,
@@ -915,28 +947,34 @@ export default function App() {
 
   const handleCreateSite = async (site: Site) => {
     const savedSite = await persistOrQueue("site", () =>
-      persistSite({ ...site, organisationId: selectedStaff?.organisationId })
+      persistSite({ ...site, organisationId: site.organisationId ?? (hasAdminAccess(selectedStaff) ? adminOrganisationId : selectedStaff?.organisationId) }),
+      true
     );
     setSites((currentSites) => upsertSite(currentSites, savedSite ?? site));
     if (hasAdminAccess(selectedStaff)) {
       setSelectedSiteId((savedSite ?? site).id);
+      await refreshCustomerOrganisations();
     }
   };
 
   const handleCreateWard = async (ward: Ward) => {
     const savedWard = await persistOrQueue("ward", () =>
-      persistWard({ ...ward, organisationId: selectedStaff?.organisationId })
+      persistWard({ ...ward, organisationId: ward.organisationId ?? (hasAdminAccess(selectedStaff) ? adminOrganisationId : selectedStaff?.organisationId) }),
+      true
     );
     setWards((currentWards) => upsertWard(currentWards, savedWard ?? ward));
     if (hasAdminAccess(selectedStaff)) {
       setSelectedWardId((savedWard ?? ward).id);
+      await refreshCustomerOrganisations();
     }
   };
 
   const handleUpdateOrganisationSettings = async (settings: OrganisationSettings) => {
     const nextSettings = {
       ...settings,
-      organisationId: selectedStaff?.organisationId ?? defaultOrganisationId
+      organisationId: hasAdminAccess(selectedStaff)
+        ? settings.organisationId
+        : selectedStaff?.organisationId ?? defaultOrganisationId
     };
     const result = await persistOrQueue("organisation settings", () =>
       persistOrganisationSettings({
@@ -946,6 +984,13 @@ export default function App() {
       })
     );
     setOrganisationSettings(result?.settings ?? nextSettings);
+    await refreshCustomerOrganisations();
+  };
+
+  const handleCreateCustomerOrganisation = async (name: string) => {
+    const result = await createCustomerOrganisation(name);
+    await refreshCustomerOrganisations();
+    await selectAdminOrganisation(result.organisation.id);
   };
 
   const handleCreateStaffMember = async (staff: StaffMember) => {
@@ -1310,10 +1355,18 @@ export default function App() {
           />
         ) : screen === "adminSettings" ? (
           <AdminSettingsScreen
+            customerOrganisations={customerOrganisations}
+            selectedOrganisationId={adminOrganisationId}
             organisationSettings={organisationSettings}
             sites={sites}
             wards={wards}
-            onBack={() => setScreen("home")}
+            onBack={() => {
+              setScreen("home");
+              const staffOrganisationId = selectedStaff?.organisationId ?? defaultOrganisationId;
+              if (adminOrganisationId !== staffOrganisationId) void selectAdminOrganisation(staffOrganisationId);
+            }}
+            onCreateCustomerOrganisation={handleCreateCustomerOrganisation}
+            onSelectCustomerOrganisation={selectAdminOrganisation}
             onOpenAuditLog={() => setScreen("auditLog")}
             onCreateSite={handleCreateSite}
             onCreateStaff={handleCreateStaffMember}

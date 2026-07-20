@@ -65,6 +65,18 @@ export type PatientTaskRecurrence = "none" | "every_shift" | "daily";
 export type Site = {
   id: string;
   name: string;
+  organisationId?: string;
+};
+
+export type CustomerOrganisation = {
+  id: string;
+  name: string;
+  subscriptionPlan: OrganisationSettings["subscriptionPlan"];
+  serviceStatus: OrganisationSettings["serviceStatus"];
+  siteLimitOverride?: number | null;
+  wardsPerSiteLimitOverride?: number | null;
+  siteCount: number;
+  wardCount: number;
 };
 
 export type OrganisationSettings = {
@@ -75,6 +87,8 @@ export type OrganisationSettings = {
   featureOverrides: Partial<Record<OrganisationFeatureKey, boolean>>;
   serviceStatus: "active" | "suspended";
   suspensionMessage: string;
+  siteLimitOverride?: number | null;
+  wardsPerSiteLimitOverride?: number | null;
 };
 
 export type OrganisationFeatureKey =
@@ -212,6 +226,7 @@ export type PatientTask = {
 
 export type Ward = {
   id: string;
+  organisationId?: string;
   siteId: string;
   name: string;
   serviceType: ServiceType;

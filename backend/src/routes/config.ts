@@ -26,7 +26,9 @@ const organisationSettingsSchema = z.object({
   subscriptionPlan: z.enum(["essential", "professional", "enterprise", "hospital"]).default("hospital"),
   featureOverrides: z.record(z.boolean()).default({}),
   serviceStatus: z.enum(["active", "suspended"]).default("active"),
-  suspensionMessage: z.string().max(2000).default("")
+  suspensionMessage: z.string().max(2000).default(""),
+  siteLimitOverride: z.number().int().positive().nullable().optional(),
+  wardsPerSiteLimitOverride: z.number().int().positive().nullable().optional()
 });
 
 const wardSchema = z.object({
@@ -85,7 +87,9 @@ router.get("/organisation-settings", async (request, response, next) => {
           subscription_plan as "subscriptionPlan",
           feature_overrides as "featureOverrides",
           service_status as "serviceStatus",
-          suspension_message as "suspensionMessage"
+          suspension_message as "suspensionMessage",
+          site_limit_override as "siteLimitOverride",
+          wards_per_site_limit_override as "wardsPerSiteLimitOverride"
         from organisation_settings
         where organisation_id = $1
       `,
@@ -100,7 +104,9 @@ router.get("/organisation-settings", async (request, response, next) => {
         subscriptionPlan: "hospital",
         featureOverrides: {},
         serviceStatus: "active",
-        suspensionMessage: ""
+        suspensionMessage: "",
+        siteLimitOverride: null,
+        wardsPerSiteLimitOverride: null
       }
     });
   } catch (error) {
@@ -141,6 +147,21 @@ async function organisationFeatureEnabled(
   return overrides[feature] ?? subscriptionFeatures(plan)[feature];
 }
 
+async function organisationResourceLimit(organisationId: string, resource: "sites" | "wardsPerSite") {
+  const result = await pool.query(
+    `select subscription_plan as "subscriptionPlan", site_limit_override as "siteLimitOverride",
+            wards_per_site_limit_override as "wardsPerSiteLimitOverride"
+     from organisation_settings where organisation_id = $1`,
+    [organisationId]
+  );
+  const settings = result.rows[0] ?? {};
+  if (resource === "sites" && settings.siteLimitOverride) return Number(settings.siteLimitOverride);
+  if (resource === "wardsPerSite" && settings.wardsPerSiteLimitOverride) return Number(settings.wardsPerSiteLimitOverride);
+  if (settings.subscriptionPlan === "essential") return 1;
+  if (settings.subscriptionPlan === "professional") return 5;
+  return null;
+}
+
 router.post("/organisation-settings", requireStaffRole(["super_admin"]), async (request, response, next) => {
   try {
     const parsed = organisationSettingsSchema.safeParse(request.body);
@@ -155,9 +176,10 @@ router.post("/organisation-settings", requireStaffRole(["super_admin"]), async (
       `
         insert into organisation_settings (
           organisation_id, nfc_staff_code_format, logo_data_uri, subscription_plan,
-          feature_overrides, service_status, suspension_message
+          feature_overrides, service_status, suspension_message, site_limit_override,
+          wards_per_site_limit_override
         )
-        values ($1, $2, $3, $4, $5::jsonb, $6, $7)
+        values ($1, $2, $3, $4, $5::jsonb, $6, $7, $8, $9)
         on conflict (organisation_id) do update set
           nfc_staff_code_format = excluded.nfc_staff_code_format,
           logo_data_uri = excluded.logo_data_uri,
@@ -165,6 +187,8 @@ router.post("/organisation-settings", requireStaffRole(["super_admin"]), async (
           feature_overrides = excluded.feature_overrides,
           service_status = excluded.service_status,
           suspension_message = excluded.suspension_message,
+          site_limit_override = excluded.site_limit_override,
+          wards_per_site_limit_override = excluded.wards_per_site_limit_override,
           updated_at = now()
         returning
           organisation_id as "organisationId",
@@ -173,7 +197,9 @@ router.post("/organisation-settings", requireStaffRole(["super_admin"]), async (
           subscription_plan as "subscriptionPlan",
           feature_overrides as "featureOverrides",
           service_status as "serviceStatus",
-          suspension_message as "suspensionMessage"
+          suspension_message as "suspensionMessage",
+          site_limit_override as "siteLimitOverride",
+          wards_per_site_limit_override as "wardsPerSiteLimitOverride"
       `,
       [
         organisationId,
@@ -182,7 +208,9 @@ router.post("/organisation-settings", requireStaffRole(["super_admin"]), async (
         parsed.data.subscriptionPlan,
         JSON.stringify(parsed.data.featureOverrides),
         parsed.data.serviceStatus,
-        parsed.data.suspensionMessage
+        parsed.data.suspensionMessage,
+        parsed.data.siteLimitOverride ?? null,
+        parsed.data.wardsPerSiteLimitOverride ?? null
       ]
     );
 
@@ -241,11 +269,20 @@ router.post("/sites", requireStaffRole(["super_admin"]), async (request, respons
     const organisationId = requireOrganisationId(request, response);
     if (!organisationId) return;
 
-    if (!(await organisationFeatureEnabled(organisationId, "multiSite"))) {
+    if (parsed.data.id) {
+      const existingSite = await pool.query("select organisation_id from sites where id = $1", [parsed.data.id]);
+      if (existingSite.rows[0] && existingSite.rows[0].organisation_id !== organisationId) {
+        response.status(403).json({ error: "That site belongs to a different customer organisation" });
+        return;
+      }
+    }
+
+    const siteLimit = await organisationResourceLimit(organisationId, "sites");
+    if (siteLimit !== null) {
       const existingSites = await pool.query("select id from sites where organisation_id = $1", [organisationId]);
       const isExisting = parsed.data.id && existingSites.rows.some((site) => site.id === parsed.data.id);
-      if (!isExisting && existingSites.rowCount) {
-        response.status(403).json({ error: "This SecureObs package includes one site. Upgrade or enable the multi-site override to add another." });
+      if (!isExisting && (existingSites.rowCount ?? 0) >= siteLimit) {
+        response.status(403).json({ error: `This SecureObs subscription allows ${siteLimit} site${siteLimit === 1 ? "" : "s"}. Increase the site allowance to add another.` });
         return;
       }
     }
@@ -328,14 +365,31 @@ router.post("/wards", requireStaffRole(["manager", "super_admin"]), async (reque
     const organisationId = requireOrganisationId(request, response);
     if (!organisationId) return;
 
-    if (!(await organisationFeatureEnabled(organisationId, "multiWard"))) {
+    const targetSite = await pool.query("select organisation_id from sites where id = $1", [parsed.data.siteId]);
+    if (!targetSite.rows[0] || targetSite.rows[0].organisation_id !== organisationId) {
+      response.status(403).json({ error: "Choose a site belonging to this customer organisation" });
+      return;
+    }
+    if (parsed.data.id) {
+      const existingWard = await pool.query(
+        "select sites.organisation_id from wards inner join sites on sites.id = wards.site_id where wards.id = $1",
+        [parsed.data.id]
+      );
+      if (existingWard.rows[0] && existingWard.rows[0].organisation_id !== organisationId) {
+        response.status(403).json({ error: "That ward belongs to a different customer organisation" });
+        return;
+      }
+    }
+
+    const wardLimit = await organisationResourceLimit(organisationId, "wardsPerSite");
+    if (wardLimit !== null) {
       const existingWards = await pool.query(
-        "select wards.id from wards inner join sites on sites.id = wards.site_id where sites.organisation_id = $1",
-        [organisationId]
+        "select wards.id from wards inner join sites on sites.id = wards.site_id where sites.organisation_id = $1 and wards.site_id = $2",
+        [organisationId, parsed.data.siteId]
       );
       const isExisting = parsed.data.id && existingWards.rows.some((ward) => ward.id === parsed.data.id);
-      if (!isExisting && existingWards.rowCount) {
-        response.status(403).json({ error: "This SecureObs package includes one ward. Upgrade or enable the multi-ward override to add another." });
+      if (!isExisting && (existingWards.rowCount ?? 0) >= wardLimit) {
+        response.status(403).json({ error: `This SecureObs subscription allows ${wardLimit} ward${wardLimit === 1 ? "" : "s"} per site. Increase the ward allowance to add another.` });
         return;
       }
     }

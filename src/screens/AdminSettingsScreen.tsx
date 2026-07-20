@@ -3,7 +3,7 @@ import { Alert, Image, StyleSheet, Text, TextInput, TouchableOpacity, View } fro
 import { manipulateAsync, SaveFormat } from "expo-image-manipulator";
 import * as ImagePicker from "expo-image-picker";
 
-import type { OrganisationFeatureKey, OrganisationSettings, ServiceType, Site, StaffMember, Ward } from "../types/domain";
+import type { CustomerOrganisation, OrganisationFeatureKey, OrganisationSettings, ServiceType, Site, StaffMember, Ward } from "../types/domain";
 
 const serviceTypes: ServiceType[] = ["High secure hospital", "Medium secure hospital", "Care home"];
 const intervals = [5, 10, 15, 30, 60];
@@ -34,10 +34,14 @@ const planFeatures: Record<OrganisationSettings["subscriptionPlan"], Record<Orga
 };
 
 type AdminSettingsScreenProps = {
+  customerOrganisations: CustomerOrganisation[];
+  selectedOrganisationId: string;
   organisationSettings: OrganisationSettings;
   sites: Site[];
   wards: Ward[];
   onBack: () => void;
+  onCreateCustomerOrganisation: (name: string) => Promise<void>;
+  onSelectCustomerOrganisation: (organisationId: string) => Promise<void>;
   onOpenAuditLog: () => void;
   onCreateSite: (site: Site) => Promise<void>;
   onCreateStaff: (staff: StaffMember) => Promise<void>;
@@ -46,16 +50,21 @@ type AdminSettingsScreenProps = {
 };
 
 export function AdminSettingsScreen({
+  customerOrganisations,
+  selectedOrganisationId,
   organisationSettings,
   sites,
   wards,
   onBack,
+  onCreateCustomerOrganisation,
+  onSelectCustomerOrganisation,
   onOpenAuditLog,
   onCreateSite,
   onCreateStaff,
   onCreateWard,
   onUpdateOrganisationSettings
 }: AdminSettingsScreenProps) {
+  const [customerName, setCustomerName] = useState("");
   const [siteName, setSiteName] = useState("");
   const [selectedSiteId, setSelectedSiteId] = useState(sites[0]?.id ?? "");
   const [wardName, setWardName] = useState("");
@@ -70,10 +79,23 @@ export function AdminSettingsScreen({
   const [featureOverrides, setFeatureOverrides] = useState(organisationSettings.featureOverrides);
   const [serviceStatus, setServiceStatus] = useState(organisationSettings.serviceStatus);
   const [suspensionMessage, setSuspensionMessage] = useState(organisationSettings.suspensionMessage);
+  const [siteLimitOverride, setSiteLimitOverride] = useState(
+    organisationSettings.siteLimitOverride ? String(organisationSettings.siteLimitOverride) : ""
+  );
+  const [wardLimitOverride, setWardLimitOverride] = useState(
+    organisationSettings.wardsPerSiteLimitOverride ? String(organisationSettings.wardsPerSiteLimitOverride) : ""
+  );
+  const selectedCustomer = customerOrganisations.find((organisation) => organisation.id === selectedOrganisationId);
+  const packageSiteLimit = subscriptionPlan === "essential" ? 1 : subscriptionPlan === "professional" ? 5 : null;
+  const packageWardLimit = subscriptionPlan === "essential" ? 1 : subscriptionPlan === "professional" ? 5 : null;
+  const effectiveSiteLimit = siteLimitOverride ? Number(siteLimitOverride) : packageSiteLimit;
+  const effectiveWardLimit = wardLimitOverride ? Number(wardLimitOverride) : packageWardLimit;
   const selectedSiteWards = useMemo(
     () => wards.filter((ward) => ward.siteId === selectedSiteId),
     [selectedSiteId, wards]
   );
+  const canAddSite = effectiveSiteLimit === null || sites.length < effectiveSiteLimit;
+  const canAddWard = Boolean(selectedSiteId) && (effectiveWardLimit === null || selectedSiteWards.length < effectiveWardLimit);
 
   useEffect(() => {
     setNfcStaffCodeFormat(organisationSettings.nfcStaffCodeFormat);
@@ -88,7 +110,23 @@ export function AdminSettingsScreen({
     setFeatureOverrides(organisationSettings.featureOverrides);
     setServiceStatus(organisationSettings.serviceStatus);
     setSuspensionMessage(organisationSettings.suspensionMessage);
+    setSiteLimitOverride(organisationSettings.siteLimitOverride ? String(organisationSettings.siteLimitOverride) : "");
+    setWardLimitOverride(organisationSettings.wardsPerSiteLimitOverride ? String(organisationSettings.wardsPerSiteLimitOverride) : "");
   }, [organisationSettings]);
+
+  const saveCustomer = async () => {
+    if (!customerName.trim()) {
+      Alert.alert("Customer name needed", "Enter the organisation or provider name.");
+      return;
+    }
+    setIsSaving(true);
+    try {
+      await onCreateCustomerOrganisation(customerName.trim());
+      setCustomerName("");
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   const saveSubscription = async () => {
     setIsSaving(true);
@@ -98,7 +136,9 @@ export function AdminSettingsScreen({
         subscriptionPlan,
         featureOverrides,
         serviceStatus,
-        suspensionMessage: suspensionMessage.trim()
+        suspensionMessage: suspensionMessage.trim(),
+        siteLimitOverride: siteLimitOverride ? Number(siteLimitOverride) : null,
+        wardsPerSiteLimitOverride: wardLimitOverride ? Number(wardLimitOverride) : null
       });
       Alert.alert(
         serviceStatus === "suspended" ? "Service suspended" : "Subscription saved",
@@ -166,7 +206,8 @@ export function AdminSettingsScreen({
 
     const site = {
       id: createId("site", trimmedName),
-      name: trimmedName
+      name: trimmedName,
+      organisationId: selectedOrganisationId
     };
 
     setIsSaving(true);
@@ -175,6 +216,8 @@ export function AdminSettingsScreen({
       setSelectedSiteId(site.id);
       setSiteName("");
       Alert.alert("Site added", `${site.name} is ready for wards.`);
+    } catch (error) {
+      Alert.alert("Site not added", error instanceof Error ? error.message : "The site could not be added.");
     } finally {
       setIsSaving(false);
     }
@@ -193,6 +236,7 @@ export function AdminSettingsScreen({
 
     const ward: Ward = {
       id: createId("ward", `${selectedSiteId}-${trimmedName}`),
+      organisationId: selectedOrganisationId,
       siteId: selectedSiteId,
       name: trimmedName,
       serviceType,
@@ -222,6 +266,7 @@ export function AdminSettingsScreen({
       if (managerName.trim() && managerStaffCode.trim()) {
         await onCreateStaff({
           id: `staff-${managerStaffCode.trim().toLowerCase()}`,
+          organisationId: selectedOrganisationId,
           keyNumber: Date.now() % 100000,
           staffCode: managerStaffCode.trim(),
           name: managerName.trim(),
@@ -238,6 +283,8 @@ export function AdminSettingsScreen({
       setManagerName("");
       setManagerStaffCode("");
       Alert.alert("Ward added", `${ward.name} has been added${managerName.trim() ? " with a manager" : ""}.`);
+    } catch (error) {
+      Alert.alert("Ward not added", error instanceof Error ? error.message : "The ward could not be added.");
     } finally {
       setIsSaving(false);
     }
@@ -288,6 +335,33 @@ export function AdminSettingsScreen({
       </TouchableOpacity>
 
       <View style={styles.panel}>
+        <Text style={styles.panelTitle}>Customer organisation</Text>
+        <Text style={styles.meta}>Select an existing customer before managing its package, sites and wards.</Text>
+        <View style={styles.customerGrid}>
+          {customerOrganisations.map((organisation) => (
+            <TouchableOpacity
+              accessibilityRole="button"
+              disabled={isSaving}
+              key={organisation.id}
+              onPress={() => void onSelectCustomerOrganisation(organisation.id)}
+              style={[styles.customerButton, selectedOrganisationId === organisation.id && styles.optionButtonActive]}
+            >
+              <Text style={[styles.listTitle, selectedOrganisationId === organisation.id && styles.optionTextActive]}>{organisation.name}</Text>
+              <Text style={[styles.listMeta, selectedOrganisationId === organisation.id && styles.optionTextActive]}>
+                {organisation.subscriptionPlan} · {organisation.siteCount} sites · {organisation.wardCount} wards
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+        <View style={styles.createCustomerRow}>
+          <TextInput placeholderTextColor="#6f7f87" onChangeText={setCustomerName} placeholder="New customer organisation" style={[styles.input, styles.customerInput]} value={customerName} />
+          <TouchableOpacity accessibilityRole="button" disabled={isSaving} onPress={saveCustomer} style={[styles.primaryButton, styles.createCustomerButton, isSaving && styles.disabledButton]}>
+            <Text style={styles.primaryButtonText}>Create customer</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      <View style={styles.panel}>
         <Text style={styles.panelTitle}>Subscription and service control</Text>
         <Text style={styles.meta}>SecureObs super-admin only. Select a package, then use overrides for an agreed customer variation.</Text>
         <View style={styles.optionRow}>
@@ -295,7 +369,12 @@ export function AdminSettingsScreen({
             <TouchableOpacity
               accessibilityRole="button"
               key={plan.id}
-              onPress={() => { setSubscriptionPlan(plan.id); setFeatureOverrides({}); }}
+              onPress={() => {
+                setSubscriptionPlan(plan.id);
+                setFeatureOverrides({});
+                setSiteLimitOverride("");
+                setWardLimitOverride("");
+              }}
               style={[styles.planButton, subscriptionPlan === plan.id && styles.optionButtonActive]}
             >
               <Text style={[styles.optionText, subscriptionPlan === plan.id && styles.optionTextActive]}>{plan.label}</Text>
@@ -315,6 +394,20 @@ export function AdminSettingsScreen({
               </TouchableOpacity>
             );
           })}
+        </View>
+        <Text style={styles.label}>Package allowances</Text>
+        <Text style={styles.meta}>
+          {selectedCustomer?.siteCount ?? sites.length} of {effectiveSiteLimit ?? "unlimited"} sites used · Wards allowed per site: {effectiveWardLimit ?? "unlimited"}
+        </Text>
+        <View style={styles.allowanceRow}>
+          <View style={styles.allowanceField}>
+            <Text style={styles.label}>Site allowance override</Text>
+            <TextInput placeholderTextColor="#6f7f87" keyboardType="number-pad" onChangeText={setSiteLimitOverride} placeholder={packageSiteLimit ? String(packageSiteLimit) : "Unlimited"} style={styles.input} value={siteLimitOverride} />
+          </View>
+          <View style={styles.allowanceField}>
+            <Text style={styles.label}>Wards per site override</Text>
+            <TextInput placeholderTextColor="#6f7f87" keyboardType="number-pad" onChangeText={setWardLimitOverride} placeholder={packageWardLimit ? String(packageWardLimit) : "Unlimited"} style={styles.input} value={wardLimitOverride} />
+          </View>
         </View>
         <Text style={styles.label}>Service status</Text>
         <View style={styles.optionRow}>
@@ -400,6 +493,7 @@ export function AdminSettingsScreen({
       <View style={styles.split}>
         <View style={styles.panel}>
           <Text style={styles.panelTitle}>Sites</Text>
+          <Text style={styles.listMeta}>{sites.length} of {effectiveSiteLimit ?? "unlimited"} sites used</Text>
           <TextInput placeholderTextColor="#6f7f87"
             onChangeText={setSiteName}
             placeholder="Site or care home name"
@@ -408,9 +502,9 @@ export function AdminSettingsScreen({
           />
           <TouchableOpacity
             accessibilityRole="button"
-            disabled={isSaving}
+            disabled={isSaving || !canAddSite}
             onPress={saveSite}
-            style={[styles.primaryButton, isSaving && styles.disabledButton]}
+            style={[styles.primaryButton, (isSaving || !canAddSite) && styles.disabledButton]}
           >
             <Text style={styles.primaryButtonText}>Add site</Text>
           </TouchableOpacity>
@@ -432,6 +526,7 @@ export function AdminSettingsScreen({
 
         <View style={styles.panel}>
           <Text style={styles.panelTitle}>Wards</Text>
+          <Text style={styles.listMeta}>{selectedSiteWards.length} of {effectiveWardLimit ?? "unlimited"} wards used at this site</Text>
           <TextInput placeholderTextColor="#6f7f87"
             onChangeText={setWardName}
             placeholder="Ward name"
@@ -484,9 +579,9 @@ export function AdminSettingsScreen({
 
           <TouchableOpacity
             accessibilityRole="button"
-            disabled={isSaving || !selectedSiteId}
+            disabled={isSaving || !canAddWard}
             onPress={saveWard}
-            style={[styles.primaryButton, (isSaving || !selectedSiteId) && styles.disabledButton]}
+            style={[styles.primaryButton, (isSaving || !canAddWard) && styles.disabledButton]}
           >
             <Text style={styles.primaryButtonText}>Add ward</Text>
           </TouchableOpacity>
@@ -571,6 +666,13 @@ const styles = StyleSheet.create({
   auditButtonMeta: { color: "#617078", fontSize: 12, fontWeight: "800", marginTop: 3 },
   auditButtonArrow: { color: "#1f5262", fontSize: 13, fontWeight: "900" },
   split: { alignItems: "stretch", flexDirection: "row", gap: 12 },
+  customerGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  customerButton: { borderColor: "#c7d2d6", borderRadius: 7, borderWidth: 1, minWidth: 220, padding: 10 },
+  createCustomerRow: { alignItems: "center", flexDirection: "row", gap: 8 },
+  customerInput: { flex: 1 },
+  createCustomerButton: { minWidth: 160, paddingHorizontal: 12 },
+  allowanceRow: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
+  allowanceField: { flex: 1, minWidth: 220 },
   panel: {
     backgroundColor: "#ffffff",
     borderColor: "#d8e0e3",

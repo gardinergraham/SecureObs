@@ -3,6 +3,7 @@ import { expireAuthSession, getAuthSession, storeAuthSession } from "./authSessi
 import { configureSyncQueue, enqueueFailedRequest, flushSyncQueue, QueuedSyncError } from "./syncQueue";
 import type {
   AuditEvent,
+  CustomerOrganisation,
   AuthSession,
   FoodFluidEntry,
   MedicationAdministration,
@@ -510,6 +511,17 @@ export async function createSite(site: OrganisationScoped<Site>) {
 
 export async function loadSites(organisationId?: string) {
   return request<{ sites: Site[] }>(withOrganisationId("/api/config/sites", organisationId));
+}
+
+export async function loadCustomerOrganisations() {
+  return request<{ organisations: CustomerOrganisation[] }>("/api/organisations");
+}
+
+export async function createCustomerOrganisation(name: string) {
+  return request<{ organisation: CustomerOrganisation }>("/api/organisations", {
+    method: "POST",
+    body: JSON.stringify({ name })
+  });
 }
 
 export async function createWard(ward: OrganisationScoped<Ward>) {

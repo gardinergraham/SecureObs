@@ -5,6 +5,7 @@ type RequestWithAuth = Request & {
   auth?: {
     staff: {
       organisationId: string;
+      role?: string;
     };
   };
 };
@@ -29,7 +30,11 @@ export function requireOrganisationId(request: RequestWithAuth, response: Respon
     return undefined;
   }
 
-  if (request.auth && request.auth.staff.organisationId !== parsed.data) {
+  if (
+    request.auth &&
+    request.auth.staff.role !== "super_admin" &&
+    request.auth.staff.organisationId !== parsed.data
+  ) {
     response.status(403).json({ error: "Staff session is not authorised for this organisation" });
     return undefined;
   }
