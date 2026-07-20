@@ -43,6 +43,7 @@ type AdminSettingsScreenProps = {
   wards: Ward[];
   onBack: () => void;
   onCreateCustomerOrganisation: (name: string) => Promise<void>;
+  onDeleteCustomerOrganisation: (organisationId: string) => Promise<void>;
   onSelectCustomerOrganisation: (organisationId: string) => Promise<void>;
   onOpenAuditLog: () => void;
   onCreateSite: (site: Site) => Promise<void>;
@@ -59,6 +60,7 @@ export function AdminSettingsScreen({
   wards,
   onBack,
   onCreateCustomerOrganisation,
+  onDeleteCustomerOrganisation,
   onSelectCustomerOrganisation,
   onOpenAuditLog,
   onCreateSite,
@@ -133,6 +135,32 @@ export function AdminSettingsScreen({
     } finally {
       setIsSaving(false);
     }
+  };
+
+  const confirmDeleteCustomer = () => {
+    if (!selectedCustomer) return;
+    Alert.alert(
+      "Delete empty customer?",
+      `Delete ${selectedCustomer.name}? This is only allowed when it has no sites, staff or patients.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete customer",
+          style: "destructive",
+          onPress: () => void (async () => {
+            setIsSaving(true);
+            try {
+              await onDeleteCustomerOrganisation(selectedCustomer.id);
+              Alert.alert("Customer deleted", `${selectedCustomer.name} has been removed.`);
+            } catch (error) {
+              Alert.alert("Customer not deleted", error instanceof Error ? error.message : "The customer could not be deleted.");
+            } finally {
+              setIsSaving(false);
+            }
+          })()
+        }
+      ]
+    );
   };
 
   const saveSubscription = async () => {
@@ -388,6 +416,16 @@ export function AdminSettingsScreen({
             <Text style={styles.primaryButtonText}>Create customer</Text>
           </TouchableOpacity>
         </View>
+        {selectedCustomer ? (
+          <TouchableOpacity
+            accessibilityRole="button"
+            disabled={isSaving}
+            onPress={confirmDeleteCustomer}
+            style={[styles.removeButton, isSaving && styles.disabledButton]}
+          >
+            <Text style={styles.removeButtonText}>Delete selected empty customer: {selectedCustomer.name}</Text>
+          </TouchableOpacity>
+        ) : null}
       </View>
 
       <View style={styles.panel}>

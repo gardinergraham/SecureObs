@@ -524,6 +524,12 @@ export async function createCustomerOrganisation(name: string) {
   });
 }
 
+export async function deleteCustomerOrganisation(organisationId: string) {
+  return request<{ ok: true }>(`/api/organisations/${encodeURIComponent(organisationId)}`, {
+    method: "DELETE"
+  });
+}
+
 export async function createWard(ward: OrganisationScoped<Ward>) {
   return saveQueuedRequest<Ward>("ward", "/api/config/wards", {
     method: "POST",

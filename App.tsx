@@ -52,6 +52,7 @@ import {
   deleteStaffShiftAssignment as persistStaffShiftAssignmentDelete,
   createWard as persistWard,
   createCustomerOrganisation,
+  deleteCustomerOrganisation,
   loadSecurityAreas,
   loadSites,
   loadMedicationAdministrations,
@@ -1000,6 +1001,15 @@ export default function App() {
     await selectAdminOrganisation(result.organisation.id);
   };
 
+  const handleDeleteCustomerOrganisation = async (organisationId: string) => {
+    await deleteCustomerOrganisation(organisationId);
+    const result = await loadCustomerOrganisations();
+    setCustomerOrganisations(result.organisations);
+    const fallback = result.organisations.find((organisation) => organisation.id === selectedStaff?.organisationId)
+      ?? result.organisations[0];
+    if (fallback) await selectAdminOrganisation(fallback.id);
+  };
+
   const handleCreateStaffMember = async (staff: StaffMember) => {
     const result = await persistOrQueue("staff member", () =>
       persistStaffMember({
@@ -1373,6 +1383,7 @@ export default function App() {
               if (adminOrganisationId !== staffOrganisationId) void selectAdminOrganisation(staffOrganisationId);
             }}
             onCreateCustomerOrganisation={handleCreateCustomerOrganisation}
+            onDeleteCustomerOrganisation={handleDeleteCustomerOrganisation}
             onSelectCustomerOrganisation={selectAdminOrganisation}
             onOpenAuditLog={() => setScreen("auditLog")}
             onCreateSite={handleCreateSite}

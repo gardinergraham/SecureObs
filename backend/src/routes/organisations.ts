@@ -8,6 +8,7 @@ import { pool } from "../db/pool.js";
 
 const router = Router();
 const createOrganisationSchema = z.object({ name: z.string().trim().min(2).max(255) });
+const organisationIdSchema = z.string().uuid();
 
 router.get("/", requireStaffRole(["super_admin"]), async (_request, response, next) => {
   try {
@@ -62,6 +63,72 @@ router.post("/", requireStaffRole(["super_admin"]), async (request: Authenticate
     response.status(201).json({ organisation: { id, name: parsed.data.name, subscriptionPlan: "essential", serviceStatus: "active", siteCount: 0, wardCount: 0 } });
   } catch (error) {
     next(error);
+  }
+});
+
+router.delete("/:organisationId", requireStaffRole(["super_admin"]), async (request: AuthenticatedRequest, response, next) => {
+  const parsedId = organisationIdSchema.safeParse(request.params.organisationId);
+  if (!parsedId.success) {
+    response.status(400).json({ error: "A valid customer organisation is required" });
+    return;
+  }
+
+  const organisationId = parsedId.data;
+  const actor = request.auth?.staff;
+  if (actor?.organisationId === organisationId) {
+    response.status(403).json({ error: "You cannot delete the organisation containing your super-admin account" });
+    return;
+  }
+
+  const client = await pool.connect();
+  try {
+    await client.query("begin");
+    const organisation = await client.query("select name from organisations where id = $1 for update", [organisationId]);
+    if (!organisation.rows[0]) {
+      await client.query("rollback");
+      response.status(404).json({ error: "Customer organisation not found" });
+      return;
+    }
+
+    const usage = await client.query(
+      `select
+         (select count(*) from sites where organisation_id = $1)::integer as sites,
+         (select count(*) from staff_members where organisation_id = $1)::integer as staff,
+         (select count(*) from patients where organisation_id = $1)::integer as patients`,
+      [organisationId]
+    );
+    const counts = usage.rows[0];
+    if (counts.sites > 0 || counts.staff > 0 || counts.patients > 0) {
+      await client.query("rollback");
+      response.status(409).json({
+        error: `This customer cannot be deleted because it contains ${counts.sites} site(s), ${counts.staff} staff member(s), or ${counts.patients} patient(s).`
+      });
+      return;
+    }
+
+    await client.query("delete from organisation_settings where organisation_id = $1", [organisationId]);
+    await client.query("delete from organisations where id = $1", [organisationId]);
+    await client.query("commit");
+
+    await recordAuditEvent({
+      organisationId: actor?.organisationId ?? organisationId,
+      actorStaffId: actor?.id,
+      actorStaffCode: actor?.staffCode,
+      eventType: "organisation.delete",
+      entityType: "organisation",
+      entityId: organisationId,
+      details: { name: organisation.rows[0].name, emptyCustomer: true }
+    }).catch((auditError) => console.error("Unable to record organisation deletion audit event", auditError));
+    response.json({ ok: true });
+  } catch (error) {
+    await client.query("rollback");
+    if (typeof error === "object" && error && "code" in error && error.code === "23503") {
+      response.status(409).json({ error: "This customer contains linked SecureObs records and cannot be deleted" });
+      return;
+    }
+    next(error);
+  } finally {
+    client.release();
   }
 });
 

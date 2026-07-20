@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { ActivityIndicator, Alert, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 
-import type { OrganisationSettings, StaffMember, Ward } from "../types/domain";
+import type { OrganisationFeatureKey, OrganisationSettings, StaffMember, Ward } from "../types/domain";
 import { buildStaffCardPayload } from "../utils/nfcStaffCard";
 import { writeNfcTextPayload } from "../utils/nfcWriter";
 import { hasAdminAccess, hasStaffRole, normaliseStaffRole } from "../utils/staffRole";
@@ -49,6 +49,9 @@ export function WardSettingsScreen({
   const selectedWard = wards.find((ward) => ward.id === selectedWardId);
   const selectedStaff = staff.find((member) => member.id === selectedStaffId);
   const canEditWardSettings = hasStaffRole(selectedStaff, "manager") || hasAdminAccess(selectedStaff);
+  const medicationEntitled = isPackageFeatureEnabled(organisationSettings, "medication");
+  const securityChecksEntitled = isPackageFeatureEnabled(organisationSettings, "securityChecks");
+  const rosteringEntitled = isPackageFeatureEnabled(organisationSettings, "rostering");
   const [newStaffName, setNewStaffName] = useState("");
   const [newStaffCode, setNewStaffCode] = useState("");
   const [newStaffRole, setNewStaffRole] = useState<StaffMember["role"]>("nurse");
@@ -600,14 +603,15 @@ export function WardSettingsScreen({
           disabled={!selectedWard || !canEditWardSettings}
           enabled={Boolean(selectedWard?.securityChecksEnabled)}
           label="Security checks"
-          meta="Ward checkpoint recording"
+          locked={!securityChecksEntitled}
+          meta={securityChecksEntitled ? "Ward checkpoint recording" : "Not included in this package · Contact SecureObs to upgrade"}
           onToggle={() => updateWardSettings({ securityChecksEnabled: !selectedWard?.securityChecksEnabled })}
         />
         <TouchableOpacity
           accessibilityRole="button"
           disabled={!selectedWard || !canEditWardSettings}
-          onPress={onOpenSecurityCheckSettings}
-          style={[styles.configureButton, (!selectedWard || !canEditWardSettings) && styles.disabledControl]}
+          onPress={() => securityChecksEntitled ? onOpenSecurityCheckSettings() : showUpgradeMessage("Security checks")}
+          style={[styles.configureButton, (!selectedWard || !canEditWardSettings || !securityChecksEntitled) && styles.disabledControl]}
         >
           <Text style={styles.configureButtonText}>Configure security checks</Text>
         </TouchableOpacity>
@@ -615,7 +619,8 @@ export function WardSettingsScreen({
           disabled={!selectedWard || !canEditWardSettings}
           enabled={Boolean(selectedWard?.medicationChartEnabled)}
           label="Medication chart"
-          meta="Due medication prompts and recording"
+          locked={!medicationEntitled}
+          meta={medicationEntitled ? "Due medication prompts and recording" : "Not included in this package · Contact SecureObs to upgrade"}
           onToggle={() => updateWardSettings({ medicationChartEnabled: !selectedWard?.medicationChartEnabled })}
         />
         <FeatureToggle
@@ -726,17 +731,19 @@ export function WardSettingsScreen({
           <View>
             <Text style={styles.settingLabel}>Staff rota</Text>
             <Text style={styles.meta}>
-              {selectedWard?.staffRotaEnabled ? "Rota page available for this ward" : "Rota hidden for this ward"}
+              {!rosteringEntitled
+                ? "Not included in this package · Contact SecureObs to upgrade"
+                : selectedWard?.staffRotaEnabled ? "Rota page available for this ward" : "Rota hidden for this ward"}
             </Text>
           </View>
           <TouchableOpacity
             accessibilityRole="button"
             disabled={!selectedWard || !canEditWardSettings}
-            onPress={toggleRota}
+            onPress={() => rosteringEntitled ? toggleRota() : showUpgradeMessage("Staff rostering")}
             style={[
               styles.toggleButton,
               selectedWard?.staffRotaEnabled && styles.toggleButtonActive,
-              !canEditWardSettings && styles.disabledControl
+              (!canEditWardSettings || !rosteringEntitled) && styles.disabledControl
             ]}
           >
             <Text style={[styles.toggleText, selectedWard?.staffRotaEnabled && styles.optionTextActive]}>
@@ -745,7 +752,7 @@ export function WardSettingsScreen({
           </TouchableOpacity>
         </View>
 
-        {selectedWard?.staffRotaEnabled ? (
+        {selectedWard?.staffRotaEnabled && rosteringEntitled ? (
           <>
             <Text style={styles.settingLabel}>Shifts per day</Text>
             <View style={styles.optionRow}>
@@ -828,11 +835,12 @@ type FeatureToggleProps = {
   disabled: boolean;
   enabled: boolean;
   label: string;
+  locked?: boolean;
   meta: string;
   onToggle: () => void;
 };
 
-function FeatureToggle({ disabled, enabled, label, meta, onToggle }: FeatureToggleProps) {
+function FeatureToggle({ disabled, enabled, label, locked = false, meta, onToggle }: FeatureToggleProps) {
   return (
     <View style={styles.featureRow}>
       <View style={styles.featureText}>
@@ -842,12 +850,24 @@ function FeatureToggle({ disabled, enabled, label, meta, onToggle }: FeatureTogg
       <TouchableOpacity
         accessibilityRole="button"
         disabled={disabled}
-        onPress={onToggle}
-        style={[styles.toggleButton, enabled && styles.toggleButtonActive, disabled && styles.disabledControl]}
+        onPress={() => locked ? showUpgradeMessage(label) : onToggle()}
+        style={[styles.toggleButton, enabled && styles.toggleButtonActive, (disabled || locked) && styles.disabledControl]}
       >
         <Text style={[styles.toggleText, enabled && styles.optionTextActive]}>{enabled ? "On" : "Off"}</Text>
       </TouchableOpacity>
     </View>
+  );
+}
+
+function isPackageFeatureEnabled(settings: OrganisationSettings, feature: OrganisationFeatureKey) {
+  const packageDefault = settings.subscriptionPlan !== "essential";
+  return settings.featureOverrides[feature] ?? packageDefault;
+}
+
+function showUpgradeMessage(feature: string) {
+  Alert.alert(
+    `${feature} is not included`,
+    "This feature is not included in your organisation's current SecureObs package. Please contact SecureObs to add it or upgrade the package."
   );
 }
 
