@@ -40,6 +40,7 @@ type AdminSettingsScreenProps = {
   selectedOrganisationId: string;
   organisationSettings: OrganisationSettings;
   sites: Site[];
+  staff: StaffMember[];
   wards: Ward[];
   onBack: () => void;
   onCreateCustomerOrganisation: (name: string) => Promise<void>;
@@ -57,6 +58,7 @@ export function AdminSettingsScreen({
   selectedOrganisationId,
   organisationSettings,
   sites,
+  staff,
   wards,
   onBack,
   onCreateCustomerOrganisation,
@@ -71,9 +73,11 @@ export function AdminSettingsScreen({
   const [customerName, setCustomerName] = useState("");
   const [siteName, setSiteName] = useState("");
   const [selectedSiteId, setSelectedSiteId] = useState(sites[0]?.id ?? "");
+  const [managedWardId, setManagedWardId] = useState("");
   const [wardName, setWardName] = useState("");
   const [managerName, setManagerName] = useState("");
   const [managerStaffCode, setManagerStaffCode] = useState("");
+  const [editingManagerId, setEditingManagerId] = useState("");
   const [serviceType, setServiceType] = useState<ServiceType>("Care home");
   const [observationIntervalMinutes, setObservationIntervalMinutes] = useState(15);
   const [nfcStaffCodeFormat, setNfcStaffCodeFormat] = useState(organisationSettings.nfcStaffCodeFormat);
@@ -99,6 +103,9 @@ export function AdminSettingsScreen({
     () => wards.filter((ward) => ward.siteId === selectedSiteId),
     [selectedSiteId, wards]
   );
+  const selectedWardManagers = staff.filter(
+    (member) => member.role === "manager" && (member.wardId === managedWardId || member.allowedWardIds.includes(managedWardId))
+  );
   const canAddSite = effectiveSiteLimit === null || sites.length < effectiveSiteLimit;
   const canAddWard = Boolean(selectedSiteId) && (effectiveWardLimit === null || selectedSiteWards.length < effectiveWardLimit);
 
@@ -118,6 +125,13 @@ export function AdminSettingsScreen({
     setSiteLimitOverride(organisationSettings.siteLimitOverride ? String(organisationSettings.siteLimitOverride) : "");
     setWardLimitOverride(organisationSettings.wardsPerSiteLimitOverride ? String(organisationSettings.wardsPerSiteLimitOverride) : "");
   }, [organisationSettings]);
+
+  useEffect(() => {
+    if (!selectedSiteWards.some((ward) => ward.id === managedWardId)) {
+      setManagedWardId(selectedSiteWards[0]?.id ?? "");
+      setEditingManagerId("");
+    }
+  }, [managedWardId, selectedSiteWards]);
 
   const saveCustomer = async () => {
     if (!customerName.trim()) {
@@ -298,6 +312,7 @@ export function AdminSettingsScreen({
     setIsSaving(true);
     try {
       await onCreateWard(ward);
+      setManagedWardId(ward.id);
       let manager: StaffMember | undefined;
       if (managerName.trim() && managerStaffCode.trim()) {
         manager = {
@@ -344,6 +359,50 @@ export function AdminSettingsScreen({
       Alert.alert("NFC tag not written", error instanceof Error ? error.message : "Unable to write that NFC tag.");
     } finally {
       setIsWritingManagerTag(false);
+    }
+  };
+
+  const editWardManager = (manager: StaffMember) => {
+    setEditingManagerId(manager.id);
+    setManagerName(manager.name);
+    setManagerStaffCode(manager.staffCode);
+  };
+
+  const saveExistingWardManager = async () => {
+    const ward = wards.find((item) => item.id === managedWardId);
+    if (!ward || !managerName.trim() || !managerStaffCode.trim()) {
+      Alert.alert("Manager details needed", "Select a ward and enter the manager name and STAFFCODE.");
+      return;
+    }
+    const existing = staff.find((member) => member.id === editingManagerId);
+    const manager: StaffMember = {
+      ...(existing ?? {
+        id: `staff-${managerStaffCode.trim().toLowerCase()}`,
+        keyNumber: Date.now() % 100000,
+        canPrescribe: false,
+        active: true
+      }),
+      organisationId: selectedOrganisationId,
+      staffCode: managerStaffCode.trim(),
+      name: managerName.trim(),
+      role: "manager",
+      designation: "Ward Manager",
+      wardId: ward.id,
+      allowedSiteIds: Array.from(new Set([...(existing?.allowedSiteIds ?? []), ward.siteId])),
+      allowedWardIds: Array.from(new Set([...(existing?.allowedWardIds ?? []), ward.id]))
+    };
+    setIsSaving(true);
+    try {
+      await onCreateStaff(manager);
+      setEditingManagerId(manager.id);
+      Alert.alert("Ward manager saved", `${manager.name} is assigned to ${ward.name}.`, [
+        { text: "Done", style: "cancel" },
+        { text: "Write NFC tag", onPress: () => void writeManagerNfcTag(manager) }
+      ]);
+    } catch (error) {
+      Alert.alert("Manager not saved", error instanceof Error ? error.message : "The ward manager could not be saved.");
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -655,14 +714,44 @@ export function AdminSettingsScreen({
 
           <View style={styles.list}>
             {selectedSiteWards.map((ward) => (
-              <View key={ward.id} style={styles.listRow}>
+              <TouchableOpacity
+                accessibilityRole="button"
+                key={ward.id}
+                onPress={() => {
+                  setManagedWardId(ward.id);
+                  setEditingManagerId("");
+                  setManagerName("");
+                  setManagerStaffCode("");
+                }}
+                style={[styles.listRow, managedWardId === ward.id && styles.listRowActive]}
+              >
                 <Text style={styles.listTitle}>{ward.name}</Text>
                 <Text style={styles.listMeta}>
                   {ward.serviceType} | {ward.observationIntervalMinutes}m
                 </Text>
-              </View>
+              </TouchableOpacity>
             ))}
           </View>
+
+          {managedWardId ? (
+            <View style={styles.managerPanel}>
+              <Text style={styles.label}>Manage selected ward manager</Text>
+              {selectedWardManagers.length > 0 ? selectedWardManagers.map((manager) => (
+                <View key={manager.id} style={styles.managerRow}>
+                  <TouchableOpacity accessibilityRole="button" onPress={() => editWardManager(manager)} style={styles.secondaryButton}>
+                    <Text style={styles.secondaryButtonText}>{manager.name} · {manager.staffCode}</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity accessibilityRole="button" disabled={isWritingManagerTag} onPress={() => void writeManagerNfcTag(manager)} style={styles.secondaryButton}>
+                    <Text style={styles.secondaryButtonText}>{isWritingManagerTag ? "Hold tag…" : "Rewrite NFC tag"}</Text>
+                  </TouchableOpacity>
+                </View>
+              )) : <Text style={styles.listMeta}>No manager is currently assigned to this ward.</Text>}
+              <Text style={styles.listMeta}>Select a manager above to edit them, or enter a new name and STAFFCODE in the manager fields.</Text>
+              <TouchableOpacity accessibilityRole="button" disabled={isSaving || isWritingManagerTag} onPress={saveExistingWardManager} style={[styles.primaryButton, (isSaving || isWritingManagerTag) && styles.disabledButton]}>
+                <Text style={styles.primaryButtonText}>{editingManagerId ? "Update ward manager" : "Assign new ward manager"}</Text>
+              </TouchableOpacity>
+            </View>
+          ) : null}
         </View>
       </View>
     </View>
@@ -738,6 +827,8 @@ const styles = StyleSheet.create({
   createCustomerRow: { alignItems: "center", flexDirection: "row", gap: 8 },
   customerInput: { flex: 1 },
   createCustomerButton: { minWidth: 160, paddingHorizontal: 12 },
+  managerPanel: { borderColor: "#d8e0e3", borderRadius: 8, borderWidth: 1, gap: 8, marginTop: 4, padding: 10 },
+  managerRow: { alignItems: "center", flexDirection: "row", flexWrap: "wrap", gap: 8 },
   allowanceRow: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
   allowanceField: { flex: 1, minWidth: 220 },
   panel: {

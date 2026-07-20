@@ -268,14 +268,19 @@ export default function App() {
   }, [selectedStaff]);
 
   const selectAdminOrganisation = useCallback(async (organisationId: string) => {
-    const [siteResult, wardResult, settingsResult] = await Promise.all([
+    const [siteResult, wardResult, staffResult, settingsResult] = await Promise.all([
       loadSites(organisationId),
       loadWards(organisationId),
+      loadStaff(organisationId),
       loadOrganisationSettings(organisationId)
     ]);
     setAdminOrganisationId(organisationId);
     setSites(siteResult.sites);
     setWards(wardResult.wards);
+    setStaffMembers((currentStaff) => [
+      ...currentStaff.filter((member) => member.organisationId !== organisationId),
+      ...staffResult.staff
+    ]);
     setOrganisationSettings(settingsResult.settings);
     setSelectedSiteId(siteResult.sites[0]?.id ?? "");
     setSelectedWardId(wardResult.wards[0]?.id ?? "");
@@ -354,6 +359,7 @@ export default function App() {
   );
 
   useEffect(() => {
+    let cancelled = false;
     const loadConfiguration = async () => {
       if (screen === "adminSettings" && hasAdminAccess(selectedStaff)) return;
       const organisationId = selectedStaff?.organisationId ?? defaultOrganisationId;
@@ -401,6 +407,7 @@ export default function App() {
           loadStaffShiftAssignments(organisationId, selectedWardId || undefined),
           loadOrganisationSettings(organisationId)
         ]);
+        if (cancelled) return;
         setSites(siteResult.sites);
         setStaffMembers((currentStaff) => mergeById(staffResult.staff, currentStaff));
         setWards(wardResult.wards);
@@ -453,7 +460,31 @@ export default function App() {
     };
 
     void loadConfiguration();
+    return () => {
+      cancelled = true;
+    };
   }, [screen, selectedStaff?.organisationId, selectedWardId]);
+
+  useEffect(() => {
+    if (screen === "adminSettings" || !selectedStaff || wards.length === 0) return;
+    const currentWard = wards.find((ward) => ward.id === selectedWardId);
+    const currentWardAllowed = currentWard && (
+      hasAdminAccess(selectedStaff) ||
+      selectedStaff.allowedWardIds.includes(currentWard.id) ||
+      selectedStaff.allowedSiteIds.includes(currentWard.siteId)
+    );
+    if (currentWardAllowed) return;
+
+    const firstWard = wards.find((ward) =>
+      hasAdminAccess(selectedStaff) ||
+      selectedStaff.allowedWardIds.includes(ward.id) ||
+      selectedStaff.allowedSiteIds.includes(ward.siteId)
+    );
+    if (!firstWard) return;
+    setSelectedSiteId(firstWard.siteId);
+    setSelectedWardId(firstWard.id);
+    setSelectedPatientId(patients.find((patient) => patient.wardId === firstWard.id)?.id ?? "");
+  }, [patients, screen, selectedStaff, selectedWardId, wards]);
 
   const persistOrQueue = async <T,>(
     label: string,
@@ -793,7 +824,7 @@ export default function App() {
     }
 
     try {
-      const { staff } = await lookupStaffByCode(parsedCard.staffCode, selectedStaff?.organisationId ?? defaultOrganisationId);
+      const { staff } = await lookupStaffByCode(parsedCard.staffCode, selectedStaff?.organisationId);
       setStaffMembers((currentStaff) => upsertStaffByCode(currentStaff, staff));
       selectStaffSession(staff);
       void flushSyncQueue();
@@ -1376,6 +1407,7 @@ export default function App() {
             selectedOrganisationId={adminOrganisationId}
             organisationSettings={organisationSettings}
             sites={sites}
+            staff={staffMembers.filter((member) => member.organisationId === adminOrganisationId)}
             wards={wards}
             onBack={() => {
               setScreen("home");
