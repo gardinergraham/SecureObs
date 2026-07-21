@@ -207,6 +207,8 @@ export default function App() {
   const [sites, setSites] = useState<Site[]>(seedData.sites);
   const [organisationSettings, setOrganisationSettings] = useState<OrganisationSettings>(defaultOrganisationSettings);
   const [customerOrganisations, setCustomerOrganisations] = useState<CustomerOrganisation[]>([]);
+  const [platformSites, setPlatformSites] = useState<Site[]>([]);
+  const [platformWards, setPlatformWards] = useState<Ward[]>([]);
   const [adminOrganisationId, setAdminOrganisationId] = useState(defaultOrganisationId);
   const [staffMembers, setStaffMembers] = useState<StaffMember[]>(seedData.staff);
   const [selectedStaffId, setSelectedStaffId] = useState("");
@@ -235,7 +237,9 @@ export default function App() {
       return;
     }
 
-    const organisationId = selectedStaff.organisationId ?? defaultOrganisationId;
+    const organisationId = hasAdminAccess(selectedStaff)
+      ? adminOrganisationId
+      : selectedStaff.organisationId ?? defaultOrganisationId;
     const [notesResult, carePlansResult] = await Promise.allSettled([
       loadPatientNotes(organisationId, selectedWardId),
       loadPatientCarePlans(organisationId, selectedWardId)
@@ -252,7 +256,7 @@ export default function App() {
     } else {
       console.warn("Unable to refresh patient care plans", carePlansResult.reason);
     }
-  }, [screen, selectedStaff, selectedWardId]);
+  }, [adminOrganisationId, screen, selectedStaff, selectedWardId]);
 
   const refreshWardSettings = useCallback(async () => {
     if (!selectedStaff) {
@@ -260,12 +264,15 @@ export default function App() {
     }
 
     try {
-      const result = await loadWards(selectedStaff.organisationId ?? defaultOrganisationId);
+      const organisationId = hasAdminAccess(selectedStaff)
+        ? adminOrganisationId
+        : selectedStaff.organisationId ?? defaultOrganisationId;
+      const result = await loadWards(organisationId);
       setWards((currentWards) => mergeById(result.wards, currentWards));
     } catch (error) {
       console.warn("Unable to refresh ward settings", error);
     }
-  }, [selectedStaff]);
+  }, [adminOrganisationId, selectedStaff]);
 
   const selectAdminOrganisation = useCallback(async (organisationId: string) => {
     const [siteResult, wardResult, staffResult, settingsResult] = await Promise.all([
@@ -290,6 +297,24 @@ export default function App() {
     if (!hasAdminAccess(selectedStaff)) return;
     const result = await loadCustomerOrganisations();
     setCustomerOrganisations(result.organisations);
+    const configurations = await Promise.all(
+      result.organisations.map(async (organisation) => {
+        const [siteResult, wardResult] = await Promise.all([
+          loadSites(organisation.id),
+          loadWards(organisation.id)
+        ]);
+        return {
+          sites: siteResult.sites.map((site) => ({
+            ...site,
+            name: `${site.name} — ${organisation.name}`,
+            organisationId: organisation.id
+          })),
+          wards: wardResult.wards.map((ward) => ({ ...ward, organisationId: organisation.id }))
+        };
+      })
+    );
+    setPlatformSites(configurations.flatMap((configuration) => configuration.sites));
+    setPlatformWards(configurations.flatMap((configuration) => configuration.wards));
   }, [selectedStaff]);
 
   useEffect(() => {
@@ -362,7 +387,9 @@ export default function App() {
     let cancelled = false;
     const loadConfiguration = async () => {
       if (screen === "adminSettings" && hasAdminAccess(selectedStaff)) return;
-      const organisationId = selectedStaff?.organisationId ?? defaultOrganisationId;
+      const organisationId = hasAdminAccess(selectedStaff)
+        ? adminOrganisationId
+        : selectedStaff?.organisationId ?? defaultOrganisationId;
       try {
         const [
           siteResult,
@@ -463,7 +490,7 @@ export default function App() {
     return () => {
       cancelled = true;
     };
-  }, [screen, selectedStaff?.organisationId, selectedWardId]);
+  }, [adminOrganisationId, screen, selectedStaff?.organisationId, selectedWardId]);
 
   useEffect(() => {
     if (screen === "adminSettings" || !selectedStaff || wards.length === 0) return;
@@ -555,7 +582,7 @@ export default function App() {
     }
 
     if (hasAdminAccess(selectedStaff)) {
-      return sites;
+      return platformSites;
     }
 
     const allowedWardSiteIds = wards
@@ -564,16 +591,16 @@ export default function App() {
     const allowedSiteIds = new Set([...selectedStaff.allowedSiteIds, ...allowedWardSiteIds]);
 
     return sites.filter((site) => allowedSiteIds.has(site.id));
-  }, [selectedStaff, sites, wards]);
+  }, [platformSites, selectedStaff, sites, wards]);
 
   const siteWards = useMemo(
     () =>
-      wards.filter(
+      (hasAdminAccess(selectedStaff) ? platformWards : wards).filter(
         (ward) =>
           ward.siteId === selectedSiteId &&
           (hasAdminAccess(selectedStaff) || selectedStaff?.allowedWardIds.includes(ward.id))
       ),
-    [selectedSiteId, selectedStaff, wards]
+    [platformWards, selectedSiteId, selectedStaff, wards]
   );
 
   const accessibleWards = useMemo(() => {
@@ -582,11 +609,11 @@ export default function App() {
     }
 
     if (hasAdminAccess(selectedStaff)) {
-      return wards;
+      return platformWards;
     }
 
     return wards.filter((ward) => selectedStaff.allowedWardIds.includes(ward.id));
-  }, [selectedStaff, wards]);
+  }, [platformWards, selectedStaff, wards]);
 
   const wardPatients = useMemo(
     () => patients.filter((patient) => patient.wardId === selectedWardId),
@@ -615,6 +642,9 @@ export default function App() {
     }
 
     const staffCanSeeAll = hasAdminAccess(staff);
+    if (staffCanSeeAll && staff.organisationId) {
+      setAdminOrganisationId(staff.organisationId);
+    }
     const firstWard = wards.find((ward) =>
       staffCanSeeAll
         ? true
@@ -890,7 +920,18 @@ export default function App() {
     return handleReadStaffCardData(cardData);
   };
 
-  const handleSelectSite = (siteId: string) => {
+  const handleSelectSite = async (siteId: string) => {
+    if (hasAdminAccess(selectedStaff)) {
+      const site = platformSites.find((item) => item.id === siteId);
+      if (site?.organisationId && site.organisationId !== adminOrganisationId) {
+        await selectAdminOrganisation(site.organisationId);
+      }
+      const firstPlatformWard = platformWards.find((ward) => ward.siteId === siteId);
+      setSelectedSiteId(siteId);
+      setSelectedWardId(firstPlatformWard?.id ?? "");
+      setSelectedPatientId("");
+      return;
+    }
     setSelectedSiteId(siteId);
     const firstWard = wards.find(
       (ward) => ward.siteId === siteId && selectedStaff?.allowedWardIds.includes(ward.id)
@@ -902,7 +943,14 @@ export default function App() {
     }
   };
 
-  const handleSelectWard = (wardId: string) => {
+  const handleSelectWard = async (wardId: string) => {
+    if (hasAdminAccess(selectedStaff)) {
+      const platformWard = platformWards.find((ward) => ward.id === wardId);
+      if (platformWard?.organisationId && platformWard.organisationId !== adminOrganisationId) {
+        await selectAdminOrganisation(platformWard.organisationId);
+      }
+      if (platformWard) setSelectedSiteId(platformWard.siteId);
+    }
     setSelectedWardId(wardId);
     const firstPatient = patients.find((patient) => patient.wardId === wardId);
     setSelectedPatientId(firstPatient?.id ?? "");
