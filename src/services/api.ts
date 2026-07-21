@@ -30,7 +30,7 @@ import type {
 const defaultApiUrl = "https://adequate-energy-production.up.railway.app";
 const apiUrl = process.env.EXPO_PUBLIC_API_URL ?? defaultApiUrl;
 
-configureSyncQueue(request);
+configureSyncQueue((path, init) => request(path, init, { expireSessionOnUnauthorized: false }));
 
 class ApiRequestError extends Error {
   constructor(
@@ -42,7 +42,11 @@ class ApiRequestError extends Error {
   }
 }
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
+async function request<T>(
+  path: string,
+  init?: RequestInit,
+  options: { expireSessionOnUnauthorized?: boolean } = {}
+): Promise<T> {
   if (!apiUrl) {
     throw new Error("EXPO_PUBLIC_API_URL is not configured");
   }
@@ -59,7 +63,12 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
   if (!response.ok) {
     const message = await readErrorMessage(response);
-    if (response.status === 401 && session?.token && shouldExpireSessionFromUnauthorized(message)) {
+    if (
+      options.expireSessionOnUnauthorized !== false &&
+      response.status === 401 &&
+      session?.token &&
+      shouldExpireSessionFromUnauthorized(message)
+    ) {
       await expireAuthSession(session.token);
     }
     throw new ApiRequestError(message || `API request failed: ${response.status}`, response.status);

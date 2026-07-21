@@ -983,7 +983,11 @@ export default function App() {
 
     if (updatedWard) {
       void persistOrQueue("ward", () =>
-        persistWard({ ...updatedWard, observationIntervalMinutes, organisationId: selectedStaff?.organisationId })
+        persistWard({
+          ...updatedWard,
+          observationIntervalMinutes,
+          organisationId: hasAdminAccess(selectedStaff) ? adminOrganisationId : selectedStaff?.organisationId
+        })
       );
     }
 
@@ -1004,7 +1008,11 @@ export default function App() {
 
     if (updatedWard) {
       void persistOrQueue("ward", () =>
-        persistWard({ ...updatedWard, staffRotaEnabled, organisationId: selectedStaff?.organisationId })
+        persistWard({
+          ...updatedWard,
+          staffRotaEnabled,
+          organisationId: hasAdminAccess(selectedStaff) ? adminOrganisationId : selectedStaff?.organisationId
+        })
       );
     }
 
@@ -1025,7 +1033,10 @@ export default function App() {
       currentWards.map((ward) => (ward.id === updatedWard.id ? updatedWard : ward))
     );
     const savedWard = await persistOrQueue("ward", () =>
-      persistWard({ ...updatedWard, organisationId: selectedStaff?.organisationId })
+      persistWard({
+        ...updatedWard,
+        organisationId: hasAdminAccess(selectedStaff) ? adminOrganisationId : selectedStaff?.organisationId
+      })
     );
     if (savedWard) {
       setWards((currentWards) => upsertWard(currentWards, savedWard));
