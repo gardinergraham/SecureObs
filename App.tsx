@@ -1001,6 +1001,13 @@ export default function App() {
           : ward
       )
     );
+    if (hasAdminAccess(selectedStaff)) {
+      setPlatformWards((currentWards) =>
+        currentWards.map((ward) =>
+          ward.id === wardId ? { ...ward, observationIntervalMinutes } : ward
+        )
+      );
+    }
   };
 
   const handleUpdateWardRotaEnabled = (wardId: string, staffRotaEnabled: boolean) => {
@@ -1026,12 +1033,24 @@ export default function App() {
           : ward
       )
     );
+    if (hasAdminAccess(selectedStaff)) {
+      setPlatformWards((currentWards) =>
+        currentWards.map((ward) => ward.id === wardId ? { ...ward, staffRotaEnabled } : ward)
+      );
+    }
   };
 
   const handleUpdateWardRotaSettings = async (updatedWard: Ward) => {
     setWards((currentWards) =>
       currentWards.map((ward) => (ward.id === updatedWard.id ? updatedWard : ward))
     );
+    if (hasAdminAccess(selectedStaff)) {
+      setPlatformWards((currentWards) =>
+        currentWards.map((ward) =>
+          ward.id === updatedWard.id ? { ...updatedWard, organisationId: ward.organisationId } : ward
+        )
+      );
+    }
     const savedWard = await persistOrQueue("ward", () =>
       persistWard({
         ...updatedWard,
@@ -1494,7 +1513,7 @@ export default function App() {
             selectedWardId={selectedWardId}
             organisationSettings={organisationSettings}
             staff={staffMembers}
-            wards={siteWards}
+            wards={hasAdminAccess(selectedStaff) ? wards.filter((ward) => ward.siteId === selectedSiteId) : siteWards}
             onBack={() => setScreen("home")}
             onUpdateWardInterval={handleUpdateWardInterval}
             onUpdateWardRotaEnabled={handleUpdateWardRotaEnabled}
