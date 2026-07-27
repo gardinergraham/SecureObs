@@ -9,6 +9,16 @@ import { optionalOrganisationIdSchema, requireOrganisationId } from "./organisat
 const router = Router();
 const anyWardStaff = ["nurse", "hcf", "ot", "security", "manager", "doctor", "super_admin"] as const;
 
+async function organisationHasRostering(organisationId: string) {
+  const result = await pool.query(
+    `select subscription_plan as "subscriptionPlan", feature_overrides as "featureOverrides"
+     from organisation_settings where organisation_id = $1`,
+    [organisationId]
+  );
+  const settings = result.rows[0] ?? { subscriptionPlan: "hospital", featureOverrides: {} };
+  return settings.featureOverrides?.rostering ?? settings.subscriptionPlan !== "essential";
+}
+
 const observationSchema = z.object({
   id: z.string().min(1).optional(),
   organisationId: optionalOrganisationIdSchema,
@@ -2044,6 +2054,10 @@ router.post("/rota-assignments", requireStaffRole(["nurse", "manager", "super_ad
 
     const organisationId = requireOrganisationId(request, response);
     if (!organisationId) return;
+    if (!(await organisationHasRostering(organisationId))) {
+      response.status(403).json({ error: "Staff rostering is not included in this SecureObs package. Please upgrade or add the feature." });
+      return;
+    }
     const assignment = { ...parsed.data, organisationId };
     const result = await pool.query(
       `
@@ -2100,6 +2114,10 @@ router.delete("/rota-assignments/:id", requireStaffRole(["nurse", "manager", "su
   try {
     const organisationId = requireOrganisationId(request, response);
     if (!organisationId) return;
+    if (!(await organisationHasRostering(organisationId))) {
+      response.status(403).json({ error: "Staff rostering is not included in this SecureObs package. Please upgrade or add the feature." });
+      return;
+    }
     const assignmentId = String(request.params.id);
     await pool.query("delete from rota_assignments where organisation_id = $1 and id = $2", [organisationId, assignmentId]);
     await recordAuditEvent({
@@ -2155,6 +2173,10 @@ router.post("/staff-shift-assignments", requireStaffRole(["nurse", "manager", "s
 
     const organisationId = requireOrganisationId(request, response);
     if (!organisationId) return;
+    if (!(await organisationHasRostering(organisationId))) {
+      response.status(403).json({ error: "Staff rostering is not included in this SecureObs package. Please upgrade or add the feature." });
+      return;
+    }
     const assignment = { ...parsed.data, organisationId };
     if (assignment.nurseInCharge || assignment.medicationNurse) {
       const assignedStaffResult = await pool.query(
@@ -2223,6 +2245,10 @@ router.delete("/staff-shift-assignments/:id", requireStaffRole(["nurse", "manage
   try {
     const organisationId = requireOrganisationId(request, response);
     if (!organisationId) return;
+    if (!(await organisationHasRostering(organisationId))) {
+      response.status(403).json({ error: "Staff rostering is not included in this SecureObs package. Please upgrade or add the feature." });
+      return;
+    }
     const assignmentId = String(request.params.id);
     await pool.query("delete from staff_shift_assignments where organisation_id = $1 and id = $2", [
       organisationId,

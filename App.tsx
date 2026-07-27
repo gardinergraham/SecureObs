@@ -118,6 +118,7 @@ import type {
   News2Reading,
   Observation,
   OrganisationSettings,
+  OrganisationFeatureKey,
   Patient,
   PatientCarePlan,
   PatientNote,
@@ -217,8 +218,12 @@ export default function App() {
   const selectedStaffCanPrescribe = Boolean(activeStaff?.canPrescribe || hasStaffRole(activeStaff, "doctor"));
   const [selectedSiteId, setSelectedSiteId] = useState("");
   const [selectedWardId, setSelectedWardId] = useState("");
-  const selectedWard = wards.find((ward) => ward.id === selectedWardId);
+  const selectedWardRecord = wards.find((ward) => ward.id === selectedWardId);
+  const selectedWard = selectedWardRecord
+    ? applyOrganisationEntitlements(selectedWardRecord, organisationSettings)
+    : undefined;
   const analyticsEnabled = isOrganisationFeatureEnabled(organisationSettings, "dashboard");
+  const rosteringEnabled = isOrganisationFeatureEnabled(organisationSettings, "rostering");
   const [selectedPatientId, setSelectedPatientId] = useState(seedData.patients[0]?.id ?? "");
   const lastActivityAtRef = useRef(Date.now());
   const inactivityCountdownStartedAtRef = useRef<number | null>(null);
@@ -599,8 +604,8 @@ export default function App() {
         (ward) =>
           ward.siteId === selectedSiteId &&
           (hasAdminAccess(selectedStaff) || selectedStaff?.allowedWardIds.includes(ward.id))
-      ),
-    [platformWards, selectedSiteId, selectedStaff, wards]
+      ).map((ward) => applyOrganisationEntitlements(ward, organisationSettings)),
+    [organisationSettings, platformWards, selectedSiteId, selectedStaff, wards]
   );
 
   const accessibleWards = useMemo(() => {
@@ -1283,6 +1288,10 @@ export default function App() {
   };
 
   const handleCreateRotaAssignment = (assignment: RotaAssignment) => {
+    if (!rosteringEnabled) {
+      showFeatureUpgrade("Staff rostering");
+      return;
+    }
     setRotaAssignments((currentAssignments) => upsertById(currentAssignments, assignment));
     void persistOrQueue("rota assignment", () =>
       persistRotaAssignment({ ...assignment, organisationId: selectedStaff?.organisationId })
@@ -1290,6 +1299,10 @@ export default function App() {
   };
 
   const handleUpdateRotaAssignment = (assignment: RotaAssignment) => {
+    if (!rosteringEnabled) {
+      showFeatureUpgrade("Staff rostering");
+      return;
+    }
     setRotaAssignments((currentAssignments) => upsertById(currentAssignments, assignment));
     void persistOrQueue("rota assignment", () =>
       persistRotaAssignment({ ...assignment, organisationId: selectedStaff?.organisationId })
@@ -1297,6 +1310,10 @@ export default function App() {
   };
 
   const handleRemoveRotaAssignment = (assignmentId: string) => {
+    if (!rosteringEnabled) {
+      showFeatureUpgrade("Staff rostering");
+      return;
+    }
     setRotaAssignments((currentAssignments) => currentAssignments.filter((assignment) => assignment.id !== assignmentId));
     void persistOrQueue("rota assignment delete", () =>
       persistRotaAssignmentDelete(assignmentId, selectedStaff?.organisationId)
@@ -1304,6 +1321,10 @@ export default function App() {
   };
 
   const handleAssignStaffShift = (assignment: StaffShiftAssignment) => {
+    if (!rosteringEnabled) {
+      showFeatureUpgrade("Staff rostering");
+      return;
+    }
     setStaffShiftAssignments((currentAssignments) => upsertById(currentAssignments, assignment));
     void persistOrQueue("staff shift assignment", () =>
       persistStaffShiftAssignment({ ...assignment, organisationId: selectedStaff?.organisationId })
@@ -1311,6 +1332,10 @@ export default function App() {
   };
 
   const handleRemoveStaffShiftAssignment = (assignmentId: string) => {
+    if (!rosteringEnabled) {
+      showFeatureUpgrade("Staff rostering");
+      return;
+    }
     setStaffShiftAssignments((currentAssignments) =>
       currentAssignments.filter((assignment) => assignment.id !== assignmentId)
     );
@@ -1320,6 +1345,10 @@ export default function App() {
   };
 
   const handleUpdateStaffShiftAssignment = (assignment: StaffShiftAssignment) => {
+    if (!rosteringEnabled) {
+      showFeatureUpgrade("Staff rostering");
+      return;
+    }
     setStaffShiftAssignments((currentAssignments) => upsertById(currentAssignments, assignment));
     void persistOrQueue("staff shift assignment", () =>
       persistStaffShiftAssignment({ ...assignment, organisationId: selectedStaff?.organisationId })
@@ -1513,7 +1542,11 @@ export default function App() {
             selectedWardId={selectedWardId}
             organisationSettings={organisationSettings}
             staff={staffMembers}
-            wards={hasAdminAccess(selectedStaff) ? wards.filter((ward) => ward.siteId === selectedSiteId) : siteWards}
+            wards={hasAdminAccess(selectedStaff)
+              ? wards
+                  .filter((ward) => ward.siteId === selectedSiteId)
+                  .map((ward) => applyOrganisationEntitlements(ward, organisationSettings))
+              : siteWards}
             onBack={() => setScreen("home")}
             onUpdateWardInterval={handleUpdateWardInterval}
             onUpdateWardRotaEnabled={handleUpdateWardRotaEnabled}
@@ -1615,6 +1648,10 @@ export default function App() {
               setScreen("securityChecks");
             }}
             onOpenStaffRota={() => {
+              if (!rosteringEnabled) {
+                showFeatureUpgrade("Staff rostering");
+                return;
+              }
               setWorkspaceBackScreen("wardOverview");
               setScreen("staffRota");
             }}
@@ -1700,6 +1737,10 @@ export default function App() {
               setScreen("shiftHandover");
             }}
             onOpenStaffRota={() => {
+              if (!rosteringEnabled) {
+                showFeatureUpgrade("Staff rostering");
+                return;
+              }
               setWorkspaceBackScreen("observations");
               setScreen("staffRota");
             }}
@@ -2286,10 +2327,29 @@ function formatSyncDate(value: string) {
 
 function isOrganisationFeatureEnabled(
   settings: OrganisationSettings,
-  feature: "dashboard"
+  feature: OrganisationFeatureKey
 ) {
   const packageDefault = settings.subscriptionPlan !== "essential";
   return settings.featureOverrides[feature] ?? packageDefault;
+}
+
+function applyOrganisationEntitlements(ward: Ward, settings: OrganisationSettings): Ward {
+  return {
+    ...ward,
+    medicationChartEnabled:
+      ward.medicationChartEnabled && isOrganisationFeatureEnabled(settings, "medication"),
+    securityChecksEnabled:
+      ward.securityChecksEnabled && isOrganisationFeatureEnabled(settings, "securityChecks"),
+    staffRotaEnabled:
+      ward.staffRotaEnabled && isOrganisationFeatureEnabled(settings, "rostering")
+  };
+}
+
+function showFeatureUpgrade(feature: string) {
+  Alert.alert(
+    `${feature} is not included`,
+    "This feature is not included in your organisation's current SecureObs package. Please contact SecureObs to add it or upgrade the package."
+  );
 }
 
 const styles = StyleSheet.create({
