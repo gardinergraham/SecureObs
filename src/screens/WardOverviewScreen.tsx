@@ -239,7 +239,8 @@ export function WardOverviewScreen({
   const enhancedCoverGapCount = enhancedPatients.filter((item) => item.assigned < item.required).length;
   const news2AttentionCount = latestNews2.filter((item) => (item.reading?.totalScore ?? 0) >= 5).length;
   const activeEnhancedOverdueCount = ward?.enhancedObservationsEnabled ? overdueEnhancedCount : 0;
-  const activeEnhancedCoverGapCount = ward?.enhancedObservationsEnabled ? enhancedCoverGapCount : 0;
+  const activeEnhancedCoverGapCount =
+    ward?.enhancedObservationsEnabled && ward.staffRotaEnabled ? enhancedCoverGapCount : 0;
   const activeNews2AttentionCount = ward?.news2Enabled ? news2AttentionCount : 0;
   const activeSecurityDueCount = ward?.securityChecksEnabled ? securitySummary.dueCount : 0;
   const redIncidentCount = activeIncidents.filter((incident) => incident.severity === "red").length;
@@ -263,6 +264,14 @@ export function WardOverviewScreen({
     activeSecurityDueCount +
     incidentAttentionCount +
     taskAttentionCount;
+  const attentionSummary = [
+    `${overdueGeneralCount} general overdue`,
+    `${activeEnhancedOverdueCount} enhanced overdue`,
+    `${activeSecurityDueCount} security due`,
+    `${incidentAttentionCount} incident alerts`,
+    `${taskAttentionCount} task alerts`,
+    ...(ward?.staffRotaEnabled ? [`${activeEnhancedCoverGapCount} enhanced cover gaps`] : [])
+  ].join(" · ");
   const primaryAction = getPrimaryAction(normaliseStaffRole(selectedStaff?.role), {
     enhancedCoverGapCount: activeEnhancedCoverGapCount,
     news2AttentionCount: activeNews2AttentionCount,
@@ -318,9 +327,7 @@ export function WardOverviewScreen({
             {urgentCount > 0 ? `${urgentCount} items need attention` : "Ward checks are currently on track"}
           </Text>
           <Text style={styles.attentionMeta}>
-            {overdueGeneralCount} general overdue · {activeEnhancedOverdueCount} enhanced overdue ·{" "}
-            {activeSecurityDueCount} security due · {incidentAttentionCount} incident alerts ·{" "}
-            {taskAttentionCount} task alerts · {activeEnhancedCoverGapCount} enhanced cover gaps
+            {attentionSummary}
           </Text>
         </View>
         <TouchableOpacity accessibilityRole="button" onPress={runPrimaryAction} style={styles.primaryButton}>
@@ -350,7 +357,9 @@ export function WardOverviewScreen({
           tone={overdueTaskCount > 0 || redTaskCount > 0 ? "danger" : activePatientTasks.length > 0 ? "warning" : "neutral"}
           value={activePatientTasks.length}
         />
-        <Metric label="Staff this shift" tone={shiftStaff.length === 0 ? "warning" : "neutral"} value={shiftStaff.length} />
+        {ward?.staffRotaEnabled ? (
+          <Metric label="Staff this shift" tone={shiftStaff.length === 0 ? "warning" : "neutral"} value={shiftStaff.length} />
+        ) : null}
       </View>
 
       <View style={styles.cardGrid}>
@@ -432,7 +441,9 @@ export function WardOverviewScreen({
         {ward?.enhancedObservationsEnabled ? (
           <OverviewCard
             actionLabel="Open enhanced observations"
-            eyebrow={`${enhancedPatients.length} patients · ${enhancedCoverGapCount} cover gaps`}
+            eyebrow={ward.staffRotaEnabled
+              ? `${enhancedPatients.length} patients · ${enhancedCoverGapCount} cover gaps`
+              : `${enhancedPatients.length} patients · care-plan assignments`}
             title="Enhanced / TESO"
             onPress={onOpenEnhanced}
           >
