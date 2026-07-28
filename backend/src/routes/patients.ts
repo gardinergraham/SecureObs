@@ -179,6 +179,24 @@ router.post("/", requireStaffRole(["nurse", "manager", "doctor", "super_admin"])
     const organisationId = requireOrganisationId(request, response);
     if (!organisationId) return;
 
+    const targetWard = await pool.query(
+      `select sites.organisation_id
+       from wards inner join sites on sites.id = wards.site_id
+       where wards.id = $1`,
+      [parsed.data.wardId]
+    );
+    if (!targetWard.rows[0] || targetWard.rows[0].organisation_id !== organisationId) {
+      response.status(403).json({ error: "The destination ward does not belong to this organisation" });
+      return;
+    }
+    if (parsed.data.id) {
+      const existingOwner = await pool.query("select organisation_id from patients where id = $1", [parsed.data.id]);
+      if (existingOwner.rows[0] && existingOwner.rows[0].organisation_id !== organisationId) {
+        response.status(403).json({ error: "This patient belongs to a different organisation" });
+        return;
+      }
+    }
+
     const patient = {
       ...parsed.data,
       organisationId,

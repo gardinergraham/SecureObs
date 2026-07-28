@@ -250,6 +250,13 @@ export async function savePatient(patient: OrganisationScoped<Patient> & ActorSc
   });
 }
 
+export async function savePatientDirect(patient: OrganisationScoped<Patient> & ActorScoped) {
+  return request<{ patient: Patient }>("/api/patients", {
+    method: "POST",
+    body: JSON.stringify(patient)
+  });
+}
+
 export type FamilyPortalInvitation = {
   username: string;
   activationCode: string;

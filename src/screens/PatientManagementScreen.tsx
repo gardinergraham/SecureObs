@@ -62,10 +62,31 @@ export function PatientManagementScreen({
     });
   };
 
-  const transferPatient = async (wardId: string) => {
+  const confirmTransferPatient = (wardId: string) => {
     if (!selectedPatient || !canManagePatients) {
       return;
     }
+    const targetWard = wards.find((ward) => ward.id === wardId);
+    if (!targetWard) {
+      Alert.alert("Ward not found", "The destination ward is no longer available.");
+      return;
+    }
+
+    Alert.alert(
+      "Confirm patient transfer",
+      `Transfer ${selectedPatient.firstName} ${selectedPatient.surname} from ${selectedPatientWard?.name ?? "their current ward"} to ${targetWard.name}?`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Confirm transfer",
+          onPress: () => void transferPatient(wardId, targetWard.name)
+        }
+      ]
+    );
+  };
+
+  const transferPatient = async (wardId: string, targetWardName: string) => {
+    if (!selectedPatient || !canManagePatients) return;
 
     setIsSaving(true);
     try {
@@ -76,7 +97,12 @@ export function PatientManagementScreen({
         latestObservationPlace: "Side room"
       });
       clearDraft();
-      Alert.alert("Patient transferred", `${selectedPatient.firstName} ${selectedPatient.surname} moved ward.`);
+      Alert.alert("Patient transferred", `${selectedPatient.firstName} ${selectedPatient.surname} is now on ${targetWardName}.`);
+    } catch (error) {
+      Alert.alert(
+        "Transfer not completed",
+        error instanceof Error ? error.message : "The patient remains on their current ward. Please try again."
+      );
     } finally {
       setIsSaving(false);
     }
@@ -283,7 +309,7 @@ export function PatientManagementScreen({
                         accessibilityRole="button"
                         disabled={!canManagePatients || isSaving}
                         key={ward.id}
-                        onPress={() => transferPatient(ward.id)}
+                        onPress={() => confirmTransferPatient(ward.id)}
                         style={[styles.transferButton, (!canManagePatients || isSaving) && styles.disabledControl]}
                       >
                         <Text style={styles.transferButtonText}>{ward.name}</Text>

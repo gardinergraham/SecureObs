@@ -83,6 +83,7 @@ import {
   saveSecurityArea as persistSecurityArea,
   saveStaffShiftAssignment as persistStaffShiftAssignment,
   savePatient as persistPatient,
+  savePatientDirect as persistManagedPatient,
   resetStaffPin,
   unlockStaffAccess,
   updateMedicationPrescription as persistMedicationPrescriptionUpdate
@@ -1175,15 +1176,13 @@ export default function App() {
   };
 
   const handleSaveManagedPatient = async (patient: Patient) => {
-    const result = await persistOrQueue("patient", () =>
-      persistPatient({
-        ...patient,
-        organisationId: selectedStaff?.organisationId,
-        actorStaffId: selectedStaff?.id,
-        actorStaffCode: selectedStaff?.staffCode
-      })
-    );
-    setPatients((currentPatients) => upsertPatient(currentPatients, result?.patient ?? patient));
+    const result = await persistManagedPatient({
+      ...patient,
+      organisationId: hasAdminAccess(selectedStaff) ? adminOrganisationId : selectedStaff?.organisationId,
+      actorStaffId: selectedStaff?.id,
+      actorStaffCode: selectedStaff?.staffCode
+    });
+    setPatients((currentPatients) => upsertPatient(currentPatients, result.patient));
   };
 
   const handleCreatePatientNote = async (note: PatientNote) => {
