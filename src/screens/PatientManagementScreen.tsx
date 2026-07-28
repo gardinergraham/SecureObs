@@ -47,6 +47,10 @@ export function PatientManagementScreen({
         .sort((a, b) => a.roomNumber - b.roomNumber),
     [patients, selectedWardId]
   );
+  const archivedPatients = useMemo(
+    () => patients.filter((patient) => patient.archived).sort((a, b) => a.surname.localeCompare(b.surname)),
+    [patients]
+  );
   const selectedPatient = patients.find((patient) => patient.id === selectedPatientId);
   const selectedPatientWard = wards.find((ward) => ward.id === selectedPatient?.wardId);
 
@@ -178,16 +182,62 @@ export function PatientManagementScreen({
     }
   };
 
-  const archivePatient = async () => {
+  const confirmArchivePatient = () => {
     if (!selectedPatient || !canManagePatients) {
       return;
     }
+
+    Alert.alert(
+      "Archive patient?",
+      `Archive ${selectedPatient.firstName} ${selectedPatient.surname}? They will be removed from active ward lists but their record and history will be retained.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        { text: "Archive patient", style: "destructive", onPress: () => void archivePatient() }
+      ]
+    );
+  };
+
+  const archivePatient = async () => {
+    if (!selectedPatient || !canManagePatients) return;
 
     setIsSaving(true);
     try {
       await onSavePatient({ ...selectedPatient, archived: true });
       clearDraft();
       Alert.alert("Patient archived", `${selectedPatient.firstName} ${selectedPatient.surname} has been archived.`);
+    } catch (error) {
+      Alert.alert("Patient not archived", error instanceof Error ? error.message : "The patient remains active.");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const confirmRestorePatient = (patient: Patient) => {
+    if (!canManagePatients || !selectedWard) return;
+    Alert.alert(
+      "Restore patient?",
+      `Restore ${patient.firstName} ${patient.surname} to ${selectedWard.name}? Their existing SecureObs history will be retained.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        { text: "Restore to ward", onPress: () => void restorePatient(patient) }
+      ]
+    );
+  };
+
+  const restorePatient = async (patient: Patient) => {
+    if (!canManagePatients || !selectedWard) return;
+    setIsSaving(true);
+    try {
+      await onSavePatient({
+        ...patient,
+        archived: false,
+        wardId: selectedWard.id,
+        onOffWard: "On ward",
+        latestObservationPlace: "Side room"
+      });
+      Alert.alert("Patient restored", `${patient.firstName} ${patient.surname} is active on ${selectedWard.name}.`);
+    } catch (error) {
+      Alert.alert("Patient not restored", error instanceof Error ? error.message : "The patient remains archived.");
     } finally {
       setIsSaving(false);
     }
@@ -228,6 +278,31 @@ export function PatientManagementScreen({
               <Text style={styles.patientMeta}>{patient.hospitalNumber} | {patient.observationLevel}</Text>
             </TouchableOpacity>
           ))}
+          <View style={styles.archivedSection}>
+            <Text style={styles.label}>Archived patients ({archivedPatients.length})</Text>
+            <Text style={styles.patientMeta}>Restore a returning patient to {selectedWard?.name ?? "this ward"} without losing their history.</Text>
+            {archivedPatients.length === 0 ? (
+              <Text style={styles.patientMeta}>No archived patients.</Text>
+            ) : archivedPatients.map((patient) => {
+              const previousWard = wards.find((ward) => ward.id === patient.wardId);
+              return (
+                <View key={patient.id} style={styles.archivedRow}>
+                  <View style={styles.archivedCopy}>
+                    <Text style={styles.patientName}>{patient.firstName} {patient.surname}</Text>
+                    <Text style={styles.patientMeta}>{patient.hospitalNumber} · previously {previousWard?.name ?? patient.wardId}</Text>
+                  </View>
+                  <TouchableOpacity
+                    accessibilityRole="button"
+                    disabled={!canManagePatients || isSaving || !selectedWard}
+                    onPress={() => confirmRestorePatient(patient)}
+                    style={[styles.smallButton, (!canManagePatients || isSaving || !selectedWard) && styles.disabledControl]}
+                  >
+                    <Text style={styles.smallButtonText}>Restore</Text>
+                  </TouchableOpacity>
+                </View>
+              );
+            })}
+          </View>
         </View>
 
         <View style={styles.editor}>
@@ -332,7 +407,7 @@ export function PatientManagementScreen({
                 <TouchableOpacity
                   accessibilityRole="button"
                   disabled={!canManagePatients || isSaving}
-                  onPress={archivePatient}
+                  onPress={confirmArchivePatient}
                   style={[styles.archiveButton, (!canManagePatients || isSaving) && styles.disabledControl]}
                 >
                   <Text style={styles.archiveButtonText}>Archive patient</Text>
@@ -422,6 +497,9 @@ const styles = StyleSheet.create({
   patientRowActive: { backgroundColor: "#e8f2f5", borderColor: "#1f5262" },
   patientName: { color: "#18262c", fontSize: 14, fontWeight: "900" },
   patientMeta: { color: "#607078", fontSize: 12, fontWeight: "800", marginTop: 3 },
+  archivedSection: { borderTopColor: "#d8e0e3", borderTopWidth: 1, gap: 8, marginTop: 6, paddingTop: 10 },
+  archivedRow: { alignItems: "center", borderColor: "#e1e7e9", borderRadius: 7, borderWidth: 1, flexDirection: "row", gap: 8, justifyContent: "space-between", padding: 9 },
+  archivedCopy: { flex: 1 },
   editor: {
     backgroundColor: "#ffffff",
     borderColor: "#d8e0e3",
