@@ -239,8 +239,10 @@ export async function loadStaff(organisationId?: string) {
   return request<{ staff: StaffMember[] }>(withOrganisationId("/api/staff", organisationId));
 }
 
-export async function loadPatients(organisationId?: string) {
-  return request<{ patients: Patient[] }>(withOrganisationId("/api/patients", organisationId));
+export async function loadPatients(organisationId?: string, includeArchived = false) {
+  const path = withOrganisationId("/api/patients", organisationId);
+  const separator = path.includes("?") ? "&" : "?";
+  return request<{ patients: Patient[] }>(`${path}${separator}includeArchived=${includeArchived ? "true" : "false"}`);
 }
 
 export async function savePatient(patient: OrganisationScoped<Patient> & ActorScoped) {

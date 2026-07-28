@@ -423,7 +423,7 @@ export default function App() {
           loadStaff(organisationId),
           loadWards(organisationId),
           loadObservations(organisationId),
-          loadPatients(organisationId),
+          loadPatients(organisationId, true),
           loadPatientCarePlans(organisationId, selectedWardId || undefined),
           loadPatientNotes(organisationId, selectedWardId || undefined),
           loadSafetyIncidents(organisationId, selectedWardId || undefined),
@@ -622,7 +622,7 @@ export default function App() {
   }, [platformWards, selectedStaff, wards]);
 
   const wardPatients = useMemo(
-    () => patients.filter((patient) => patient.wardId === selectedWardId),
+    () => patients.filter((patient) => !patient.archived && patient.wardId === selectedWardId),
     [patients, selectedWardId]
   );
 
@@ -1171,7 +1171,10 @@ export default function App() {
   };
 
   const handleRefreshPatients = async () => {
-    const result = await loadPatients(selectedStaff?.organisationId ?? defaultOrganisationId);
+    const result = await loadPatients(
+      hasAdminAccess(selectedStaff) ? adminOrganisationId : selectedStaff?.organisationId ?? defaultOrganisationId,
+      true
+    );
     setPatients((currentPatients) => mergeById(result.patients, currentPatients));
   };
 
