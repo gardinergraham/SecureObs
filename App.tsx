@@ -6,6 +6,7 @@ import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 import { AdminSettingsScreen } from "./src/screens/AdminSettingsScreen";
 import { AnalyticsDashboardScreen } from "./src/screens/AnalyticsDashboardScreen";
 import { AuditLogScreen } from "./src/screens/AuditLogScreen";
+import { ComplianceGovernanceScreen } from "./src/screens/ComplianceGovernanceScreen";
 import { BankAgencyStaffScreen } from "./src/screens/BankAgencyStaffScreen";
 import { EnhancedObservationScreen } from "./src/screens/EnhancedObservationScreen";
 import { FamilyPortalScreen } from "./src/screens/FamilyPortalScreen";
@@ -84,6 +85,9 @@ import {
   saveStaffShiftAssignment as persistStaffShiftAssignment,
   savePatient as persistPatient,
   savePatientDirect as persistManagedPatient,
+  transferPatient as persistPatientTransfer,
+  archivePatient as persistPatientArchive,
+  restorePatient as persistPatientRestore,
   resetStaffPin,
   unlockStaffAccess,
   updateMedicationPrescription as persistMedicationPrescriptionUpdate
@@ -155,6 +159,7 @@ type AppScreen =
   | "wardOverview"
   | "adminSettings"
   | "auditLog"
+  | "complianceGovernance"
   | "analytics"
   | "observations"
   | "enhanced"
@@ -182,7 +187,7 @@ type AppScreen =
 
 export default function App() {
   const [screen, setScreen] = useState<AppScreen>("home");
-  const [workspaceBackScreen, setWorkspaceBackScreen] = useState<"wardOverview" | "observations">("wardOverview");
+  const [workspaceBackScreen, setWorkspaceBackScreen] = useState<"wardOverview" | "observations" | "complianceGovernance">("wardOverview");
   const [news2Readings, setNews2Readings] = useState<News2Reading[]>(() => createDemoNews2Readings(seedData.patients[0]?.id ?? ""));
   const [foodFluidEntries, setFoodFluidEntries] = useState<FoodFluidEntry[]>([]);
   const [observations, setObservations] = useState<Observation[]>(seedData.observations);
@@ -225,6 +230,7 @@ export default function App() {
     : undefined;
   const analyticsEnabled = isOrganisationFeatureEnabled(organisationSettings, "dashboard");
   const rosteringEnabled = isOrganisationFeatureEnabled(organisationSettings, "rostering");
+  const cqcReportingEnabled = isOrganisationFeatureEnabled(organisationSettings, "cqcReporting");
   const [selectedPatientId, setSelectedPatientId] = useState(seedData.patients[0]?.id ?? "");
   const lastActivityAtRef = useRef(Date.now());
   const inactivityCountdownStartedAtRef = useRef<number | null>(null);
@@ -1188,6 +1194,24 @@ export default function App() {
     setPatients((currentPatients) => upsertPatient(currentPatients, result.patient));
   };
 
+  const activePatientOrganisationId = () =>
+    hasAdminAccess(selectedStaff) ? adminOrganisationId : selectedStaff?.organisationId;
+
+  const handleTransferManagedPatient = async (patientId: string, wardId: string, reason: string) => {
+    const result = await persistPatientTransfer(patientId, wardId, reason, activePatientOrganisationId());
+    setPatients((currentPatients) => upsertPatient(currentPatients, result.patient));
+  };
+
+  const handleArchiveManagedPatient = async (patientId: string, reason: string) => {
+    const result = await persistPatientArchive(patientId, reason, activePatientOrganisationId());
+    setPatients((currentPatients) => upsertPatient(currentPatients, result.patient));
+  };
+
+  const handleRestoreManagedPatient = async (patientId: string, wardId: string, reason: string) => {
+    const result = await persistPatientRestore(patientId, wardId, reason, activePatientOrganisationId());
+    setPatients((currentPatients) => upsertPatient(currentPatients, result.patient));
+  };
+
   const handleCreatePatientNote = async (note: PatientNote) => {
     const result = await persistOrQueue(
       "patient note",
@@ -1508,6 +1532,8 @@ export default function App() {
             onScanStaffCard={handleScanStaffCard}
             onOpenAdminSettings={() => setScreen("adminSettings")}
             onOpenWardSettings={() => setScreen("wardSettings")}
+            complianceGovernanceEnabled={cqcReportingEnabled}
+            onOpenComplianceGovernance={() => setScreen("complianceGovernance")}
             onStart={() => setScreen(selectedWard?.landingPage === "observations" ? "observations" : "wardOverview")}
           />
         ) : screen === "adminSettings" ? (
@@ -1526,7 +1552,10 @@ export default function App() {
             onCreateCustomerOrganisation={handleCreateCustomerOrganisation}
             onDeleteCustomerOrganisation={handleDeleteCustomerOrganisation}
             onSelectCustomerOrganisation={selectAdminOrganisation}
-            onOpenAuditLog={() => setScreen("auditLog")}
+            onOpenAuditLog={() => {
+              setWorkspaceBackScreen("wardOverview");
+              setScreen("auditLog");
+            }}
             onCreateSite={handleCreateSite}
             onCreateStaff={handleCreateStaffMember}
             onCreateWard={handleCreateWard}
@@ -1536,7 +1565,39 @@ export default function App() {
           <AuditLogScreen
             organisationId={selectedStaff?.organisationId ?? defaultOrganisationId}
             selectedStaff={selectedStaff}
-            onBack={() => setScreen("adminSettings")}
+            backLabel={workspaceBackScreen === "complianceGovernance" ? "Back to compliance" : "Back"}
+            onBack={() => setScreen(workspaceBackScreen === "complianceGovernance" ? "complianceGovernance" : "adminSettings")}
+          />
+        ) : screen === "complianceGovernance" ? (
+          <ComplianceGovernanceScreen
+            carePlans={patientCarePlans}
+            incidents={safetyIncidents}
+            missedObservations={missedObservations}
+            news2Readings={news2Readings}
+            patients={wardPatients}
+            patientTasks={patientTasks}
+            securityAreas={securityAreas}
+            securityChecks={securityChecks}
+            shiftHandovers={shiftHandovers}
+            ward={selectedWard}
+            onBack={() => setScreen("home")}
+            onOpenAuditLog={() => {
+              setWorkspaceBackScreen("complianceGovernance");
+              setScreen("auditLog");
+            }}
+            onOpenIncidents={() => {
+              setWorkspaceBackScreen("complianceGovernance");
+              setScreen("safetyEscalation");
+            }}
+            onOpenPatientCarePlans={() => {
+              setWorkspaceBackScreen("complianceGovernance");
+              setScreen("patientCarePlans");
+            }}
+            onOpenPatientTasks={() => {
+              setWorkspaceBackScreen("complianceGovernance");
+              setScreen("patientTasks");
+            }}
+            onOpenWardSettings={() => setScreen("wardSettings")}
           />
         ) : screen === "wardSettings" ? (
           <WardSettingsScreen
@@ -1791,6 +1852,9 @@ export default function App() {
             wards={accessibleWards}
             onBack={() => setScreen(workspaceBackScreen)}
             onSavePatient={handleSaveManagedPatient}
+            onTransferPatient={handleTransferManagedPatient}
+            onArchivePatient={handleArchiveManagedPatient}
+            onRestorePatient={handleRestoreManagedPatient}
           />
         ) : screen === "patientAssessmentForms" ? (
           <PatientAssessmentFormsScreen

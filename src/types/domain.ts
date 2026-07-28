@@ -95,6 +95,7 @@ export type OrganisationFeatureKey =
   | "medication"
   | "rostering"
   | "dashboard"
+  | "cqcReporting"
   | "securityChecks"
   | "multiSite"
   | "multiWard"

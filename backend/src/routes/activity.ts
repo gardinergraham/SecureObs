@@ -2266,7 +2266,7 @@ router.delete("/staff-shift-assignments/:id", requireStaffRole(["nurse", "manage
   }
 });
 
-router.get("/audit-events", requireStaffRole(["super_admin"]), async (request, response, next) => {
+router.get("/audit-events", requireStaffRole(["manager", "super_admin"]), async (request, response, next) => {
   try {
     const organisationId = requireOrganisationId(request, response);
     if (!organisationId) return;

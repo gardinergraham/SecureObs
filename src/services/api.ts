@@ -259,6 +259,27 @@ export async function savePatientDirect(patient: OrganisationScoped<Patient> & A
   });
 }
 
+export async function transferPatient(patientId: string, wardId: string, reason: string, organisationId?: string) {
+  return request<{ patient: Patient }>(`/api/patients/${encodeURIComponent(patientId)}/transfer`, {
+    method: "POST",
+    body: JSON.stringify({ organisationId, wardId, reason })
+  });
+}
+
+export async function archivePatient(patientId: string, reason: string, organisationId?: string) {
+  return request<{ patient: Patient }>(`/api/patients/${encodeURIComponent(patientId)}/archive`, {
+    method: "POST",
+    body: JSON.stringify({ organisationId, reason })
+  });
+}
+
+export async function restorePatient(patientId: string, wardId: string, reason: string, organisationId?: string) {
+  return request<{ patient: Patient }>(`/api/patients/${encodeURIComponent(patientId)}/restore`, {
+    method: "POST",
+    body: JSON.stringify({ organisationId, wardId, reason })
+  });
+}
+
 export type FamilyPortalInvitation = {
   username: string;
   activationCode: string;

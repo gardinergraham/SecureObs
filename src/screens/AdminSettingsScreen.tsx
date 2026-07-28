@@ -19,6 +19,7 @@ const featureLabels: Array<{ key: OrganisationFeatureKey; label: string }> = [
   { key: "medication", label: "Medication" },
   { key: "rostering", label: "Rostering" },
   { key: "dashboard", label: "Analytics dashboard" },
+  { key: "cqcReporting", label: "CQC reporting & governance" },
   { key: "securityChecks", label: "Security checks" },
   { key: "multiSite", label: "Multiple sites" },
   { key: "multiWard", label: "Multiple wards" },
@@ -29,10 +30,10 @@ const featureLabels: Array<{ key: OrganisationFeatureKey; label: string }> = [
   { key: "sqlIntegration", label: "SQL integration" }
 ];
 const planFeatures: Record<OrganisationSettings["subscriptionPlan"], Record<OrganisationFeatureKey, boolean>> = {
-  essential: { medication: false, rostering: false, dashboard: false, securityChecks: false, multiSite: false, multiWard: false, prioritySupport: false, dedicatedSupport: false, staffTraining: false, dedicatedDatabase: false, sqlIntegration: false },
-  professional: { medication: true, rostering: true, dashboard: true, securityChecks: true, multiSite: false, multiWard: false, prioritySupport: true, dedicatedSupport: false, staffTraining: false, dedicatedDatabase: false, sqlIntegration: false },
-  enterprise: { medication: true, rostering: true, dashboard: true, securityChecks: true, multiSite: true, multiWard: true, prioritySupport: true, dedicatedSupport: true, staffTraining: true, dedicatedDatabase: false, sqlIntegration: false },
-  hospital: { medication: true, rostering: true, dashboard: true, securityChecks: true, multiSite: true, multiWard: true, prioritySupport: true, dedicatedSupport: true, staffTraining: true, dedicatedDatabase: true, sqlIntegration: true }
+  essential: { medication: false, rostering: false, dashboard: false, cqcReporting: false, securityChecks: false, multiSite: false, multiWard: false, prioritySupport: false, dedicatedSupport: false, staffTraining: false, dedicatedDatabase: false, sqlIntegration: false },
+  professional: { medication: true, rostering: true, dashboard: true, cqcReporting: true, securityChecks: true, multiSite: false, multiWard: false, prioritySupport: true, dedicatedSupport: false, staffTraining: false, dedicatedDatabase: false, sqlIntegration: false },
+  enterprise: { medication: true, rostering: true, dashboard: true, cqcReporting: true, securityChecks: true, multiSite: true, multiWard: true, prioritySupport: true, dedicatedSupport: true, staffTraining: true, dedicatedDatabase: false, sqlIntegration: false },
+  hospital: { medication: true, rostering: true, dashboard: true, cqcReporting: true, securityChecks: true, multiSite: true, multiWard: true, prioritySupport: true, dedicatedSupport: true, staffTraining: true, dedicatedDatabase: true, sqlIntegration: true }
 };
 
 type AdminSettingsScreenProps = {

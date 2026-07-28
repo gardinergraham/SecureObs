@@ -1,8 +1,8 @@
-import { Router } from "express";
+import { Router, type Response } from "express";
 import { z } from "zod";
 
 import { auditActorFromBody, recordAuditEvent } from "../audit.js";
-import { requireStaffRole } from "../auth.js";
+import { requireStaffRole, type AuthenticatedRequest } from "../auth.js";
 import { pool } from "../db/pool.js";
 import { optionalOrganisationIdSchema, requireOrganisationId } from "./organisation.js";
 
@@ -120,6 +120,12 @@ const patientSchema = z.object({
   actorStaffCode: z.string().optional()
 });
 
+const patientMovementSchema = z.object({
+  organisationId: optionalOrganisationIdSchema,
+  reason: z.string().trim().min(3).max(2000),
+  wardId: z.string().min(1).optional()
+});
+
 router.get("/", async (request, response, next) => {
   try {
     const organisationId = requireOrganisationId(request, response);
@@ -167,6 +173,129 @@ router.get("/", async (request, response, next) => {
   }
 });
 
+router.post("/:id/transfer", requireStaffRole(["manager", "super_admin"]), async (request: AuthenticatedRequest, response, next) => {
+  try {
+    const parsed = patientMovementSchema.safeParse(request.body);
+    if (!parsed.success || !parsed.data.wardId) {
+      response.status(400).json({ error: "Destination ward and transfer reason are required" });
+      return;
+    }
+    const patientId = readPatientId(request, response);
+    if (!patientId) return;
+    const organisationId = requireOrganisationId(request, response);
+    if (!organisationId) return;
+    const destination = await pool.query(
+      `select wards.name, sites.organisation_id
+       from wards inner join sites on sites.id = wards.site_id where wards.id = $1`,
+      [parsed.data.wardId]
+    );
+    if (!destination.rows[0] || destination.rows[0].organisation_id !== organisationId) {
+      response.status(403).json({ error: "The destination ward does not belong to this organisation" });
+      return;
+    }
+    const current = await pool.query(
+      `select patients.ward_id as "wardId", wards.name as "wardName"
+       from patients left join wards on wards.id = patients.ward_id
+       where patients.id = $1 and patients.organisation_id = $2 and patients.archived = false`,
+      [patientId, organisationId]
+    );
+    if (!current.rows[0]) {
+      response.status(404).json({ error: "Active patient not found" });
+      return;
+    }
+    await pool.query(
+      `update patients set ward_id = $1, on_off_ward = 'On ward',
+       latest_observation_place = 'Side room', updated_at = now()
+       where id = $2 and organisation_id = $3`,
+      [parsed.data.wardId, patientId, organisationId]
+    );
+    const patient = await loadPatient(organisationId, patientId);
+    await recordMovementAudit(request, organisationId, patientId, "patient.transfer", {
+      reason: parsed.data.reason,
+      fromWardId: current.rows[0].wardId,
+      fromWardName: current.rows[0].wardName,
+      toWardId: parsed.data.wardId,
+      toWardName: destination.rows[0].name
+    });
+    response.json({ patient });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post("/:id/archive", requireStaffRole(["manager", "super_admin"]), async (request: AuthenticatedRequest, response, next) => {
+  try {
+    const parsed = patientMovementSchema.safeParse(request.body);
+    if (!parsed.success) {
+      response.status(400).json({ error: "Archive reason is required" });
+      return;
+    }
+    const patientId = readPatientId(request, response);
+    if (!patientId) return;
+    const organisationId = requireOrganisationId(request, response);
+    if (!organisationId) return;
+    const result = await pool.query(
+      `update patients set archived = true, updated_at = now()
+       where id = $1 and organisation_id = $2 and archived = false returning id, ward_id as "wardId"`,
+      [patientId, organisationId]
+    );
+    if (!result.rows[0]) {
+      response.status(404).json({ error: "Active patient not found" });
+      return;
+    }
+    const patient = await loadPatient(organisationId, patientId);
+    await recordMovementAudit(request, organisationId, patientId, "patient.archive", {
+      reason: parsed.data.reason,
+      wardId: result.rows[0].wardId
+    });
+    response.json({ patient });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post("/:id/restore", requireStaffRole(["manager", "super_admin"]), async (request: AuthenticatedRequest, response, next) => {
+  try {
+    const parsed = patientMovementSchema.safeParse(request.body);
+    if (!parsed.success || !parsed.data.wardId) {
+      response.status(400).json({ error: "Destination ward and restoration reason are required" });
+      return;
+    }
+    const patientId = readPatientId(request, response);
+    if (!patientId) return;
+    const organisationId = requireOrganisationId(request, response);
+    if (!organisationId) return;
+    const destination = await pool.query(
+      `select wards.name, sites.organisation_id
+       from wards inner join sites on sites.id = wards.site_id where wards.id = $1`,
+      [parsed.data.wardId]
+    );
+    if (!destination.rows[0] || destination.rows[0].organisation_id !== organisationId) {
+      response.status(403).json({ error: "The destination ward does not belong to this organisation" });
+      return;
+    }
+    const result = await pool.query(
+      `update patients set archived = false, ward_id = $1, on_off_ward = 'On ward',
+       latest_observation_place = 'Side room', updated_at = now()
+       where id = $2 and organisation_id = $3 and archived = true returning id`,
+      [parsed.data.wardId, patientId, organisationId]
+    );
+    if (!result.rows[0]) {
+      response.status(404).json({ error: "Archived patient not found" });
+      return;
+    }
+    const patient = await loadPatient(organisationId, patientId);
+    await recordMovementAudit(request, organisationId, patientId, "patient.restore", {
+      reason: parsed.data.reason,
+      toWardId: parsed.data.wardId,
+      toWardName: destination.rows[0].name
+    });
+    response.json({ patient });
+  } catch (error) {
+    next(error);
+  }
+});
+
 router.post("/", requireStaffRole(["nurse", "manager", "doctor", "super_admin"]), async (request, response, next) => {
   try {
     const parsed = patientSchema.safeParse(request.body);
@@ -206,6 +335,8 @@ router.post("/", requireStaffRole(["nurse", "manager", "doctor", "super_admin"])
     const existingResult = await pool.query(
       `
         select
+          ward_id as "wardId",
+          archived,
           observation_level as "observationLevel",
           allergies,
           adverse_drug_reactions as "adverseDrugReactions",
@@ -223,6 +354,8 @@ router.post("/", requireStaffRole(["nurse", "manager", "doctor", "super_admin"])
     );
     const existingPatient = existingResult.rows[0] as
       | {
+          wardId?: string;
+          archived?: boolean;
           observationLevel?: string;
           allergies?: string;
           adverseDrugReactions?: string;
@@ -235,6 +368,16 @@ router.post("/", requireStaffRole(["nurse", "manager", "doctor", "super_admin"])
           familyContributions?: unknown[];
         }
       | undefined;
+
+    if (
+      existingPatient &&
+      (existingPatient.wardId !== patient.wardId || Boolean(existingPatient.archived) !== Boolean(patient.archived))
+    ) {
+      response.status(403).json({
+        error: "Ward transfers, archiving and restoration require the dedicated manager-authorised action"
+      });
+      return;
+    }
 
     const result = await pool.query(
       `
@@ -351,6 +494,52 @@ function createPatientId(hospitalNumber: string, firstName: string, surname: str
     .slice(0, 48);
 
   return `patient-${slug || Date.now()}`;
+}
+
+function readPatientId(request: AuthenticatedRequest, response: Response) {
+  const value = request.params.id;
+  if (typeof value !== "string" || !value.trim()) {
+    response.status(400).json({ error: "A valid patient is required" });
+    return undefined;
+  }
+  return value;
+}
+
+async function loadPatient(organisationId: string, patientId: string) {
+  const result = await pool.query(
+    `select id, patient_number as "patientNumber", hospital_number as "hospitalNumber",
+       first_name as "firstName", surname, ward_id as "wardId", room_number as "roomNumber",
+       observation_level as "observationLevel", latest_observation_place as "latestObservationPlace",
+       latest_observation_time as "latestObservationTime", latest_observed_by as "latestObservedBy",
+       latest_presentation as "latestPresentation", on_off_ward as "onOffWard", seclusion,
+       long_term_seclusion as "longTermSeclusion", allergies,
+       adverse_drug_reactions as "adverseDrugReactions", enhanced_observation as "enhancedObservation",
+       teso_history as "tesoHistory", patient_forms as "patientForms",
+       patient_voice_profile as "patientVoiceProfile", patient_voice_check_ins as "patientVoiceCheckIns",
+       family_sharing as "familySharing", family_contributions as "familyContributions", archived
+     from patients where organisation_id = $1 and id = $2`,
+    [organisationId, patientId]
+  );
+  return result.rows[0];
+}
+
+async function recordMovementAudit(
+  request: AuthenticatedRequest,
+  organisationId: string,
+  patientId: string,
+  eventType: string,
+  details: Record<string, unknown>
+) {
+  const actor = request.auth?.staff;
+  await recordAuditEvent({
+    organisationId,
+    actorStaffId: actor?.id,
+    actorStaffCode: actor?.staffCode,
+    eventType,
+    entityType: "patient",
+    entityId: patientId,
+    details
+  });
 }
 
 async function recordPatientAuditEvents({

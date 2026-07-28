@@ -22,6 +22,9 @@ type PatientManagementScreenProps = {
   wards: Ward[];
   onBack: () => void;
   onSavePatient: (patient: Patient) => Promise<void>;
+  onTransferPatient: (patientId: string, wardId: string, reason: string) => Promise<void>;
+  onArchivePatient: (patientId: string, reason: string) => Promise<void>;
+  onRestorePatient: (patientId: string, wardId: string, reason: string) => Promise<void>;
 };
 
 export function PatientManagementScreen({
@@ -31,7 +34,10 @@ export function PatientManagementScreen({
   staff,
   wards,
   onBack,
-  onSavePatient
+  onSavePatient,
+  onTransferPatient,
+  onArchivePatient,
+  onRestorePatient
 }: PatientManagementScreenProps) {
   const selectedStaff = staff.find((member) => member.id === selectedStaffId);
   const selectedWard = wards.find((ward) => ward.id === selectedWardId);
@@ -39,6 +45,9 @@ export function PatientManagementScreen({
   const [selectedPatientId, setSelectedPatientId] = useState("");
   const [draft, setDraft] = useState<PatientDraft>(() => createDraft());
   const [targetWardId, setTargetWardId] = useState(selectedWardId);
+  const [transferReason, setTransferReason] = useState("");
+  const [archiveReason, setArchiveReason] = useState("");
+  const [restoreReason, setRestoreReason] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const activePatients = useMemo(
     () =>
@@ -75,6 +84,10 @@ export function PatientManagementScreen({
       Alert.alert("Ward not found", "The destination ward is no longer available.");
       return;
     }
+    if (transferReason.trim().length < 3) {
+      Alert.alert("Transfer reason needed", "Record why the patient is moving before confirming the transfer.");
+      return;
+    }
 
     Alert.alert(
       "Confirm patient transfer",
@@ -83,24 +96,20 @@ export function PatientManagementScreen({
         { text: "Cancel", style: "cancel" },
         {
           text: "Confirm transfer",
-          onPress: () => void transferPatient(wardId, targetWard.name)
+          onPress: () => void transferPatient(wardId, targetWard.name, transferReason.trim())
         }
       ]
     );
   };
 
-  const transferPatient = async (wardId: string, targetWardName: string) => {
+  const transferPatient = async (wardId: string, targetWardName: string, reason: string) => {
     if (!selectedPatient || !canManagePatients) return;
 
     setIsSaving(true);
     try {
-      await onSavePatient({
-        ...selectedPatient,
-        wardId,
-        onOffWard: "On ward",
-        latestObservationPlace: "Side room"
-      });
+      await onTransferPatient(selectedPatient.id, wardId, reason);
       clearDraft();
+      setTransferReason("");
       Alert.alert("Patient transferred", `${selectedPatient.firstName} ${selectedPatient.surname} is now on ${targetWardName}.`);
     } catch (error) {
       Alert.alert(
@@ -186,24 +195,29 @@ export function PatientManagementScreen({
     if (!selectedPatient || !canManagePatients) {
       return;
     }
+    if (archiveReason.trim().length < 3) {
+      Alert.alert("Archive reason needed", "Record why the patient is being archived.");
+      return;
+    }
 
     Alert.alert(
       "Archive patient?",
       `Archive ${selectedPatient.firstName} ${selectedPatient.surname}? They will be removed from active ward lists but their record and history will be retained.`,
       [
         { text: "Cancel", style: "cancel" },
-        { text: "Archive patient", style: "destructive", onPress: () => void archivePatient() }
+        { text: "Archive patient", style: "destructive", onPress: () => void archivePatient(archiveReason.trim()) }
       ]
     );
   };
 
-  const archivePatient = async () => {
+  const archivePatient = async (reason: string) => {
     if (!selectedPatient || !canManagePatients) return;
 
     setIsSaving(true);
     try {
-      await onSavePatient({ ...selectedPatient, archived: true });
+      await onArchivePatient(selectedPatient.id, reason);
       clearDraft();
+      setArchiveReason("");
       Alert.alert("Patient archived", `${selectedPatient.firstName} ${selectedPatient.surname} has been archived.`);
     } catch (error) {
       Alert.alert("Patient not archived", error instanceof Error ? error.message : "The patient remains active.");
@@ -214,27 +228,26 @@ export function PatientManagementScreen({
 
   const confirmRestorePatient = (patient: Patient) => {
     if (!canManagePatients || !selectedWard) return;
+    if (restoreReason.trim().length < 3) {
+      Alert.alert("Restoration reason needed", "Record why the patient is returning before restoring them.");
+      return;
+    }
     Alert.alert(
       "Restore patient?",
       `Restore ${patient.firstName} ${patient.surname} to ${selectedWard.name}? Their existing SecureObs history will be retained.`,
       [
         { text: "Cancel", style: "cancel" },
-        { text: "Restore to ward", onPress: () => void restorePatient(patient) }
+        { text: "Restore to ward", onPress: () => void restorePatient(patient, restoreReason.trim()) }
       ]
     );
   };
 
-  const restorePatient = async (patient: Patient) => {
+  const restorePatient = async (patient: Patient, reason: string) => {
     if (!canManagePatients || !selectedWard) return;
     setIsSaving(true);
     try {
-      await onSavePatient({
-        ...patient,
-        archived: false,
-        wardId: selectedWard.id,
-        onOffWard: "On ward",
-        latestObservationPlace: "Side room"
-      });
+      await onRestorePatient(patient.id, selectedWard.id, reason);
+      setRestoreReason("");
       Alert.alert("Patient restored", `${patient.firstName} ${patient.surname} is active on ${selectedWard.name}.`);
     } catch (error) {
       Alert.alert("Patient not restored", error instanceof Error ? error.message : "The patient remains archived.");
@@ -281,6 +294,14 @@ export function PatientManagementScreen({
           <View style={styles.archivedSection}>
             <Text style={styles.label}>Archived patients ({archivedPatients.length})</Text>
             <Text style={styles.patientMeta}>Restore a returning patient to {selectedWard?.name ?? "this ward"} without losing their history.</Text>
+            <TextInput
+              placeholderTextColor="#6f7f87"
+              editable={canManagePatients}
+              onChangeText={setRestoreReason}
+              placeholder="Reason for restoration (required)"
+              style={styles.input}
+              value={restoreReason}
+            />
             {archivedPatients.length === 0 ? (
               <Text style={styles.patientMeta}>No archived patients.</Text>
             ) : archivedPatients.map((patient) => {
@@ -376,6 +397,14 @@ export function PatientManagementScreen({
             <>
               <View style={styles.transferPanel}>
                 <Text style={styles.label}>Transfer patient</Text>
+                <TextInput
+                  placeholderTextColor="#6f7f87"
+                  editable={canManagePatients}
+                  onChangeText={setTransferReason}
+                  placeholder="Reason for transfer (required)"
+                  style={styles.input}
+                  value={transferReason}
+                />
                 <View style={styles.optionRow}>
                   {wards
                     .filter((ward) => ward.id !== selectedPatient.wardId)
@@ -393,6 +422,14 @@ export function PatientManagementScreen({
                 </View>
               </View>
 
+              <TextInput
+                placeholderTextColor="#6f7f87"
+                editable={canManagePatients}
+                onChangeText={setArchiveReason}
+                placeholder="Reason for archiving (required)"
+                style={styles.input}
+                value={archiveReason}
+              />
               <View style={styles.leaveRow}>
                 <TouchableOpacity
                   accessibilityRole="button"

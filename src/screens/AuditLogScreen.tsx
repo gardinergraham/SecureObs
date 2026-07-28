@@ -3,7 +3,7 @@ import { ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 
 
 import { loadAuditEvents } from "../services/api";
 import type { AuditEvent, StaffMember } from "../types/domain";
-import { hasAdminAccess } from "../utils/staffRole";
+import { hasAdminAccess, hasStaffRole } from "../utils/staffRole";
 
 const eventFilters = [
   { label: "All", value: "" },
@@ -29,7 +29,7 @@ export function AuditLogScreen({ organisationId, selectedStaff, backLabel = "Bac
   const [outcome, setOutcome] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [message, setMessage] = useState("");
-  const canViewAudit = hasAdminAccess(selectedStaff);
+  const canViewAudit = hasAdminAccess(selectedStaff) || hasStaffRole(selectedStaff, "manager");
   const filteredEvents = useMemo(() => {
     if (eventFilter !== "access-failure") {
       return auditEvents;
@@ -40,7 +40,7 @@ export function AuditLogScreen({ organisationId, selectedStaff, backLabel = "Bac
 
   const loadEvents = async () => {
     if (!canViewAudit) {
-      setMessage("Audit logs are restricted to SecureObs admin.");
+      setMessage("Audit logs are restricted to managers and SecureObs admin.");
       return;
     }
 

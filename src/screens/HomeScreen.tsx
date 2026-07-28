@@ -22,6 +22,8 @@ type HomeScreenProps = {
   onScanStaffCard: () => Promise<string>;
   onOpenAdminSettings: () => void;
   onOpenWardSettings: () => void;
+  onOpenComplianceGovernance: () => void;
+  complianceGovernanceEnabled: boolean;
   onStart: () => void;
 };
 
@@ -42,6 +44,8 @@ export function HomeScreen({
   onScanStaffCard,
   onOpenAdminSettings,
   onOpenWardSettings,
+  onOpenComplianceGovernance,
+  complianceGovernanceEnabled,
   onStart
 }: HomeScreenProps) {
   const appVersion = appConfig.expo.version;
@@ -72,6 +76,7 @@ export function HomeScreen({
   const canStart = Boolean(selectedStaff && selectedSite && selectedWard && !pinChangeRequired);
   const canOpenAdminSettings = !pinChangeRequired && hasAdminAccess(selectedStaff);
   const canEditWardSettings = !pinChangeRequired && (hasStaffRole(selectedStaff, "manager") || hasAdminAccess(selectedStaff));
+  const canOpenCompliance = !pinChangeRequired && Boolean(selectedWard) && canEditWardSettings && complianceGovernanceEnabled;
   const sessionMeta = useMemo(() => {
     const staffLabel = selectedStaff ? `${selectedStaff.name} (${selectedStaff.staffCode})` : "No staff";
     const siteLabel = selectedSite?.name ?? "No site";
@@ -434,6 +439,18 @@ export function HomeScreen({
           meta={canEditWardSettings ? "Intervals, modules, rota and staff setup" : "Manager access required"}
           title="Ward settings"
           onPress={onOpenWardSettings}
+        />
+        <MenuTile
+          disabled={!canOpenCompliance}
+          meta={
+            !canEditWardSettings
+              ? "Manager access required"
+              : complianceGovernanceEnabled
+                ? "CQC evidence, incidents, audits, governance and controls"
+                : "Not included in this package — contact SecureObs to upgrade"
+          }
+          title="Compliance & governance"
+          onPress={onOpenComplianceGovernance}
         />
         <MenuTile
           disabled={!canOpenAdminSettings}

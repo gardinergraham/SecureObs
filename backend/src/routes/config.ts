@@ -122,6 +122,7 @@ function subscriptionFeatures(plan: "essential" | "professional" | "enterprise" 
     medication: professional,
     rostering: professional,
     dashboard: professional,
+    cqcReporting: professional,
     securityChecks: professional,
     multiSite: enterprise,
     multiWard: enterprise,
