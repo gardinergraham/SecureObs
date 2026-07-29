@@ -466,6 +466,11 @@ export type Patient = {
   hospitalNumber: string;
   firstName: string;
   surname: string;
+  dateOfBirth?: string;
+  nextOfKinName?: string;
+  nextOfKinRelationship?: string;
+  nextOfKinTelephone?: string;
+  nextOfKinEmail?: string;
   wardId: string;
   roomNumber: number;
   observationLevel: ObservationLevel;

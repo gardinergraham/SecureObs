@@ -15,6 +15,7 @@ import type {
   SafetyIncident,
   Ward
 } from "../types/domain";
+import { calculateAge, formatDateOfBirth } from "../utils/patientDemographics";
 
 type PatientDashboardScreenProps = {
   carePlans: PatientCarePlan[];
@@ -219,6 +220,13 @@ export function PatientDashboardScreen({
               <Text style={styles.patientMeta}>
                 Room {selectedPatient.roomNumber} · {selectedPatient.hospitalNumber} ·{" "}
                 {selectedPatient.onOffWard}
+              </Text>
+              <Text style={styles.patientMeta}>
+                DOB {formatDateOfBirth(selectedPatient.dateOfBirth)}
+                {calculateAge(selectedPatient.dateOfBirth) !== undefined
+                  ? ` · Age ${calculateAge(selectedPatient.dateOfBirth)}`
+                  : ""}
+                {selectedPatient.nextOfKinName ? ` · Next of kin: ${selectedPatient.nextOfKinName}` : ""}
               </Text>
             </View>
             <View style={styles.heroPills}>

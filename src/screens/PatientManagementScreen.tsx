@@ -2,6 +2,7 @@ import React, { useMemo, useState } from "react";
 import { Alert, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 
 import type { ObservationLevel, Patient, StaffMember, Ward } from "../types/domain";
+import { calculateAge, formatDateOfBirth } from "../utils/patientDemographics";
 import { hasAdminAccess, hasStaffRole } from "../utils/staffRole";
 
 const observationLevels: ObservationLevel[] = ["Intermittent", "Eyesight", "Within arms length"];
@@ -10,6 +11,11 @@ type PatientDraft = {
   hospitalNumber: string;
   firstName: string;
   surname: string;
+  dateOfBirth: string;
+  nextOfKinName: string;
+  nextOfKinRelationship: string;
+  nextOfKinTelephone: string;
+  nextOfKinEmail: string;
   roomNumber: string;
   observationLevel: ObservationLevel;
 };
@@ -70,6 +76,11 @@ export function PatientManagementScreen({
       hospitalNumber: patient.hospitalNumber,
       firstName: patient.firstName,
       surname: patient.surname,
+      dateOfBirth: patient.dateOfBirth ?? "",
+      nextOfKinName: patient.nextOfKinName ?? "",
+      nextOfKinRelationship: patient.nextOfKinRelationship ?? "",
+      nextOfKinTelephone: patient.nextOfKinTelephone ?? "",
+      nextOfKinEmail: patient.nextOfKinEmail ?? "",
       roomNumber: String(patient.roomNumber),
       observationLevel: patient.observationLevel
     });
@@ -158,14 +169,28 @@ export function PatientManagementScreen({
       Alert.alert("Patient details needed", "Enter patient number, name and room number before saving.");
       return;
     }
+    if (draft.dateOfBirth.trim() && calculateAge(draft.dateOfBirth.trim()) === undefined) {
+      Alert.alert("Check date of birth", "Enter a valid date of birth as YYYY-MM-DD. It cannot be in the future.");
+      return;
+    }
+    if (draft.nextOfKinEmail.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(draft.nextOfKinEmail.trim())) {
+      Alert.alert("Check next-of-kin email", "Enter a valid email address or leave the field blank.");
+      return;
+    }
 
     const now = new Date().toISOString();
     const patient: Patient = {
+      ...(selectedPatient ?? {}),
       id: selectedPatient?.id ?? createPatientId(draft.hospitalNumber, draft.firstName, draft.surname),
       patientNumber: selectedPatient?.patientNumber ?? Date.now() % 100000,
       hospitalNumber: draft.hospitalNumber.trim(),
       firstName: draft.firstName.trim(),
       surname: draft.surname.trim(),
+      dateOfBirth: draft.dateOfBirth.trim(),
+      nextOfKinName: draft.nextOfKinName.trim(),
+      nextOfKinRelationship: draft.nextOfKinRelationship.trim(),
+      nextOfKinTelephone: draft.nextOfKinTelephone.trim(),
+      nextOfKinEmail: draft.nextOfKinEmail.trim(),
       wardId: targetWardId || selectedWardId,
       roomNumber,
       observationLevel: draft.observationLevel,
@@ -288,7 +313,11 @@ export function PatientManagementScreen({
               <Text style={styles.patientName}>
                 Room {patient.roomNumber} | {patient.firstName} {patient.surname}
               </Text>
-              <Text style={styles.patientMeta}>{patient.hospitalNumber} | {patient.observationLevel}</Text>
+              <Text style={styles.patientMeta}>
+                {patient.hospitalNumber}
+                {calculateAge(patient.dateOfBirth) !== undefined ? ` | Age ${calculateAge(patient.dateOfBirth)}` : ""}
+                {" | "}{patient.observationLevel}
+              </Text>
             </TouchableOpacity>
           ))}
           <View style={styles.archivedSection}>
@@ -351,6 +380,28 @@ export function PatientManagementScreen({
               value={draft.surname}
             />
           </View>
+          <View style={styles.demographicPanel}>
+            <Text style={styles.label}>Date of birth</Text>
+            <View style={styles.formRow}>
+              <TextInput
+                placeholderTextColor="#6f7f87"
+                editable={canManagePatients}
+                onChangeText={(dateOfBirth) => setDraft((current) => ({ ...current, dateOfBirth }))}
+                placeholder="YYYY-MM-DD"
+                style={[styles.input, styles.flexInput]}
+                value={draft.dateOfBirth}
+              />
+              <View style={styles.ageBox}>
+                <Text style={styles.currentWardLabel}>Age</Text>
+                <Text style={styles.currentWardText}>
+                  {calculateAge(draft.dateOfBirth) ?? "—"}
+                </Text>
+              </View>
+            </View>
+            {selectedPatient?.dateOfBirth ? (
+              <Text style={styles.helperText}>Recorded date: {formatDateOfBirth(selectedPatient.dateOfBirth)}</Text>
+            ) : null}
+          </View>
           <TextInput placeholderTextColor="#6f7f87"
             editable={canManagePatients}
             keyboardType="number-pad"
@@ -359,6 +410,50 @@ export function PatientManagementScreen({
             style={styles.input}
             value={draft.roomNumber}
           />
+
+          <View style={styles.demographicPanel}>
+            <Text style={styles.label}>Next of kin / primary contact</Text>
+            <View style={styles.formRow}>
+              <TextInput
+                placeholderTextColor="#6f7f87"
+                editable={canManagePatients}
+                onChangeText={(nextOfKinName) => setDraft((current) => ({ ...current, nextOfKinName }))}
+                placeholder="Contact name"
+                style={[styles.input, styles.flexInput]}
+                value={draft.nextOfKinName}
+              />
+              <TextInput
+                placeholderTextColor="#6f7f87"
+                editable={canManagePatients}
+                onChangeText={(nextOfKinRelationship) => setDraft((current) => ({ ...current, nextOfKinRelationship }))}
+                placeholder="Relationship to patient"
+                style={[styles.input, styles.flexInput]}
+                value={draft.nextOfKinRelationship}
+              />
+            </View>
+            <View style={styles.formRow}>
+              <TextInput
+                placeholderTextColor="#6f7f87"
+                editable={canManagePatients}
+                keyboardType="phone-pad"
+                onChangeText={(nextOfKinTelephone) => setDraft((current) => ({ ...current, nextOfKinTelephone }))}
+                placeholder="Telephone"
+                style={[styles.input, styles.flexInput]}
+                value={draft.nextOfKinTelephone}
+              />
+              <TextInput
+                placeholderTextColor="#6f7f87"
+                autoCapitalize="none"
+                editable={canManagePatients}
+                keyboardType="email-address"
+                onChangeText={(nextOfKinEmail) => setDraft((current) => ({ ...current, nextOfKinEmail }))}
+                placeholder="Email address"
+                style={[styles.input, styles.flexInput]}
+                value={draft.nextOfKinEmail}
+              />
+            </View>
+            <Text style={styles.helperText}>Optional. Record only authorised contact information.</Text>
+          </View>
 
           <View style={styles.currentWardBox}>
             <Text style={styles.currentWardLabel}>Current ward</Text>
@@ -463,6 +558,11 @@ function createDraft(): PatientDraft {
     hospitalNumber: "",
     firstName: "",
     surname: "",
+    dateOfBirth: "",
+    nextOfKinName: "",
+    nextOfKinRelationship: "",
+    nextOfKinTelephone: "",
+    nextOfKinEmail: "",
     roomNumber: "",
     observationLevel: "Intermittent"
   };
@@ -559,6 +659,24 @@ const styles = StyleSheet.create({
   },
   formRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   flexInput: { flex: 1, minWidth: 160 },
+  demographicPanel: {
+    backgroundColor: "#f8fafb",
+    borderColor: "#d8e0e3",
+    borderRadius: 7,
+    borderWidth: 1,
+    gap: 8,
+    padding: 10
+  },
+  ageBox: {
+    backgroundColor: "#ffffff",
+    borderColor: "#c7d2d6",
+    borderRadius: 6,
+    borderWidth: 1,
+    minWidth: 90,
+    paddingHorizontal: 12,
+    paddingVertical: 7
+  },
+  helperText: { color: "#607078", fontSize: 11, lineHeight: 16 },
   label: { color: "#31454d", fontSize: 12, fontWeight: "900", marginTop: 2 },
   optionRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   optionButton: {

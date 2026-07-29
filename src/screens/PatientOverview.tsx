@@ -3,6 +3,7 @@ import { StyleSheet, Text, View } from "react-native";
 
 import { Panel } from "../components/Panel";
 import type { Observation, Patient, PatientIncompatibility, Ward } from "../types/domain";
+import { calculateAge, formatDateOfBirth } from "../utils/patientDemographics";
 
 type PatientOverviewProps = {
   patient: Patient;
@@ -26,12 +27,22 @@ export function PatientOverview({
         <Text style={styles.line}>Ward: {ward?.name ?? "Unassigned"}</Text>
         <Text style={styles.line}>Patient number: {patient.patientNumber}</Text>
         <Text style={styles.line}>Hospital number: {patient.hospitalNumber}</Text>
+        <Text style={styles.line}>
+          Date of birth: {formatDateOfBirth(patient.dateOfBirth)}
+          {calculateAge(patient.dateOfBirth) !== undefined ? ` (age ${calculateAge(patient.dateOfBirth)})` : ""}
+        </Text>
         <Text style={styles.line}>Room: {patient.roomNumber}</Text>
         <Text style={styles.line}>Observation: {patient.observationLevel}</Text>
         <Text style={styles.line}>Latest place: {patient.latestObservationPlace}</Text>
         <Text style={styles.line}>Status: {patient.onOffWard}</Text>
         <Text style={styles.line}>Seclusion: {patient.seclusion ? "Yes" : "No"}</Text>
         <Text style={styles.line}>Long-term seclusion: {patient.longTermSeclusion ? "Yes" : "No"}</Text>
+        <Text style={styles.line}>
+          Next of kin: {patient.nextOfKinName || "Not recorded"}
+          {patient.nextOfKinRelationship ? ` (${patient.nextOfKinRelationship})` : ""}
+        </Text>
+        {patient.nextOfKinTelephone ? <Text style={styles.line}>Contact telephone: {patient.nextOfKinTelephone}</Text> : null}
+        {patient.nextOfKinEmail ? <Text style={styles.line}>Contact email: {patient.nextOfKinEmail}</Text> : null}
       </Panel>
 
       <Panel title="Observation history">
