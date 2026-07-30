@@ -51,6 +51,12 @@ type AdminSettingsScreenProps = {
   onCreateSite: (site: Site) => Promise<void>;
   onCreateStaff: (staff: StaffMember) => Promise<void>;
   onCreateWard: (ward: Ward) => Promise<void>;
+  onDeleteDemoWard: (ward: Ward) => Promise<{
+    deletedWardId: string;
+    wardName: string;
+    siteName: string;
+    deletedPatientCount: number;
+  }>;
   onUpdateOrganisationSettings: (settings: OrganisationSettings) => Promise<void>;
 };
 
@@ -69,6 +75,7 @@ export function AdminSettingsScreen({
   onCreateSite,
   onCreateStaff,
   onCreateWard,
+  onDeleteDemoWard,
   onUpdateOrganisationSettings
 }: AdminSettingsScreenProps) {
   const [customerName, setCustomerName] = useState("");
@@ -107,8 +114,56 @@ export function AdminSettingsScreen({
   const selectedWardManagers = staff.filter(
     (member) => member.role === "manager" && (member.wardId === managedWardId || member.allowedWardIds.includes(managedWardId))
   );
+  const managedWard = wards.find((ward) => ward.id === managedWardId);
+  const managedWardSite = sites.find((site) => site.id === managedWard?.siteId);
   const canAddSite = effectiveSiteLimit === null || sites.length < effectiveSiteLimit;
   const canAddWard = Boolean(selectedSiteId) && (effectiveWardLimit === null || selectedSiteWards.length < effectiveWardLimit);
+
+  const confirmDeleteDemoWard = () => {
+    if (!managedWard || !managedWard.name.toLowerCase().includes("demo")) return;
+    Alert.alert(
+      "Delete demonstration ward?",
+      `Permanently delete “${managedWard.name}” from “${managedWardSite?.name ?? "this site"}”, including all demonstration patients and their linked notes, observations, tasks, incidents and other ward records?\n\nStaff accounts will remain, but access to this ward will be removed. This cannot be undone.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Continue",
+          style: "destructive",
+          onPress: () => {
+            Alert.alert(
+              "Final confirmation",
+              `Check the site carefully: ${managedWardSite?.name ?? "Unknown site"}.\n\nDelete ${managedWard.name} and all of its demonstration records?`,
+              [
+                { text: "Cancel", style: "cancel" },
+                {
+                  text: "Delete demo ward",
+                  style: "destructive",
+                  onPress: async () => {
+                    setIsSaving(true);
+                    try {
+                      const result = await onDeleteDemoWard(managedWard);
+                      setManagedWardId("");
+                      Alert.alert(
+                        "Demonstration ward deleted",
+                        `${result.wardName} was removed from ${result.siteName}, together with ${result.deletedPatientCount} demonstration patient${result.deletedPatientCount === 1 ? "" : "s"} and their linked records.`
+                      );
+                    } catch (error) {
+                      Alert.alert(
+                        "Ward not deleted",
+                        error instanceof Error ? error.message : "The demonstration ward could not be deleted."
+                      );
+                    } finally {
+                      setIsSaving(false);
+                    }
+                  }
+                }
+              ]
+            );
+          }
+        }
+      ]
+    );
+  };
 
   useEffect(() => {
     setNfcStaffCodeFormat(organisationSettings.nfcStaffCodeFormat);
@@ -751,6 +806,22 @@ export function AdminSettingsScreen({
               <TouchableOpacity accessibilityRole="button" disabled={isSaving || isWritingManagerTag} onPress={saveExistingWardManager} style={[styles.primaryButton, (isSaving || isWritingManagerTag) && styles.disabledButton]}>
                 <Text style={styles.primaryButtonText}>{editingManagerId ? "Update ward manager" : "Assign new ward manager"}</Text>
               </TouchableOpacity>
+              {managedWard?.name.toLowerCase().includes("demo") ? (
+                <View style={styles.demoDeletePanel}>
+                  <Text style={styles.demoDeleteTitle}>Demonstration data cleanup</Text>
+                  <Text style={styles.listMeta}>
+                    Deletes this ward from {managedWardSite?.name ?? "the selected site"}, including its demonstration patients and linked records.
+                  </Text>
+                  <TouchableOpacity
+                    accessibilityRole="button"
+                    disabled={isSaving || isWritingManagerTag}
+                    onPress={confirmDeleteDemoWard}
+                    style={[styles.demoDeleteButton, (isSaving || isWritingManagerTag) && styles.disabledButton]}
+                  >
+                    <Text style={styles.demoDeleteButtonText}>{isSaving ? "Deleting…" : "Delete this demonstration ward"}</Text>
+                  </TouchableOpacity>
+                </View>
+              ) : null}
             </View>
           ) : null}
         </View>
@@ -829,6 +900,10 @@ const styles = StyleSheet.create({
   customerInput: { flex: 1 },
   createCustomerButton: { minWidth: 160, paddingHorizontal: 12 },
   managerPanel: { borderColor: "#d8e0e3", borderRadius: 8, borderWidth: 1, gap: 8, marginTop: 4, padding: 10 },
+  demoDeletePanel: { backgroundColor: "#fff7f5", borderColor: "#efb5ad", borderRadius: 7, borderWidth: 1, gap: 7, marginTop: 8, padding: 10 },
+  demoDeleteTitle: { color: "#81251f", fontSize: 14, fontWeight: "900" },
+  demoDeleteButton: { alignItems: "center", backgroundColor: "#9f2d28", borderRadius: 6, justifyContent: "center", minHeight: 42, paddingHorizontal: 12 },
+  demoDeleteButtonText: { color: "#ffffff", fontSize: 13, fontWeight: "900" },
   managerRow: { alignItems: "center", flexDirection: "row", flexWrap: "wrap", gap: 8 },
   allowanceRow: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
   allowanceField: { flex: 1, minWidth: 220 },

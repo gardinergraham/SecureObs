@@ -59,6 +59,11 @@ const wardSchema = z.object({
   breakDurationMinutes: z.number().int().positive().default(30)
 });
 
+const deleteDemoWardSchema = z.object({
+  organisationId: optionalOrganisationIdSchema,
+  confirmation: z.string().min(1)
+});
+
 const securityAreaSchema = z.object({
   id: z.string().min(1).optional(),
   organisationId: optionalOrganisationIdSchema,
@@ -497,6 +502,112 @@ router.post("/wards", requireStaffRole(["manager", "super_admin"]), async (reque
     response.status(201).json(toAppWard(result.rows[0]));
   } catch (error) {
     next(error);
+  }
+});
+
+router.delete("/wards/:wardId/demo-data", requireStaffRole(["super_admin"]), async (request, response, next) => {
+  const parsed = deleteDemoWardSchema.safeParse(request.body);
+  if (!parsed.success) {
+    response.status(400).json({ error: "Organisation and deletion confirmation are required" });
+    return;
+  }
+  const organisationId = requireOrganisationId(request, response);
+  if (!organisationId) return;
+  const wardId = String(request.params.wardId);
+  const client = await pool.connect();
+
+  try {
+    await client.query("begin");
+    const wardResult = await client.query(
+      `select wards.id, wards.name, wards.site_id as "siteId", sites.name as "siteName"
+       from wards inner join sites on sites.id = wards.site_id
+       where wards.id = $1 and sites.organisation_id = $2
+       for update`,
+      [wardId, organisationId]
+    );
+    const ward = wardResult.rows[0];
+    if (!ward) {
+      await client.query("rollback");
+      response.status(404).json({ error: "Ward not found for this customer" });
+      return;
+    }
+    if (!String(ward.name).toLowerCase().includes("demo")) {
+      await client.query("rollback");
+      response.status(403).json({ error: "Only explicitly named demonstration wards can use demonstration cleanup" });
+      return;
+    }
+    if (parsed.data.confirmation !== `DELETE ${ward.name}`) {
+      await client.query("rollback");
+      response.status(400).json({ error: `Confirmation must exactly match DELETE ${ward.name}` });
+      return;
+    }
+
+    const patientCountResult = await client.query(
+      "select count(*)::integer as count from patients where organisation_id = $1 and ward_id = $2",
+      [organisationId, wardId]
+    );
+    const patientCount = Number(patientCountResult.rows[0]?.count ?? 0);
+    const patientFilter = `organisation_id = $1 and patient_id in (
+      select id from patients where organisation_id = $1 and ward_id = $2
+    )`;
+
+    await client.query(`delete from medication_administrations where ${patientFilter}`, [organisationId, wardId]);
+    await client.query(`delete from medication_prescriptions where ${patientFilter}`, [organisationId, wardId]);
+    await client.query(`delete from food_fluid_entries where ${patientFilter}`, [organisationId, wardId]);
+    await client.query(`delete from news2_readings where ${patientFilter}`, [organisationId, wardId]);
+    await client.query(`delete from observations where ${patientFilter}`, [organisationId, wardId]);
+    await client.query("delete from patient_tasks where organisation_id = $1 and ward_id = $2", [organisationId, wardId]);
+    await client.query("delete from safety_incidents where organisation_id = $1 and ward_id = $2", [organisationId, wardId]);
+    await client.query("delete from patient_care_plans where organisation_id = $1 and ward_id = $2", [organisationId, wardId]);
+    await client.query("delete from patient_notes where organisation_id = $1 and ward_id = $2", [organisationId, wardId]);
+    await client.query("delete from missed_observations where organisation_id = $1 and ward_id = $2", [organisationId, wardId]);
+    await client.query("delete from rota_assignments where organisation_id = $1 and ward_id = $2", [organisationId, wardId]);
+    await client.query("delete from staff_shift_assignments where organisation_id = $1 and ward_id = $2", [organisationId, wardId]);
+    await client.query("delete from shift_handovers where organisation_id = $1 and ward_id = $2", [organisationId, wardId]);
+    await client.query(
+      `delete from security_checks where organisation_id = $1 and area_id in (
+        select id from security_areas where organisation_id = $1 and ward_id = $2
+      )`,
+      [organisationId, wardId]
+    );
+    await client.query("delete from security_areas where organisation_id = $1 and ward_id = $2", [organisationId, wardId]);
+    await client.query(
+      `update staff_members
+       set ward_id = case when ward_id = $2 then null else ward_id end,
+           allowed_ward_ids = array_remove(allowed_ward_ids, $2),
+           updated_at = now()
+       where organisation_id = $1 and (ward_id = $2 or $2 = any(allowed_ward_ids))`,
+      [organisationId, wardId]
+    );
+    await client.query("delete from patients where organisation_id = $1 and ward_id = $2", [organisationId, wardId]);
+    await client.query("delete from wards where id = $1", [wardId]);
+    await client.query("commit");
+
+    await recordAuditEvent({
+      organisationId,
+      ...auditActorFromBody(request.body),
+      eventType: "settings.demo_ward.delete",
+      entityType: "ward",
+      entityId: wardId,
+      details: {
+        wardName: ward.name,
+        siteId: ward.siteId,
+        siteName: ward.siteName,
+        deletedPatientCount: patientCount,
+        demonstrationDataOnly: true
+      }
+    }).catch((auditError) => console.error("Unable to audit demonstration ward deletion", auditError));
+    response.json({
+      deletedWardId: wardId,
+      wardName: ward.name,
+      siteName: ward.siteName,
+      deletedPatientCount: patientCount
+    });
+  } catch (error) {
+    await client.query("rollback");
+    next(error);
+  } finally {
+    client.release();
   }
 });
 

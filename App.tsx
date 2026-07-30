@@ -49,6 +49,7 @@ import {
   createStaffMember as persistStaffMember,
   createSecurityCheck as persistSecurityCheck,
   deleteRotaAssignment as persistRotaAssignmentDelete,
+  deleteDemoWard as persistDemoWardDelete,
   deleteSecurityArea as persistSecurityAreaDelete,
   deleteStaffShiftAssignment as persistStaffShiftAssignmentDelete,
   createWard as persistWard,
@@ -865,23 +866,34 @@ export default function App() {
       return "No STAFFCODE found on that card data.";
     }
 
+    const matchingLocalStaff = staffMembers.filter(
+      (staff) => staff.staffCode.toLowerCase() === parsedCard.staffCode.toLowerCase()
+    );
+    const localOrganisationId =
+      matchingLocalStaff.length === 1 ? matchingLocalStaff[0]?.organisationId : undefined;
+    const organisationHint = selectedStaff?.organisationId ?? localOrganisationId;
+
     try {
-      const { staff } = await lookupStaffByCode(parsedCard.staffCode, selectedStaff?.organisationId);
+      const { staff } = await lookupStaffByCode(parsedCard.staffCode, organisationHint);
       setStaffMembers((currentStaff) => upsertStaffByCode(currentStaff, staff));
       selectStaffSession(staff);
       void flushSyncQueue();
       return `Selected ${staff.name} from Postgres STAFFCODE ${parsedCard.staffCode}.`;
-    } catch {
-      const matchedStaff = staffMembers.find(
-        (staff) => staff.staffCode.toLowerCase() === parsedCard.staffCode.toLowerCase()
-      );
+    } catch (error) {
+      const matchedStaff = matchingLocalStaff.length === 1 ? matchingLocalStaff[0] : undefined;
 
       if (!matchedStaff) {
-        return `No staff found for STAFFCODE ${parsedCard.staffCode}.`;
+        return error instanceof Error
+          ? `NFC card read, but sign-in was not completed: ${error.message}`
+          : `No staff found for STAFFCODE ${parsedCard.staffCode}.`;
+      }
+
+      if (matchedStaff.loginPinMustChange) {
+        return "NFC card recognised, but an authenticated session could not be started. Check the connection and scan the card again before changing the temporary PIN.";
       }
 
       selectStaffSession(matchedStaff);
-      return `Selected ${matchedStaff.name} from local STAFFCODE ${parsedCard.staffCode}.`;
+      return `Selected ${matchedStaff.name} for offline local access. Online-only changes will require a fresh authenticated sign-in.`;
     }
   };
 
@@ -1096,6 +1108,42 @@ export default function App() {
       setSelectedWardId((savedWard ?? ward).id);
       await refreshCustomerOrganisations();
     }
+  };
+
+  const handleDeleteDemoWard = async (ward: Ward) => {
+    const result = await persistDemoWardDelete(ward.id, adminOrganisationId, ward.name);
+    const deletedPatientIds = new Set(
+      patients.filter((patient) => patient.wardId === ward.id).map((patient) => patient.id)
+    );
+    const deletedSecurityAreaIds = new Set(
+      securityAreas.filter((area) => area.wardId === ward.id).map((area) => area.id)
+    );
+
+    setPatients((current) => current.filter((patient) => patient.wardId !== ward.id));
+    setObservations((current) => current.filter((item) => !deletedPatientIds.has(item.patientId)));
+    setNews2Readings((current) => current.filter((item) => !deletedPatientIds.has(item.patientId)));
+    setFoodFluidEntries((current) => current.filter((item) => !deletedPatientIds.has(item.patientId)));
+    setMedicationPrescriptions((current) => current.filter((item) => !deletedPatientIds.has(item.patientId)));
+    setMedicationAdministrations((current) => current.filter((item) => !deletedPatientIds.has(item.patientId)));
+    setPatientCarePlans((current) => current.filter((item) => item.wardId !== ward.id));
+    setPatientNotes((current) => current.filter((item) => item.wardId !== ward.id));
+    setSafetyIncidents((current) => current.filter((item) => item.wardId !== ward.id));
+    setShiftHandovers((current) => current.filter((item) => item.wardId !== ward.id));
+    setPatientTasks((current) => current.filter((item) => item.wardId !== ward.id));
+    setMissedObservations((current) => current.filter((item) => item.wardId !== ward.id));
+    setRotaAssignments((current) => current.filter((item) => item.wardId !== ward.id));
+    setStaffShiftAssignments((current) => current.filter((item) => item.wardId !== ward.id));
+    setSecurityAreas((current) => current.filter((item) => item.wardId !== ward.id));
+    setSecurityChecks((current) => current.filter((item) => !deletedSecurityAreaIds.has(item.areaId)));
+    setWards((current) => current.filter((item) => item.id !== ward.id));
+    setPlatformWards((current) => current.filter((item) => item.id !== ward.id));
+    setSelectedWardId((current) => current === ward.id ? "" : current);
+
+    await Promise.all([
+      selectAdminOrganisation(adminOrganisationId),
+      refreshCustomerOrganisations()
+    ]);
+    return result;
   };
 
   const handleUpdateOrganisationSettings = async (settings: OrganisationSettings) => {
@@ -1559,6 +1607,7 @@ export default function App() {
             onCreateSite={handleCreateSite}
             onCreateStaff={handleCreateStaffMember}
             onCreateWard={handleCreateWard}
+            onDeleteDemoWard={handleDeleteDemoWard}
             onUpdateOrganisationSettings={handleUpdateOrganisationSettings}
           />
         ) : screen === "auditLog" ? (

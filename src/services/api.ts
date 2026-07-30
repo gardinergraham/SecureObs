@@ -576,6 +576,21 @@ export async function createWard(ward: OrganisationScoped<Ward>) {
   });
 }
 
+export async function deleteDemoWard(wardId: string, organisationId: string, wardName: string) {
+  return request<{
+    deletedWardId: string;
+    wardName: string;
+    siteName: string;
+    deletedPatientCount: number;
+  }>(`/api/config/wards/${encodeURIComponent(wardId)}/demo-data`, {
+    method: "DELETE",
+    body: JSON.stringify({
+      organisationId,
+      confirmation: `DELETE ${wardName}`
+    })
+  });
+}
+
 export async function loadWards(organisationId?: string) {
   return request<{ wards: Ward[] }>(withOrganisationId("/api/config/wards", organisationId));
 }
