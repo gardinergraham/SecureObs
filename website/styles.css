@@ -480,6 +480,317 @@ section[id] {
   margin: 12px 4px 0;
 }
 
+.demo-hero {
+  align-items: center;
+  background:
+    radial-gradient(circle at 86% 22%, rgba(0, 167, 188, 0.13), transparent 30%),
+    linear-gradient(135deg, #ffffff 0%, #edf7f9 100%);
+  display: grid;
+  gap: 42px;
+  grid-template-columns: minmax(0, 1.15fr) minmax(320px, 0.85fr);
+  padding: 72px clamp(18px, 7vw, 110px);
+}
+
+.demo-hero h1 {
+  max-width: 780px;
+}
+
+.demo-trust-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 9px;
+  margin-top: 24px;
+}
+
+.demo-trust-row span {
+  background: #ffffff;
+  border: 1px solid #c8e1e6;
+  border-radius: 999px;
+  color: #154d61;
+  font-size: 13px;
+  font-weight: 900;
+  padding: 9px 13px;
+}
+
+.demo-preview-card {
+  background: linear-gradient(145deg, #0a315d, #087f93);
+  border-radius: 22px;
+  box-shadow: 0 28px 70px rgba(8, 58, 79, 0.22);
+  color: #ffffff;
+  padding: 30px;
+}
+
+.demo-preview-card .card-kicker {
+  color: #99e9ef;
+}
+
+.demo-check-list {
+  display: grid;
+  gap: 14px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.demo-check-list li {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.17);
+  font-weight: 800;
+  padding: 0 0 13px 28px;
+  position: relative;
+}
+
+.demo-check-list li:last-child {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+
+.demo-check-list li::before {
+  color: #7ce0eb;
+  content: "✓";
+  font-weight: 900;
+  left: 0;
+  position: absolute;
+}
+
+.demo-process {
+  background: #ffffff;
+  padding: 58px clamp(18px, 7vw, 110px);
+}
+
+.demo-process-grid {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin-top: 24px;
+}
+
+.demo-process-grid article {
+  background: #f5fafb;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 20px;
+}
+
+.demo-process-grid article > span {
+  align-items: center;
+  background: #dceff3;
+  border-radius: 8px;
+  color: var(--accent-dark);
+  display: flex;
+  font-weight: 900;
+  height: 34px;
+  justify-content: center;
+  margin-bottom: 14px;
+  width: 40px;
+}
+
+.demo-process-grid p {
+  color: var(--muted);
+  margin-bottom: 0;
+}
+
+.demo-form-section {
+  align-items: start;
+  background: #edf5f7;
+  display: grid;
+  gap: 44px;
+  grid-template-columns: minmax(280px, 0.75fr) minmax(520px, 1.25fr);
+  padding: 68px clamp(18px, 7vw, 110px);
+}
+
+.demo-form-intro {
+  position: sticky;
+  top: 104px;
+}
+
+.demo-contact-card {
+  background: #ffffff;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  display: grid;
+  gap: 5px;
+  margin-top: 24px;
+  padding: 18px;
+}
+
+.demo-contact-card a {
+  color: var(--accent-dark);
+  font-weight: 900;
+}
+
+.demo-contact-card span {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.demo-form {
+  background: #ffffff;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  box-shadow: 0 20px 55px rgba(20, 54, 66, 0.1);
+  display: grid;
+  gap: 20px;
+  padding: clamp(20px, 4vw, 34px);
+}
+
+.form-grid {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.demo-form label,
+.demo-form legend {
+  color: #183d51;
+  font-size: 14px;
+  font-weight: 900;
+}
+
+.demo-form label > span[aria-hidden="true"],
+.consent-row strong {
+  color: #a33b3b;
+}
+
+.demo-form input,
+.demo-form select,
+.demo-form textarea {
+  background: #fbfdfe;
+  border: 1px solid #bfcdd2;
+  border-radius: 8px;
+  color: var(--ink);
+  display: block;
+  font: inherit;
+  margin-top: 7px;
+  min-height: 46px;
+  padding: 10px 12px;
+  width: 100%;
+}
+
+.demo-form textarea {
+  min-height: 112px;
+  resize: vertical;
+}
+
+.demo-form input:focus,
+.demo-form select:focus,
+.demo-form textarea:focus {
+  border-color: var(--platform-blue);
+  box-shadow: 0 0 0 3px rgba(7, 94, 201, 0.13);
+  outline: 0;
+}
+
+.demo-form fieldset {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  margin: 0;
+  padding: 18px;
+}
+
+.field-help {
+  color: var(--muted);
+  font-size: 13px;
+  margin: 2px 0 13px;
+}
+
+.interest-grid {
+  display: grid;
+  gap: 9px 16px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.interest-grid label,
+.consent-row {
+  align-items: flex-start;
+  display: flex;
+  font-size: 13px;
+  font-weight: 800;
+  gap: 9px;
+}
+
+.interest-grid input,
+.consent-row input {
+  flex: 0 0 auto;
+  height: 18px;
+  margin: 1px 0 0;
+  min-height: auto;
+  width: 18px;
+}
+
+.consent-row {
+  background: #f5fafb;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 14px;
+}
+
+.consent-row a {
+  color: var(--platform-blue);
+}
+
+.form-message {
+  border-radius: 8px;
+  display: none;
+  font-size: 14px;
+  font-weight: 900;
+  padding: 12px 14px;
+}
+
+.form-message-error {
+  background: #fff0ed;
+  border: 1px solid #e5b0a7;
+  color: #8b3028;
+  display: block;
+}
+
+.form-message-success {
+  background: #eff8f3;
+  border: 1px solid #acd6be;
+  color: #266344;
+  display: block;
+}
+
+.demo-submit {
+  background: linear-gradient(135deg, var(--platform-blue), #00489f);
+  border: 0;
+  border-radius: 8px;
+  color: #ffffff;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 900;
+  min-height: 50px;
+  padding: 10px 18px;
+}
+
+.demo-submit:hover {
+  background: linear-gradient(135deg, #004fae, #003f8d);
+}
+
+.form-footnote {
+  color: var(--muted);
+  font-size: 12px;
+  margin: -8px 0 0;
+  text-align: center;
+}
+
+.demo-reassurance {
+  background: linear-gradient(135deg, #092f5d, #075b75);
+  color: #ffffff;
+  padding: 58px clamp(18px, 7vw, 110px);
+  text-align: center;
+}
+
+.demo-reassurance .eyebrow {
+  color: #8fe3ed;
+}
+
+.demo-reassurance h2,
+.demo-reassurance p {
+  color: #ffffff;
+  margin-left: auto;
+  margin-right: auto;
+  max-width: 850px;
+}
+
 .split-section {
   align-items: center;
   background: #ffffff;
@@ -1179,6 +1490,8 @@ footer {
 
 @media (max-width: 980px) {
   .hero,
+  .demo-hero,
+  .demo-form-section,
   .split-section,
   .secure-band,
   .settings-showcase,
@@ -1200,6 +1513,7 @@ footer {
   }
 
   .feature-grid,
+  .demo-process-grid,
   .package-grid,
   .screenshot-grid,
   .records-showcase,
@@ -1207,6 +1521,10 @@ footer {
   .training-grid.two,
   .training-route {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .demo-form-intro {
+    position: static;
   }
 
   .add-on-band {
@@ -1261,6 +1579,9 @@ footer {
   }
 
   .feature-grid,
+  .demo-process-grid,
+  .form-grid,
+  .interest-grid,
   .manager-capability-grid,
   .package-grid,
   .screenshot-grid,

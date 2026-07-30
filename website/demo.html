@@ -1,0 +1,230 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Book a SecureObs Demonstration</title>
+    <meta
+      name="description"
+      content="Book a tailored SecureObs demonstration for your care home, mental health service, supported living provider, secure hospital or NHS organisation."
+    />
+    <link rel="stylesheet" href="styles.css" />
+    <script src="demo.js" defer></script>
+  </head>
+  <body>
+    <header class="site-header">
+      <a class="brand" href="index.html" aria-label="SecureObs home">
+        <img src="assets/secureobs-logo-new.png" alt="" />
+        <span>SecureObs</span>
+      </a>
+      <nav aria-label="Main navigation">
+        <a href="index.html#workflow">Platform</a>
+        <a href="index.html#manager-workspace">Managers</a>
+        <a href="index.html#packages">Packages</a>
+        <a href="family.html">Family portal</a>
+        <a href="support.html">Support</a>
+        <a class="nav-cta" href="#demo-form">Request a demo</a>
+      </nav>
+    </header>
+
+    <main>
+      <section class="demo-hero">
+        <div>
+          <p class="eyebrow">A demonstration shaped around your service</p>
+          <h1>See how SecureObs could work for your organisation.</h1>
+          <p class="lead">
+            Tell us a little about your service and we will focus the demonstration on the clinical,
+            workforce and governance challenges that matter to your team.
+          </p>
+          <div class="demo-trust-row" aria-label="Demonstration information">
+            <span>30–40 minutes</span>
+            <span>Online demonstration</span>
+            <span>Fictional patient data only</span>
+            <span>No obligation</span>
+          </div>
+        </div>
+        <aside class="demo-preview-card">
+          <p class="card-kicker">Your demonstration can include</p>
+          <ul class="demo-check-list">
+            <li>Tablet sign-in, ward overview and offline working</li>
+            <li>Observations, NEWS2, incidents and patient tasks</li>
+            <li>Desktop notes and care-plan writing</li>
+            <li>Medication, rostering and security workflows</li>
+            <li>CQC evidence, governance and audit controls</li>
+            <li>Patient voice and authorised family sharing</li>
+          </ul>
+        </aside>
+      </section>
+
+      <section class="demo-process" aria-labelledby="demo-process-title">
+        <div class="section-heading">
+          <p class="eyebrow">What happens next</p>
+          <h2 id="demo-process-title">A useful conversation—not a generic product tour.</h2>
+        </div>
+        <div class="demo-process-grid">
+          <article>
+            <span>1</span>
+            <h3>Tell us about your service</h3>
+            <p>Share your service type, scale and the areas you would most like SecureObs to improve.</p>
+          </article>
+          <article>
+            <span>2</span>
+            <h3>We arrange a suitable time</h3>
+            <p>SecureObs will contact you to agree an online demonstration time that works for your team.</p>
+          </article>
+          <article>
+            <span>3</span>
+            <h3>See a tailored workflow</h3>
+            <p>We will demonstrate the most relevant tablet, desktop, manager and governance capabilities.</p>
+          </article>
+          <article>
+            <span>4</span>
+            <h3>Receive clear next steps</h3>
+            <p>Afterwards, we can recommend the appropriate package, add-ons and implementation approach.</p>
+          </article>
+        </div>
+      </section>
+
+      <section class="demo-form-section">
+        <div class="demo-form-intro">
+          <p class="eyebrow">Request your demonstration</p>
+          <h2>Let’s start with your organisation.</h2>
+          <p>
+            Fields marked with an asterisk are required. When you select “Prepare demo request”, your
+            email application will open with the information ready to send securely to SecureObs.
+          </p>
+          <div class="demo-contact-card">
+            <strong>Prefer to contact us directly?</strong>
+            <a href="mailto:secure.observations@gmail.com">secure.observations@gmail.com</a>
+            <span>We aim to respond to demonstration requests within two working days.</span>
+          </div>
+        </div>
+
+        <form id="demo-form" class="demo-form" novalidate>
+          <div class="form-grid">
+            <label>
+              Your name <span aria-hidden="true">*</span>
+              <input autocomplete="name" name="contactName" required type="text" />
+            </label>
+            <label>
+              Job role <span aria-hidden="true">*</span>
+              <input autocomplete="organization-title" name="jobRole" required type="text" />
+            </label>
+            <label>
+              Organisation <span aria-hidden="true">*</span>
+              <input autocomplete="organization" name="organisation" required type="text" />
+            </label>
+            <label>
+              Work email <span aria-hidden="true">*</span>
+              <input autocomplete="email" name="email" required type="email" />
+            </label>
+            <label>
+              Contact telephone
+              <input autocomplete="tel" name="telephone" type="tel" />
+            </label>
+            <label>
+              Type of service <span aria-hidden="true">*</span>
+              <select name="serviceType" required>
+                <option value="">Select a service</option>
+                <option>Care home</option>
+                <option>Mental health service</option>
+                <option>Supported living</option>
+                <option>Secure or forensic service</option>
+                <option>Hospital or NHS Trust</option>
+                <option>Other health or social care service</option>
+              </select>
+            </label>
+            <label>
+              Number of sites
+              <input inputmode="numeric" min="1" name="siteCount" type="number" />
+            </label>
+            <label>
+              Number of wards or units
+              <input inputmode="numeric" min="1" name="wardCount" type="number" />
+            </label>
+          </div>
+
+          <fieldset>
+            <legend>What would you most like to see?</legend>
+            <p class="field-help">Choose any areas relevant to your service.</p>
+            <div class="interest-grid">
+              <label><input name="interests" type="checkbox" value="Observations, NEWS2 and clinical records" /> Observations, NEWS2 and clinical records</label>
+              <label><input name="interests" type="checkbox" value="Patient notes and care plans" /> Patient notes and care plans</label>
+              <label><input name="interests" type="checkbox" value="Medication/eMAR" /> Medication/eMAR</label>
+              <label><input name="interests" type="checkbox" value="Rostering and workforce" /> Rostering and workforce</label>
+              <label><input name="interests" type="checkbox" value="Security checks" /> Security checks</label>
+              <label><input name="interests" type="checkbox" value="Incidents and patient safety" /> Incidents and patient safety</label>
+              <label><input name="interests" type="checkbox" value="CQC evidence and governance" /> CQC evidence and governance</label>
+              <label><input name="interests" type="checkbox" value="Patient voice and family sharing" /> Patient voice and family sharing</label>
+              <label><input name="interests" type="checkbox" value="Multi-site management and reporting" /> Multi-site management and reporting</label>
+            </div>
+          </fieldset>
+
+          <label>
+            How do you currently manage these processes?
+            <textarea
+              name="currentProcess"
+              placeholder="For example: paper records, spreadsheets, an existing care system or a mixture of processes."
+              rows="4"
+            ></textarea>
+          </label>
+
+          <label>
+            What would you most like SecureObs to help you improve?
+            <textarea
+              name="goals"
+              placeholder="Tell us about the problems, risks or time-consuming processes you would like to address."
+              rows="5"
+            ></textarea>
+          </label>
+
+          <div class="form-grid">
+            <label>
+              Preferred date or week
+              <input name="preferredDate" type="date" />
+            </label>
+            <label>
+              Preferred time of day
+              <select name="preferredTime">
+                <option value="">No preference</option>
+                <option>Morning</option>
+                <option>Afternoon</option>
+                <option>Early evening</option>
+              </select>
+            </label>
+          </div>
+
+          <label class="consent-row">
+            <input name="contactConsent" required type="checkbox" />
+            <span>
+              I agree that SecureObs may use the information provided to respond to this demonstration
+              request. See the <a href="privacy.html">privacy notice</a>. <strong>*</strong>
+            </span>
+          </label>
+
+          <div id="demo-form-message" class="form-message" aria-live="polite"></div>
+          <button class="demo-submit" type="submit">Prepare demo request</button>
+          <p class="form-footnote">Your information is not saved on this page. You can review the request before sending it from your email application.</p>
+        </form>
+      </section>
+
+      <section class="demo-reassurance">
+        <p class="eyebrow">A safe demonstration environment</p>
+        <h2>See realistic workflows without exposing real patient information.</h2>
+        <p>
+          SecureObs demonstrations use fictional organisations, wards, staff and patients. We can show a
+          complete clinical journey while keeping the conversation focused on your service requirements,
+          governance responsibilities and implementation priorities.
+        </p>
+      </section>
+    </main>
+
+    <footer>
+      <span>SecureObs</span>
+      <span>
+        <a href="index.html">Home</a> · <a href="support.html">Support</a> ·
+        <a href="privacy.html">Privacy</a> · <a href="account-deletion.html">Account deletion</a>
+      </span>
+    </footer>
+  </body>
+</html>
