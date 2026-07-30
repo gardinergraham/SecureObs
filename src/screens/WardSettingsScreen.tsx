@@ -1,10 +1,11 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { ActivityIndicator, Alert, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 
 import type { OrganisationFeatureKey, OrganisationSettings, StaffMember, Ward } from "../types/domain";
 import { buildStaffCardPayload } from "../utils/nfcStaffCard";
 import { writeNfcTextPayload } from "../utils/nfcWriter";
 import { hasAdminAccess, hasStaffRole, normaliseStaffRole } from "../utils/staffRole";
+import { defaultObservationLocations, wardObservationLocations } from "../utils/observationLocations";
 
 const shiftCountOptions = [1, 2, 3, 4];
 const breakDurationOptions = [15, 30, 60];
@@ -65,6 +66,10 @@ export function WardSettingsScreen({
   const [isSavingStaff, setIsSavingStaff] = useState(false);
   const [isSavingWard, setIsSavingWard] = useState(false);
   const [wardSaveMessage, setWardSaveMessage] = useState("");
+  const [newObservationLocation, setNewObservationLocation] = useState("");
+  const [observationLocations, setObservationLocations] = useState(() =>
+    wardObservationLocations(selectedWard?.serviceType, selectedWard?.observationLocations)
+  );
   const [isResettingPin, setIsResettingPin] = useState(false);
   const [isWritingStaffTag, setIsWritingStaffTag] = useState(false);
   const [lastSavedStaff, setLastSavedStaff] = useState<StaffMember | null>(null);
@@ -84,6 +89,13 @@ export function WardSettingsScreen({
       );
     })
     .slice(0, 20);
+
+  useEffect(() => {
+    setObservationLocations(
+      wardObservationLocations(selectedWard?.serviceType, selectedWard?.observationLocations)
+    );
+    setNewObservationLocation("");
+  }, [selectedWardId, selectedWard?.observationLocations, selectedWard?.serviceType]);
 
   const updateInterval = (minutes: number) => {
     if (!selectedWard || !canEditWardSettings) return;
@@ -148,13 +160,39 @@ export function WardSettingsScreen({
     setIsSavingWard(true);
     setWardSaveMessage("");
     try {
-      await onUpdateWardRotaSettings(selectedWard);
+      await onUpdateWardRotaSettings({ ...selectedWard, observationLocations });
       setWardSaveMessage("Ward settings saved.");
     } catch (error) {
       setWardSaveMessage(error instanceof Error ? error.message : "Ward settings could not be saved.");
     } finally {
       setIsSavingWard(false);
     }
+  };
+
+  const addObservationLocation = () => {
+    const location = newObservationLocation.trim();
+    if (!location) return;
+    if (observationLocations.some((existing) => existing.toLowerCase() === location.toLowerCase())) {
+      Alert.alert("Location already added", `${location} is already available on this ward.`);
+      return;
+    }
+    setObservationLocations((current) => [...current, location]);
+    setNewObservationLocation("");
+    setWardSaveMessage("");
+  };
+
+  const removeObservationLocation = (location: string) => {
+    if (observationLocations.length <= 1) {
+      Alert.alert("One location required", "Keep at least one observation location available.");
+      return;
+    }
+    setObservationLocations((current) => current.filter((item) => item !== location));
+    setWardSaveMessage("");
+  };
+
+  const restoreDefaultObservationLocations = () => {
+    setObservationLocations(defaultObservationLocations(selectedWard?.serviceType));
+    setWardSaveMessage("");
   };
 
   const selectStaffForEditing = (member: StaffMember) => {
@@ -664,6 +702,54 @@ export function WardSettingsScreen({
           ))}
         </View>
 
+        <Text style={styles.settingLabel}>Observation locations</Text>
+        <Text style={styles.meta}>
+          Choose the place names staff can select when recording observations on this ward.
+        </Text>
+        <View style={styles.locationList}>
+          {observationLocations.map((location) => (
+            <View key={location} style={styles.locationChip}>
+              <Text style={styles.locationChipText}>{location}</Text>
+              <TouchableOpacity
+                accessibilityLabel={`Remove ${location}`}
+                accessibilityRole="button"
+                disabled={!canEditWardSettings}
+                onPress={() => removeObservationLocation(location)}
+                style={!canEditWardSettings && styles.disabledControl}
+              >
+                <Text style={styles.locationRemoveText}>×</Text>
+              </TouchableOpacity>
+            </View>
+          ))}
+        </View>
+        <View style={styles.locationAddRow}>
+          <TextInput placeholderTextColor="#6f7f87"
+            editable={canEditWardSettings}
+            maxLength={50}
+            onChangeText={setNewObservationLocation}
+            onSubmitEditing={addObservationLocation}
+            placeholder={selectedWard?.serviceType === "Care home" ? "For example: Conservatory" : "For example: Activities room"}
+            style={[styles.input, styles.locationInput]}
+            value={newObservationLocation}
+          />
+          <TouchableOpacity
+            accessibilityRole="button"
+            disabled={!canEditWardSettings || !newObservationLocation.trim()}
+            onPress={addObservationLocation}
+            style={[styles.addNewButton, (!canEditWardSettings || !newObservationLocation.trim()) && styles.disabledControl]}
+          >
+            <Text style={styles.addNewButtonText}>Add place</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            accessibilityRole="button"
+            disabled={!canEditWardSettings}
+            onPress={restoreDefaultObservationLocations}
+            style={[styles.configureButton, styles.locationDefaultsButton, !canEditWardSettings && styles.disabledControl]}
+          >
+            <Text style={styles.configureButtonText}>Restore defaults</Text>
+          </TouchableOpacity>
+        </View>
+
         <View style={styles.stepperRow}>
           <TouchableOpacity
             accessibilityRole="button"
@@ -1116,6 +1202,13 @@ const styles = StyleSheet.create({
   serviceSummaryText: { color: "#18262c", fontSize: 14, fontWeight: "900" },
   settingLabel: { color: "#31454d", fontSize: 13, fontWeight: "900", marginBottom: 8, marginTop: 12 },
   optionRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  locationList: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 10 },
+  locationChip: { alignItems: "center", backgroundColor: "#e8f2f5", borderColor: "#9fc3cc", borderRadius: 18, borderWidth: 1, flexDirection: "row", gap: 8, minHeight: 36, paddingLeft: 12, paddingRight: 8 },
+  locationChipText: { color: "#244852", fontSize: 13, fontWeight: "900" },
+  locationRemoveText: { color: "#9f2d28", fontSize: 22, fontWeight: "900", lineHeight: 24, paddingHorizontal: 3 },
+  locationAddRow: { alignItems: "center", flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 10 },
+  locationInput: { flex: 1, minWidth: 220 },
+  locationDefaultsButton: { marginBottom: 0, minWidth: 140, paddingHorizontal: 10 },
   optionButton: {
     alignItems: "center",
     backgroundColor: "#ffffff",

@@ -15,17 +15,7 @@ import type {
   StaffMember,
   Ward
 } from "../types/domain";
-
-const locations: PatientLocation[] = [
-  "Side room",
-  "Day room",
-  "Corridor",
-  "Dining room",
-  "Bathroom",
-  "Laundry",
-  "Off ward",
-  "LOA"
-];
+import { wardObservationLocations } from "../utils/observationLocations";
 
 const presentations: PatientPresentation[] = ["Awake", "Asleep"];
 const patientSortModes = ["Rooms", "Ending soonest", "On Enhanced observations"] as const;
@@ -106,6 +96,7 @@ export function WardDashboard({
 }: WardDashboardProps) {
   const selectedWard = wards.find((ward) => ward.id === selectedWardId);
   const selectedPatient = patients.find((patient) => patient.id === selectedPatientId);
+  const locations = wardObservationLocations(selectedWard?.serviceType, selectedWard?.observationLocations);
   const selectedStaff = staff.find((member) => member.id === selectedStaffId);
   const [now, setNow] = useState(() => Date.now());
   const activeIncidents = incidents.filter(
@@ -224,7 +215,7 @@ export function WardDashboard({
 
   useEffect(() => {
     if (selectedPatient) {
-      setLocation(locationFromPatient(selectedPatient.latestObservationPlace));
+      setLocation(locationFromPatient(selectedPatient.latestObservationPlace, locations));
     }
   }, [selectedPatient]);
 
@@ -403,7 +394,7 @@ export function WardDashboard({
               wardIntervalMinutes={selectedWard?.observationIntervalMinutes ?? 15}
               now={now}
               onPress={() => {
-                setLocation(locationFromPatient(patient.latestObservationPlace));
+                setLocation(locationFromPatient(patient.latestObservationPlace, locations));
                 onSelectPatient(patient.id);
               }}
             />
@@ -622,11 +613,11 @@ function PatientRow({
       onPress={onPress}
       style={[
         styles.patientRow,
-        selected && styles.selectedPatientRow,
         timing.status === "ok" && styles.patientRowOk,
         timing.status === "soon" && styles.patientRowSoon,
         timing.status === "due" && styles.patientRowDue,
         timing.status === "overdue" && styles.patientRowOverdue,
+        selected && styles.selectedPatientRow,
         patient.seclusion && styles.seclusionRow,
         patient.longTermSeclusion && styles.longTermSeclusionRow
       ]}
@@ -904,29 +895,8 @@ function formatObservationTime(value: string) {
   });
 }
 
-function locationFromPatient(place: string): PatientLocation {
-  if (place === "Day room") {
-    return "Day room";
-  }
-  if (place === "Corridor") {
-    return "Corridor";
-  }
-  if (place === "Dining room") {
-    return "Dining room";
-  }
-  if (place === "Bathroom") {
-    return "Bathroom";
-  }
-  if (place === "Laundry") {
-    return "Laundry";
-  }
-  if (place === "Off ward") {
-    return "Off ward";
-  }
-  if (place === "LOA") {
-    return "LOA";
-  }
-  return "Side room";
+function locationFromPatient(place: string, availableLocations: PatientLocation[]): PatientLocation {
+  return availableLocations.includes(place) ? place : availableLocations[0] ?? "Side room";
 }
 
 const styles = StyleSheet.create({
@@ -1210,7 +1180,9 @@ const styles = StyleSheet.create({
     paddingVertical: 10
   },
   selectedPatientRow: {
-    backgroundColor: "#edf7f4"
+    backgroundColor: "#dceff5",
+    borderColor: "#14728a",
+    borderWidth: 2
   },
   patientRowOk: {
     backgroundColor: "#f8fbf7"

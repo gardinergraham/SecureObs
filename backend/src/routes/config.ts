@@ -44,6 +44,9 @@ const wardSchema = z.object({
   staffRotaEnabled: z.boolean().default(true),
   assessmentFormsEnabled: z.boolean().default(false),
   foodFluidChartEnabled: z.boolean().default(false),
+  observationLocations: z.array(z.string().trim().min(1).max(50)).min(1).max(20).default([
+    "Side room", "Day room", "Corridor", "Dining room", "Bathroom", "Laundry", "Off ward", "LOA"
+  ]),
   landingPage: z.enum(["overview", "observations"]).default("overview"),
   sessionTimeoutMinutes: z.number().int().positive().default(15),
   rotaShiftCount: z.number().int().positive().default(3),
@@ -342,6 +345,7 @@ router.get("/wards", async (request, response, next) => {
         wards.staff_rota_enabled as "staffRotaEnabled",
         wards.assessment_forms_enabled as "assessmentFormsEnabled",
         wards.food_fluid_chart_enabled as "foodFluidChartEnabled",
+        wards.observation_locations as "observationLocations",
         wards.landing_page as "landingPage",
         wards.session_timeout_minutes as "sessionTimeoutMinutes",
         wards.rota_shift_count as "rotaShiftCount",
@@ -426,8 +430,8 @@ router.post("/wards", requireStaffRole(["manager", "super_admin"]), async (reque
           id, site_id, name, service_type, observation_interval_minutes, news2_enabled,
           enhanced_observations_enabled, security_checks_enabled, medication_chart_enabled, staff_rota_enabled,
           assessment_forms_enabled, food_fluid_chart_enabled, landing_page, session_timeout_minutes,
-          rota_shift_count, rota_shifts, break_duration_minutes
-        ) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16::jsonb,$17)
+          rota_shift_count, rota_shifts, break_duration_minutes, observation_locations
+        ) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16::jsonb,$17,$18)
         on conflict (id) do update set
           site_id = excluded.site_id,
           name = excluded.name,
@@ -444,7 +448,8 @@ router.post("/wards", requireStaffRole(["manager", "super_admin"]), async (reque
           session_timeout_minutes = excluded.session_timeout_minutes,
           rota_shift_count = excluded.rota_shift_count,
           rota_shifts = excluded.rota_shifts,
-          break_duration_minutes = excluded.break_duration_minutes
+          break_duration_minutes = excluded.break_duration_minutes,
+          observation_locations = excluded.observation_locations
         returning
           id,
           site_id as "siteId",
@@ -458,6 +463,7 @@ router.post("/wards", requireStaffRole(["manager", "super_admin"]), async (reque
           staff_rota_enabled as "staffRotaEnabled",
           assessment_forms_enabled as "assessmentFormsEnabled",
           food_fluid_chart_enabled as "foodFluidChartEnabled",
+          observation_locations as "observationLocations",
           landing_page as "landingPage",
           session_timeout_minutes as "sessionTimeoutMinutes",
           rota_shift_count as "rotaShiftCount",
@@ -481,7 +487,8 @@ router.post("/wards", requireStaffRole(["manager", "super_admin"]), async (reque
         ward.sessionTimeoutMinutes,
         ward.rotaShiftCount,
         JSON.stringify(ward.rotaShifts),
-        ward.breakDurationMinutes
+        ward.breakDurationMinutes,
+        ward.observationLocations
       ]
     );
 

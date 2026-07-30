@@ -6,6 +6,7 @@ import * as ImagePicker from "expo-image-picker";
 import type { CustomerOrganisation, OrganisationFeatureKey, OrganisationSettings, ServiceType, Site, StaffMember, Ward } from "../types/domain";
 import { buildStaffCardPayload } from "../utils/nfcStaffCard";
 import { writeNfcTextPayload } from "../utils/nfcWriter";
+import { defaultObservationLocations } from "../utils/observationLocations";
 
 const serviceTypes: ServiceType[] = ["High secure hospital", "Medium secure hospital", "Care home"];
 const intervals = [5, 10, 15, 30, 60];
@@ -353,6 +354,7 @@ export function AdminSettingsScreen({
       staffRotaEnabled: true,
       assessmentFormsEnabled: serviceType === "Care home",
       foodFluidChartEnabled: serviceType === "Care home",
+      observationLocations: defaultObservationLocations(serviceType),
       landingPage: "overview",
       sessionTimeoutMinutes: 15,
       rotaShiftCount: 3,

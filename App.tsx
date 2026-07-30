@@ -1875,6 +1875,7 @@ export default function App() {
             rotaAssignments={rotaAssignments}
             selectedStaffId={selectedStaffId}
             staff={staffMembers}
+            ward={selectedWard}
             onBack={() => setScreen(workspaceBackScreen)}
             onMissedObservationSaved={handleCreateMissedObservation}
             onObservationSaved={handleObservationSaved}

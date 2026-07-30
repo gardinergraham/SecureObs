@@ -10,15 +10,7 @@ export type TesoReason =
   | "Physical health"
   | "Other";
 
-export type PatientLocation =
-  | "Side room"
-  | "Day room"
-  | "Corridor"
-  | "Dining room"
-  | "Bathroom"
-  | "Laundry"
-  | "Off ward"
-  | "LOA";
+export type PatientLocation = string;
 
 export type PatientPresentation = "Awake" | "Asleep";
 export type ObservationSource = "General observations" | "Enhanced/TESO";
@@ -239,6 +231,7 @@ export type Ward = {
   staffRotaEnabled: boolean;
   assessmentFormsEnabled: boolean;
   foodFluidChartEnabled: boolean;
+  observationLocations?: PatientLocation[];
   landingPage: WardLandingPage;
   sessionTimeoutMinutes: number;
   rotaShiftCount: number;

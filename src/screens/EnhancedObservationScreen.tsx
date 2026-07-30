@@ -9,19 +9,10 @@ import type {
   PatientLocation,
   PatientPresentation,
   RotaAssignment,
-  StaffMember
+  StaffMember,
+  Ward
 } from "../types/domain";
-
-const locations: PatientLocation[] = [
-  "Side room",
-  "Day room",
-  "Corridor",
-  "Dining room",
-  "Bathroom",
-  "Laundry",
-  "Off ward",
-  "LOA"
-];
+import { wardObservationLocations } from "../utils/observationLocations";
 const presentations: PatientPresentation[] = ["Awake", "Asleep"];
 const missedObservationReasons = ["Attending another incident", "Staff shortage", "Clinical emergency", "Other"];
 
@@ -31,6 +22,7 @@ type EnhancedObservationScreenProps = {
   patients: Patient[];
   rotaAssignments: RotaAssignment[];
   staff: StaffMember[];
+  ward?: Ward;
   selectedStaffId: string;
   onBack: () => void;
   onMissedObservationSaved: (missedObservation: MissedObservation) => void;
@@ -43,6 +35,7 @@ export function EnhancedObservationScreen({
   patients,
   rotaAssignments,
   staff,
+  ward,
   selectedStaffId,
   onBack,
   onMissedObservationSaved,
@@ -55,8 +48,9 @@ export function EnhancedObservationScreen({
   const [selectedPatientId, setSelectedPatientId] = useState(enhancedPatients[0]?.id ?? "");
   const selectedPatient = enhancedPatients.find((patient) => patient.id === selectedPatientId) ?? enhancedPatients[0];
   const selectedStaff = staff.find((member) => member.id === selectedStaffId);
+  const locations = wardObservationLocations(ward?.serviceType, ward?.observationLocations);
   const [now, setNow] = useState(() => Date.now());
-  const [location, setLocation] = useState<PatientLocation>("Side room");
+  const [location, setLocation] = useState<PatientLocation>(locations[0] ?? "Side room");
   const [presentation, setPresentation] = useState<PatientPresentation>("Awake");
   const [comments, setComments] = useState("");
   const [recordingStaffIds, setRecordingStaffIds] = useState<string[]>([]);
@@ -269,7 +263,7 @@ export function EnhancedObservationScreen({
                 key={patient.id}
                 onPress={() => {
                   setSelectedPatientId(patient.id);
-                  setLocation(locationFromPatient(patient.latestObservationPlace));
+                  setLocation(locationFromPatient(patient.latestObservationPlace, locations));
                 }}
                 style={[styles.patientRow, patient.id === selectedPatient?.id && styles.patientRowActive]}
               >
@@ -626,12 +620,8 @@ function timeValueToMinutes(value: string) {
   return hours >= 0 && hours <= 23 && minutes >= 0 && minutes <= 59 ? hours * 60 + minutes : undefined;
 }
 
-function locationFromPatient(place: string): PatientLocation {
-  if (locations.includes(place as PatientLocation)) {
-    return place as PatientLocation;
-  }
-
-  return "Side room";
+function locationFromPatient(place: string, locations: PatientLocation[]): PatientLocation {
+  return locations.includes(place) ? place : locations[0] ?? "Side room";
 }
 
 function getTesoDueAt(patient: Patient, observations: Observation[]) {
