@@ -211,6 +211,11 @@ export function PatientManagementScreen({
       await onSavePatient(patient);
       clearDraft();
       Alert.alert("Patient saved", `${patient.firstName} ${patient.surname} is ready on the ward.`);
+    } catch (error) {
+      Alert.alert(
+        "Patient not saved",
+        error instanceof Error ? error.message : "SecureObs could not save this patient. Please try again."
+      );
     } finally {
       setIsSaving(false);
     }
@@ -575,7 +580,8 @@ function createPatientId(hospitalNumber: string, firstName: string, surname: str
     .replace(/(^-|-$)/g, "")
     .slice(0, 48);
 
-  return `patient-${slug || Date.now()}`;
+  const uniqueSuffix = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+  return `patient-${slug || "record"}-${uniqueSuffix}`;
 }
 
 const styles = StyleSheet.create({

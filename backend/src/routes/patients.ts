@@ -520,7 +520,8 @@ function createPatientId(hospitalNumber: string, firstName: string, surname: str
     .replace(/(^-|-$)/g, "")
     .slice(0, 48);
 
-  return `patient-${slug || Date.now()}`;
+  const uniqueSuffix = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+  return `patient-${slug || "record"}-${uniqueSuffix}`;
 }
 
 function readPatientId(request: AuthenticatedRequest, response: Response) {
