@@ -29,7 +29,7 @@ const bankStaffPinLookupSchema = z.object({
 const staffPinLookupSchema = z.object({
   staffCode: z.string().min(1),
   loginPin: z.string().min(1),
-  organisationId: z.string().uuid()
+  organisationId: z.string().uuid().optional()
 });
 
 const changePinSchema = z.object({
@@ -286,34 +286,39 @@ router.post("/pin-login", async (request, response, next) => {
     const parsed = staffPinLookupSchema.safeParse(request.body);
 
     if (!parsed.success) {
-      response.status(400).json({ error: "STAFFCODE, PIN and organisationId are required" });
+      response.status(400).json({ error: "STAFFCODE and PIN are required" });
       return;
     }
 
     const staff = await dataProvider.staff.findActiveByCode(parsed.data.staffCode, parsed.data.organisationId);
-    const activeLock = await getActiveAccessLockout(parsed.data.organisationId, parsed.data.staffCode, "pin_login");
+    const organisationId = staff?.organisationId ?? parsed.data.organisationId;
+    const activeLock = organisationId
+      ? await getActiveAccessLockout(organisationId, parsed.data.staffCode, "pin_login")
+      : undefined;
     if (activeLock) {
-      await recordLockedAttempt(parsed.data.organisationId, parsed.data.staffCode, "pin_login", activeLock);
+      await recordLockedAttempt(organisationId!, parsed.data.staffCode, "pin_login", activeLock);
       response.status(423).json({ error: lockoutMessage(activeLock) });
       return;
     }
 
     if (!staff || !verifyPin(parsed.data.loginPin, staff)) {
-      await recordAccessFailure({
-        organisationId: parsed.data.organisationId,
-        staffCode: parsed.data.staffCode,
-        attemptType: "pin_login",
-        reason: staff ? "invalid_pin" : "not_found",
-        staff
-      });
-      await recordAuditEvent({
-        organisationId: parsed.data.organisationId,
-        eventType: "staff.pin_login",
-        entityType: "staff_member",
-        entityId: staff?.id ?? null,
-        outcome: "failure",
-        details: { staffCode: parsed.data.staffCode, reason: staff ? "invalid_pin" : "not_found" }
-      });
+      if (organisationId) {
+        await recordAccessFailure({
+          organisationId,
+          staffCode: parsed.data.staffCode,
+          attemptType: "pin_login",
+          reason: staff ? "invalid_pin" : "not_found",
+          staff
+        });
+        await recordAuditEvent({
+          organisationId,
+          eventType: "staff.pin_login",
+          entityType: "staff_member",
+          entityId: staff?.id ?? null,
+          outcome: "failure",
+          details: { staffCode: parsed.data.staffCode, reason: staff ? "invalid_pin" : "not_found" }
+        });
+      }
       response.status(401).json({ error: "STAFFCODE and PIN were not accepted" });
       return;
     }
@@ -841,12 +846,17 @@ async function clearAllAccessLockouts(
 }
 
 function lockoutMessage(lockout: AccessLockoutRow) {
-  const until = lockout.lockedUntil ? new Date(lockout.lockedUntil).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "later";
+  const remainingMinutes = lockout.lockedUntil
+    ? Math.max(1, Math.ceil((new Date(lockout.lockedUntil).getTime() - Date.now()) / 60000))
+    : null;
+  const retryMessage = remainingMinutes
+    ? `try again in ${remainingMinutes} minute${remainingMinutes === 1 ? "" : "s"}`
+    : "try again later";
   if (lockout.unlockRequiresNurseInCharge) {
-    return `Too many failed attempts. Ask the nurse in charge to unlock this sign-in, or try again after ${until}.`;
+    return `Too many failed attempts. Ask the nurse in charge to unlock this sign-in, or ${retryMessage}.`;
   }
 
-  return `Too many failed attempts. Try again after ${until}.`;
+  return `Too many failed attempts. ${retryMessage[0]?.toUpperCase()}${retryMessage.slice(1)}.`;
 }
 
 async function hasCurrentNurseInCharge(organisationId: string, wardId: string) {

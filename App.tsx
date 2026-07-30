@@ -910,10 +910,17 @@ export default function App() {
   };
 
   const handleStaffPinLogin = async (staffCode: string, loginPin: string) => {
+    const matchingLocalStaff = staffMembers.filter(
+      (staff) => staff.staffCode.toLowerCase() === staffCode.trim().toLowerCase()
+    );
+    const organisationHint =
+      matchingLocalStaff.length === 1
+        ? matchingLocalStaff[0]?.organisationId
+        : selectedStaff?.organisationId;
     const { staff } = await loginStaffByPin(
       staffCode,
       loginPin,
-      selectedStaff?.organisationId ?? defaultOrganisationId
+      organisationHint
     );
     setStaffMembers((currentStaff) => upsertStaffByCode(currentStaff, staff));
     selectStaffSession(staff);
