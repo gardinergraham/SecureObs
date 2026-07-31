@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from "react";
 import { Alert, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 
+import { SecureDateTimeField } from "../components/SecureDateTimeField";
 import type { ObservationLevel, Patient, StaffMember, Ward } from "../types/domain";
 import { calculateAge, formatDateOfBirth } from "../utils/patientDemographics";
 import { hasAdminAccess, hasStaffRole } from "../utils/staffRole";
@@ -388,12 +389,14 @@ export function PatientManagementScreen({
           <View style={styles.demographicPanel}>
             <Text style={styles.label}>Date of birth</Text>
             <View style={styles.formRow}>
-              <TextInput
-                placeholderTextColor="#6f7f87"
-                editable={canManagePatients}
-                onChangeText={(dateOfBirth) => setDraft((current) => ({ ...current, dateOfBirth }))}
-                placeholder="YYYY-MM-DD"
-                style={[styles.input, styles.flexInput]}
+              <SecureDateTimeField
+                disabled={!canManagePatients}
+                label="Choose date of birth"
+                maximumDate={new Date()}
+                mode="date"
+                onChange={(dateOfBirth) => setDraft((current) => ({ ...current, dateOfBirth }))}
+                optional
+                style={styles.flexInput}
                 value={draft.dateOfBirth}
               />
               <View style={styles.ageBox}>

@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 
+import { SecureDateTimeField } from "../components/SecureDateTimeField";
 import type {
   MedicationAdministration,
   MedicationAdministrationStatus,
@@ -371,18 +372,21 @@ export function MedicationChartScreen({
                       style={[styles.input, styles.flexInput]}
                       value={form.dose}
                     />
-                    <TextInput placeholderTextColor="#6f7f87"
-                      editable={canPrescribe}
-                      onChangeText={(value) => setForm({ ...form, startDate: value })}
-                      placeholder="Start date dd/mm/yyyy"
-                      style={[styles.input, styles.flexInput]}
+                    <SecureDateTimeField
+                      dateFormat="uk"
+                      disabled={!canPrescribe}
+                      label="Start date"
+                      mode="date"
+                      onChange={(value) => setForm({ ...form, startDate: value })}
+                      style={styles.flexInput}
                       value={form.startDate}
                     />
-                    <TextInput placeholderTextColor="#6f7f87"
-                      editable={canPrescribe}
-                      onChangeText={(value) => setForm({ ...form, timePrescribed: value })}
-                      placeholder="Time prescribed hh:mm"
-                      style={[styles.input, styles.flexInput]}
+                    <SecureDateTimeField
+                      disabled={!canPrescribe}
+                      label="Time prescribed"
+                      mode="time"
+                      onChange={(value) => setForm({ ...form, timePrescribed: value })}
+                      style={styles.flexInput}
                       value={form.timePrescribed}
                     />
                   </View>
@@ -466,18 +470,21 @@ export function MedicationChartScreen({
               <View style={styles.stopPanel}>
                 <Text style={styles.panelTitle}>Stopped medication details</Text>
                 <View style={styles.twoColumnRow}>
-                  <TextInput placeholderTextColor="#6f7f87"
-                    editable={canPrescribe}
-                    onChangeText={(value) => setForm({ ...form, stopDate: value })}
-                    placeholder="Stopped date dd/mm/yyyy"
-                    style={[styles.input, styles.flexInput]}
+                  <SecureDateTimeField
+                    dateFormat="uk"
+                    disabled={!canPrescribe}
+                    label="Stopped date"
+                    mode="date"
+                    onChange={(value) => setForm({ ...form, stopDate: value })}
+                    style={styles.flexInput}
                     value={form.stopDate}
                   />
-                  <TextInput placeholderTextColor="#6f7f87"
-                    editable={canPrescribe}
-                    onChangeText={(value) => setForm({ ...form, stopTime: value })}
-                    placeholder="Stopped time hh:mm"
-                    style={[styles.input, styles.flexInput]}
+                  <SecureDateTimeField
+                    disabled={!canPrescribe}
+                    label="Stopped time"
+                    mode="time"
+                    onChange={(value) => setForm({ ...form, stopTime: value })}
+                    style={styles.flexInput}
                     value={form.stopTime}
                   />
                 </View>

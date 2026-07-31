@@ -3,6 +3,7 @@ import { Alert, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View 
 import * as Print from "expo-print";
 import * as Sharing from "expo-sharing";
 
+import { SecureDateTimeField } from "../components/SecureDateTimeField";
 import type { Patient, PatientCarePlan, StaffMember, Ward } from "../types/domain";
 import { hasAdminAccess, hasStaffRole } from "../utils/staffRole";
 
@@ -67,19 +68,23 @@ export function PatientCarePlansScreen({
     setDraft(createEmptyDraft());
   }, [selectedPatient?.id]);
 
-  const requiredFieldsComplete = Boolean(
-    draft.title.trim() &&
-      draft.identifiedNeeds.trim() &&
-      draft.goals.trim() &&
-      draft.interventions.trim() &&
-      isValidReviewDate(draft.reviewDate)
-  );
+  const incompleteFields = getIncompleteCarePlanFields(draft);
+  const requiredFieldsComplete = incompleteFields.length === 0;
 
   const saveCarePlan = async () => {
     if (!selectedPatient || !selectedStaff || !ward || !canCreate || !requiredFieldsComplete) {
+      const missingDetails = incompleteFields.length > 0
+        ? `Please check: ${incompleteFields.join(", ")}.`
+        : !selectedStaff
+          ? "No authenticated staff member is selected."
+          : !ward
+            ? "No ward is selected."
+            : !selectedPatient
+              ? "No patient is selected."
+              : "Your staff role does not have permission to create care plans.";
       Alert.alert(
-        "Care plan details needed",
-        "Complete the title, identified needs, goals and interventions, and enter a valid review date as DD/MM/YYYY."
+        "Care plan cannot be saved yet",
+        missingDetails
       );
       return;
     }
@@ -301,12 +306,13 @@ export function PatientCarePlansScreen({
                 />
                 <View style={styles.reviewRow}>
                   <View style={styles.reviewDateField}>
-                    <CarePlanField
-                      editable={canCreate}
+                    <SecureDateTimeField
+                      dateFormat="uk"
+                      disabled={!canCreate}
                       label="Review date *"
-                      maxLength={10}
-                      onChangeText={(reviewDate) => setDraft((current) => ({ ...current, reviewDate }))}
-                      placeholder="DD/MM/YYYY"
+                      minimumDate={new Date()}
+                      mode="date"
+                      onChange={(reviewDate) => setDraft((current) => ({ ...current, reviewDate }))}
                       value={draft.reviewDate}
                     />
                   </View>
@@ -328,15 +334,20 @@ export function PatientCarePlansScreen({
                 />
                 <TouchableOpacity
                   accessibilityRole="button"
-                  disabled={!canCreate || !requiredFieldsComplete || isSaving}
+                  disabled={!canCreate || isSaving}
                   onPress={() => void saveCarePlan()}
                   style={[
                     styles.saveButton,
-                    (!canCreate || !requiredFieldsComplete || isSaving) && styles.disabledButton
+                    (!canCreate || isSaving) && styles.disabledButton
                   ]}
                 >
                   <Text style={styles.saveButtonText}>{isSaving ? "Saving…" : "Save signed care plan"}</Text>
                 </TouchableOpacity>
+                {canCreate && incompleteFields.length > 0 ? (
+                  <Text style={styles.validationHint}>
+                    To save, complete: {incompleteFields.join(", ")}.
+                  </Text>
+                ) : null}
               </View>
 
               <View style={styles.historyHeader}>
@@ -561,6 +572,16 @@ function isValidReviewDate(value: string) {
   return date.getFullYear() === year && date.getMonth() === month - 1 && date.getDate() === day;
 }
 
+function getIncompleteCarePlanFields(draft: CarePlanDraft) {
+  const fields: string[] = [];
+  if (!draft.title.trim()) fields.push("care plan title");
+  if (!draft.identifiedNeeds.trim()) fields.push("identified needs");
+  if (!draft.goals.trim()) fields.push("goals and desired outcomes");
+  if (!draft.interventions.trim()) fields.push("planned interventions");
+  if (!isValidReviewDate(draft.reviewDate)) fields.push("a valid review date in DD/MM/YYYY format");
+  return fields;
+}
+
 function formatDateTime(value: string) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
@@ -745,6 +766,7 @@ const styles = StyleSheet.create({
   savedPlanTitle: { color: "#18262c", fontSize: 16, fontWeight: "900" },
   savedPlanMeta: { color: "#5b6c73", fontSize: 11, fontWeight: "700", marginTop: 4 },
   reviewDate: { color: "#1f5262", fontSize: 11, fontWeight: "900", marginTop: 4 },
+  validationHint: { color: "#8a4b16", fontSize: 12, fontWeight: "800", marginTop: 8 },
   pdfActions: { flexDirection: "row", gap: 7 },
   pdfButton: {
     alignItems: "center",

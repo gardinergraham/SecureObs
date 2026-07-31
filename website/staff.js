@@ -1,5 +1,5 @@
 const API_URL = window.SECUREOBS_API_URL || "https://adequate-energy-production.up.railway.app";
-const ORGANISATION_ID = window.SECUREOBS_ORGANISATION_ID || "00000000-0000-0000-0000-000000000001";
+const ORGANISATION_ID = window.SECUREOBS_ORGANISATION_ID || "";
 const SESSION_KEY = "secureobs-staff-web-session";
 
 const state = { session: null, data: null, wardId: "", patientId: "", page: "notes" };
@@ -29,9 +29,11 @@ async function login(event) {
   const values = Object.fromEntries(new FormData(loginForm).entries());
   button.disabled = true;
   try {
+    const credentials = { staffCode: values.staffCode, loginPin: values.loginPin };
+    if (ORGANISATION_ID) credentials.organisationId = ORGANISATION_ID;
     const result = await api("/api/staff/pin-login", {
       method: "POST",
-      body: JSON.stringify({ staffCode: values.staffCode, loginPin: values.loginPin, organisationId: ORGANISATION_ID })
+      body: JSON.stringify(credentials)
     });
     state.session = result.session;
     sessionStorage.setItem(SESSION_KEY, JSON.stringify(result.session));

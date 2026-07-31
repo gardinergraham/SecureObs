@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from "react";
 import { Alert, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 
+import { SecureDateTimeField } from "../components/SecureDateTimeField";
 import type { StaffMember, Ward } from "../types/domain";
 import { hasStaffRole, normaliseStaffRole } from "../utils/staffRole";
 
@@ -343,10 +344,10 @@ export function BankAgencyStaffScreen({
           />
           <Text style={styles.label}>Access window</Text>
           <View style={styles.dateGrid}>
-            <TextInput placeholderTextColor="#6f7f87" editable={canEdit} onChangeText={setStartDate} placeholder="Start date dd/mm/yyyy" style={styles.dateInput} value={startDate} />
-            <TextInput placeholderTextColor="#6f7f87" editable={canEdit} onChangeText={setStartTime} placeholder="Start time hh:mm" style={styles.dateInput} value={startTime} />
-            <TextInput placeholderTextColor="#6f7f87" editable={canEdit} onChangeText={setEndDate} placeholder="End date dd/mm/yyyy" style={styles.dateInput} value={endDate} />
-            <TextInput placeholderTextColor="#6f7f87" editable={canEdit} onChangeText={setEndTime} placeholder="End time hh:mm" style={styles.dateInput} value={endTime} />
+            <SecureDateTimeField dateFormat="uk" disabled={!canEdit} label="Start date" minimumDate={new Date()} mode="date" onChange={setStartDate} style={styles.dateInput} value={startDate} />
+            <SecureDateTimeField disabled={!canEdit} label="Start time" mode="time" onChange={setStartTime} style={styles.dateInput} value={startTime} />
+            <SecureDateTimeField dateFormat="uk" disabled={!canEdit} label="End date" minimumDate={new Date()} mode="date" onChange={setEndDate} style={styles.dateInput} value={endDate} />
+            <SecureDateTimeField disabled={!canEdit} label="End time" mode="time" onChange={setEndTime} style={styles.dateInput} value={endTime} />
           </View>
           <TouchableOpacity
             accessibilityRole="button"

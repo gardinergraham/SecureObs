@@ -9,6 +9,7 @@ import type {
   PatientFormSectionRisk,
   StaffMember
 } from "../types/domain";
+import { SecureDateTimeField } from "../components/SecureDateTimeField";
 import { hasAdminAccess, hasStaffRole } from "../utils/staffRole";
 
 const patientFormTemplates = [
@@ -369,13 +370,14 @@ export function PatientAssessmentFormsScreen({
                   </View>
                 ))}
 
-                <Text style={styles.label}>Review date</Text>
-                <TextInput
-                  editable={canEdit}
-                  onChangeText={setFormReviewDate}
-                  placeholder="e.g. 25/07/2026"
-                  placeholderTextColor="#6f7f87"
-                  style={[styles.input, !canEdit && styles.disabledControl]}
+                <SecureDateTimeField
+                  dateFormat="uk"
+                  disabled={!canEdit}
+                  label="Review date"
+                  minimumDate={new Date()}
+                  mode="date"
+                  onChange={setFormReviewDate}
+                  optional
                   value={formReviewDate}
                 />
 

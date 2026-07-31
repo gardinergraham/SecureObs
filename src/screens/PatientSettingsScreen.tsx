@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 
+import { SecureDateTimeField } from "../components/SecureDateTimeField";
 import type {
   EnhancedObservationPlan,
   ObservationLevel,
@@ -430,14 +431,14 @@ export function PatientSettingsScreen({
                   }}
                 />
 
-                <Text style={styles.label}>Next review due</Text>
-                <TextInput placeholderTextColor="#6f7f87"
-                  editable={canEdit}
-                  onChangeText={(nextReviewAt) =>
+                <SecureDateTimeField
+                  disabled={!canEdit}
+                  label="Next review due"
+                  minimumDate={new Date()}
+                  mode="datetime"
+                  onChange={(nextReviewAt) =>
                     updateActiveTesoPlan(selectedPatient, { nextReviewAt })
                   }
-                  placeholder="Review date/time"
-                  style={[styles.input, !canEdit && styles.disabledControl]}
                   value={selectedPatient.enhancedObservation?.nextReviewAt ?? ""}
                 />
 

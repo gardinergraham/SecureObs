@@ -19,9 +19,11 @@ export function normaliseStaffRole(role: StaffMember["role"] | string | undefine
 }
 
 export function hasStaffRole(staff: StaffMember | undefined, role: StaffMember["role"]) {
+  if (!staff) return false;
   return normaliseStaffRole(staff?.role) === role;
 }
 
 export function hasAdminAccess(staff: StaffMember | undefined) {
+  if (!staff) return false;
   return normaliseStaffRole(staff?.role) === "super_admin";
 }

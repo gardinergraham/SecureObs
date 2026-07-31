@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Alert, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 
+import { SecureDateTimeField } from "../components/SecureDateTimeField";
 import type {
   FamilyPortalContact,
   FamilyShareCategory,
@@ -655,11 +656,13 @@ export function PatientVoiceScreen({
                 placeholder="Record how consent was obtained, any supported decision-making and local governance context"
                 value={sharing.consentNotes}
               />
-              <SingleLineField
+              <SecureDateTimeField
                 disabled={!canEdit}
                 label="Consent review date"
-                onChangeText={(value) => setSharing((current) => ({ ...current, consentReviewDate: value }))}
-                placeholder="YYYY-MM-DD"
+                minimumDate={new Date()}
+                mode="date"
+                onChange={(value) => setSharing((current) => ({ ...current, consentReviewDate: value }))}
+                optional
                 value={sharing.consentReviewDate ?? ""}
               />
 
@@ -668,7 +671,7 @@ export function PatientVoiceScreen({
                 <View style={styles.inlineFields}>
                   <SingleLineField disabled={!canEdit} label="Name" onChangeText={setContactName} placeholder="Full name" value={contactName} />
                   <SingleLineField disabled={!canEdit} label="Relationship" onChangeText={setContactRelationship} placeholder="Family, carer or advocate" value={contactRelationship} />
-                  <SingleLineField disabled={!canEdit} label="Access expiry" onChangeText={setContactExpiry} placeholder="Optional YYYY-MM-DD" value={contactExpiry} />
+                  <SecureDateTimeField disabled={!canEdit} label="Access expiry" minimumDate={new Date()} mode="date" onChange={setContactExpiry} optional style={styles.singleLineField} value={contactExpiry} />
                 </View>
                 <Text style={styles.fieldLabel}>Information this person may see</Text>
                 <View style={styles.frequencyRow}>

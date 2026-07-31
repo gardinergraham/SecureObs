@@ -13,6 +13,7 @@ import {
   View
 } from "react-native";
 
+import { SecureDateTimeField } from "../components/SecureDateTimeField";
 import type {
   IncidentSeverity,
   Patient,
@@ -386,20 +387,19 @@ export function PatientTasksScreen({
 
             <View style={styles.dateRow}>
               <View style={styles.dateField}>
-                <TaskField
+                <SecureDateTimeField
                   label="Due date *"
-                  maxLength={10}
-                  onChangeText={(dueDate) => setDraft((current) => ({ ...current, dueDate }))}
-                  placeholder="YYYY-MM-DD"
+                  minimumDate={new Date()}
+                  mode="date"
+                  onChange={(dueDate) => setDraft((current) => ({ ...current, dueDate }))}
                   value={draft.dueDate}
                 />
               </View>
               <View style={styles.timeField}>
-                <TaskField
+                <SecureDateTimeField
                   label="Due time *"
-                  maxLength={5}
-                  onChangeText={(dueTime) => setDraft((current) => ({ ...current, dueTime }))}
-                  placeholder="HH:MM"
+                  mode="time"
+                  onChange={(dueTime) => setDraft((current) => ({ ...current, dueTime }))}
                   value={draft.dueTime}
                 />
               </View>

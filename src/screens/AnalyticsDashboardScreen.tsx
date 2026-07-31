@@ -5,6 +5,7 @@ import * as Print from "expo-print";
 import * as Sharing from "expo-sharing";
 
 import { FeatureAvailabilityNotice } from "../components/FeatureAvailabilityNotice";
+import { SecureDateTimeField } from "../components/SecureDateTimeField";
 import type {
   FoodFluidEntry,
   MedicationAdministration,
@@ -231,28 +232,20 @@ export function AnalyticsDashboardScreen({
         </View>
         {preset === "custom" ? (
           <View style={styles.customDates}>
-            <View>
-              <Text style={styles.filterLabel}>From</Text>
-              <TextInput
-                accessibilityLabel="Analytics start date"
-                maxLength={10}
-                onChangeText={setCustomStart}
-                placeholder="YYYY-MM-DD"
-                style={styles.dateInput}
+            <SecureDateTimeField
+                label="From"
+                mode="date"
+                onChange={setCustomStart}
+                style={styles.analyticsDateField}
                 value={customStart}
               />
-            </View>
-            <View>
-              <Text style={styles.filterLabel}>To</Text>
-              <TextInput
-                accessibilityLabel="Analytics end date"
-                maxLength={10}
-                onChangeText={setCustomEnd}
-                placeholder="YYYY-MM-DD"
-                style={styles.dateInput}
+            <SecureDateTimeField
+                label="To"
+                mode="date"
+                onChange={setCustomEnd}
+                style={styles.analyticsDateField}
                 value={customEnd}
               />
-            </View>
           </View>
         ) : null}
         <View style={styles.patientFilter}>
@@ -1288,6 +1281,7 @@ const styles = StyleSheet.create({
   filterChipText: { color: "#43575f", fontSize: 9, fontWeight: "900" },
   filterChipTextActive: { color: "#ffffff" },
   customDates: { flexDirection: "row", gap: 7 },
+  analyticsDateField: { minWidth: 150 },
   dateInput: { borderColor: "#bdcbd0", borderRadius: 7, borderWidth: 1, color: "#21363e", fontSize: 10, minHeight: 34, paddingHorizontal: 8, width: 104 },
   patientFilter: { flex: 1, minWidth: 280 },
   rangeText: { color: "#5f7178", fontSize: 9, fontWeight: "800", paddingBottom: 8 },
