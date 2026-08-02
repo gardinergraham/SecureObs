@@ -5,7 +5,7 @@ import { pool } from "./db/pool.js";
 
 export async function enforceActiveSubscription(request: AuthenticatedRequest, response: Response, next: NextFunction) {
   const staff = request.auth?.staff;
-  if (!staff || staff.role === "super_admin" || request.path === "/api/config/organisation-settings" || request.path === "/api/billing/portal") {
+  if (!staff || staff.role === "super_admin" || request.path === "/api/config/organisation-settings" || request.path === "/api/billing/portal" || request.path === "/api/billing/sync-customer") {
     next();
     return;
   }

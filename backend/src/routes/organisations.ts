@@ -22,6 +22,12 @@ router.get("/", requireStaffRole(["super_admin"]), async (_request, response, ne
               billing.billing_interval as "billingInterval",
               billing.current_period_end as "currentPeriodEnd",
               billing.grace_period_ends_at as "gracePeriodEndsAt",
+              billing.billing_contact_name as "billingContactName",
+              billing.billing_email as "billingEmail",
+              billing.billing_phone as "billingPhone",
+              billing.billing_city as "billingCity",
+              billing.billing_postcode as "billingPostcode",
+              billing.billing_country as "billingCountry",
               count(distinct sites.id)::integer as "siteCount",
               count(distinct wards.id)::integer as "wardCount"
        from organisations
@@ -31,7 +37,9 @@ router.get("/", requireStaffRole(["super_admin"]), async (_request, response, ne
        left join wards on wards.site_id = sites.id
        group by organisations.id, organisations.name, settings.subscription_plan, settings.service_status,
                 settings.site_limit_override, settings.wards_per_site_limit_override
-                , billing.billing_status, billing.billing_interval, billing.current_period_end, billing.grace_period_ends_at
+                , billing.billing_status, billing.billing_interval, billing.current_period_end, billing.grace_period_ends_at,
+                billing.billing_contact_name, billing.billing_email, billing.billing_phone,
+                billing.billing_city, billing.billing_postcode, billing.billing_country
        order by organisations.name`,
     );
     response.json({ organisations: result.rows });

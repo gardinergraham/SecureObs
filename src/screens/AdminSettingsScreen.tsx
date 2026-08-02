@@ -7,7 +7,7 @@ import type { CustomerOrganisation, OrganisationFeatureKey, OrganisationSettings
 import { buildStaffCardPayload } from "../utils/nfcStaffCard";
 import { writeNfcTextPayload } from "../utils/nfcWriter";
 import { defaultObservationLocations } from "../utils/observationLocations";
-import { createBillingPortalSession } from "../services/api";
+import { createBillingPortalSession, syncBillingCustomerDetails } from "../services/api";
 
 const serviceTypes: ServiceType[] = ["High secure hospital", "Medium secure hospital", "Care home"];
 const intervals = [5, 10, 15, 30, 60];
@@ -525,6 +525,13 @@ export function AdminSettingsScreen({
               <Text style={[styles.listMeta, selectedOrganisationId === organisation.id && styles.optionTextActive]}>
                 {organisation.subscriptionPlan} · {organisation.siteCount} sites · {organisation.wardCount} wards
               </Text>
+              {organisation.billingContactName || organisation.billingEmail ? (
+                <Text style={[styles.listMeta, selectedOrganisationId === organisation.id && styles.optionTextActive]}>
+                  {[organisation.billingContactName, organisation.billingEmail,
+                    [organisation.billingCity, organisation.billingPostcode, organisation.billingCountry].filter(Boolean).join(" ")]
+                    .filter(Boolean).join(" · ")}
+                </Text>
+              ) : null}
             </TouchableOpacity>
           ))}
         </View>
@@ -555,20 +562,50 @@ export function AdminSettingsScreen({
             {organisationSettings.billingInterval ? `${organisationSettings.billingInterval} billing` : "No online subscription linked"}
             {organisationSettings.currentPeriodEnd ? ` · Current period ends ${new Date(organisationSettings.currentPeriodEnd).toLocaleDateString("en-GB")}` : ""}
           </Text>
+          {organisationSettings.billingContactName || organisationSettings.billingEmail ? (
+            <View style={styles.billingContact}>
+              <Text style={styles.label}>Customer billing contact</Text>
+              {organisationSettings.billingContactName ? <Text style={styles.listTitle}>{organisationSettings.billingContactName}</Text> : null}
+              {organisationSettings.billingEmail ? <Text style={styles.listMeta}>{organisationSettings.billingEmail}</Text> : null}
+              {organisationSettings.billingPhone ? <Text style={styles.listMeta}>{organisationSettings.billingPhone}</Text> : null}
+              {[organisationSettings.billingAddressLine1, organisationSettings.billingAddressLine2,
+                organisationSettings.billingCity, organisationSettings.billingCounty,
+                organisationSettings.billingPostcode, organisationSettings.billingCountry].filter(Boolean).length ? (
+                <Text style={styles.listMeta}>{[
+                  organisationSettings.billingAddressLine1, organisationSettings.billingAddressLine2,
+                  organisationSettings.billingCity, organisationSettings.billingCounty,
+                  organisationSettings.billingPostcode, organisationSettings.billingCountry
+                ].filter(Boolean).join(", ")}</Text>
+              ) : null}
+            </View>
+          ) : null}
           {organisationSettings.billingStatus === "past_due" && organisationSettings.gracePeriodEndsAt ? (
             <Text style={styles.billingWarning}>Payment overdue · access remains available until {new Date(organisationSettings.gracePeriodEndsAt).toLocaleString("en-GB")}</Text>
           ) : null}
           {organisationSettings.billingPortalAvailable ? (
-            <TouchableOpacity accessibilityRole="button" onPress={async () => {
-              try {
-                const result = await createBillingPortalSession(selectedOrganisationId);
-                await Linking.openURL(result.portalUrl);
-              } catch (error) {
-                Alert.alert("Billing portal unavailable", error instanceof Error ? error.message : "The billing portal could not be opened.");
-              }
-            }} style={styles.secondaryButton}>
-              <Text style={styles.secondaryButtonText}>Open Stripe billing portal</Text>
-            </TouchableOpacity>
+            <View style={styles.billingActions}>
+              <TouchableOpacity accessibilityRole="button" onPress={async () => {
+                try {
+                  await syncBillingCustomerDetails(selectedOrganisationId);
+                  await onSelectCustomerOrganisation(selectedOrganisationId);
+                  Alert.alert("Billing contact refreshed", "The latest customer contact and address have been imported from Stripe.");
+                } catch (error) {
+                  Alert.alert("Billing contact unavailable", error instanceof Error ? error.message : "Billing details could not be refreshed.");
+                }
+              }} style={styles.secondaryButton}>
+                <Text style={styles.secondaryButtonText}>Refresh contact from Stripe</Text>
+              </TouchableOpacity>
+              <TouchableOpacity accessibilityRole="button" onPress={async () => {
+                try {
+                  const result = await createBillingPortalSession(selectedOrganisationId);
+                  await Linking.openURL(result.portalUrl);
+                } catch (error) {
+                  Alert.alert("Billing portal unavailable", error instanceof Error ? error.message : "The billing portal could not be opened.");
+                }
+              }} style={styles.secondaryButton}>
+                <Text style={styles.secondaryButtonText}>Open Stripe billing portal</Text>
+              </TouchableOpacity>
+            </View>
           ) : null}
         </View>
         <View style={styles.optionRow}>
@@ -933,6 +970,8 @@ const styles = StyleSheet.create({
   allowanceRow: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
   allowanceField: { flex: 1, minWidth: 220 },
   billingSummary: { backgroundColor: "#f4f8fa", borderColor: "#c7d2d6", borderRadius: 7, borderWidth: 1, gap: 7, padding: 11 },
+  billingContact: { borderTopColor: "#d8e0e3", borderTopWidth: 1, gap: 2, marginTop: 3, paddingTop: 8 },
+  billingActions: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   billingWarning: { color: "#8a4b08", fontSize: 12, fontWeight: "900" },
   panel: {
     backgroundColor: "#ffffff",

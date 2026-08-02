@@ -104,7 +104,16 @@ router.get("/organisation-settings", async (request, response, next) => {
           billing.current_period_end as "currentPeriodEnd",
           billing.grace_period_ends_at as "gracePeriodEndsAt",
           billing.cancel_at_period_end as "cancelAtPeriodEnd",
-          (billing.stripe_customer_id is not null) as "billingPortalAvailable"
+          (billing.stripe_customer_id is not null) as "billingPortalAvailable",
+          billing.billing_contact_name as "billingContactName",
+          billing.billing_email as "billingEmail",
+          billing.billing_phone as "billingPhone",
+          billing.billing_address_line_1 as "billingAddressLine1",
+          billing.billing_address_line_2 as "billingAddressLine2",
+          billing.billing_city as "billingCity",
+          billing.billing_county as "billingCounty",
+          billing.billing_postcode as "billingPostcode",
+          billing.billing_country as "billingCountry"
         from organisation_settings settings
         left join billing_accounts billing on billing.organisation_id = settings.organisation_id
         where settings.organisation_id = $1
@@ -129,7 +138,16 @@ router.get("/organisation-settings", async (request, response, next) => {
         currentPeriodEnd: null,
         gracePeriodEndsAt: null,
         cancelAtPeriodEnd: false,
-        billingPortalAvailable: false
+        billingPortalAvailable: false,
+        billingContactName: null,
+        billingEmail: null,
+        billingPhone: null,
+        billingAddressLine1: null,
+        billingAddressLine2: null,
+        billingCity: null,
+        billingCounty: null,
+        billingPostcode: null,
+        billingCountry: null
       }
     });
   } catch (error) {

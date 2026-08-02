@@ -405,6 +405,13 @@ export async function createBillingPortalSession(organisationId?: string) {
   });
 }
 
+export async function syncBillingCustomerDetails(organisationId: string) {
+  return request<{ ok: true }>("/api/billing/sync-customer", {
+    method: "POST",
+    body: JSON.stringify({ organisationId })
+  });
+}
+
 export async function loadSecurityAreas(organisationId?: string, wardId?: string) {
   return request<{ securityAreas: SecurityArea[] }>(
     withOptionalQuery(withOrganisationId("/api/config/security-areas", organisationId), "wardId", wardId)

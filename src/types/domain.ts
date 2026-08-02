@@ -73,6 +73,12 @@ export type CustomerOrganisation = {
   billingInterval?: OrganisationSettings["billingInterval"];
   currentPeriodEnd?: string | null;
   gracePeriodEndsAt?: string | null;
+  billingContactName?: string | null;
+  billingEmail?: string | null;
+  billingPhone?: string | null;
+  billingCity?: string | null;
+  billingPostcode?: string | null;
+  billingCountry?: string | null;
 };
 
 export type OrganisationSettings = {
@@ -92,6 +98,15 @@ export type OrganisationSettings = {
   gracePeriodEndsAt?: string | null;
   cancelAtPeriodEnd?: boolean;
   billingPortalAvailable?: boolean;
+  billingContactName?: string | null;
+  billingEmail?: string | null;
+  billingPhone?: string | null;
+  billingAddressLine1?: string | null;
+  billingAddressLine2?: string | null;
+  billingCity?: string | null;
+  billingCounty?: string | null;
+  billingPostcode?: string | null;
+  billingCountry?: string | null;
 };
 
 export type OrganisationFeatureKey =

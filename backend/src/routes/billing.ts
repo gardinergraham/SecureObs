@@ -113,6 +113,47 @@ function subscriptionPeriodEnd(subscription: Stripe.Subscription) {
   return timestamps.length ? new Date(Math.max(...timestamps) * 1000) : null;
 }
 
+async function syncCustomerDetails(billingAccountId: string, customerId: string) {
+  if (!stripe) return;
+  const customer = await stripe.customers.retrieve(customerId);
+  if (customer.deleted) return;
+  await pool.query(
+    `update billing_accounts set
+       billing_email=coalesce($3,billing_email), billing_phone=coalesce($4,billing_phone),
+       billing_address_line_1=$5, billing_address_line_2=$6, billing_city=$7,
+       billing_county=$8, billing_postcode=$9, billing_country=$10, updated_at=now()
+     where id=$1 and stripe_customer_id=$2`,
+    [billingAccountId, customerId, customer.email ?? null, customer.phone ?? null,
+     customer.address?.line1 ?? null, customer.address?.line2 ?? null, customer.address?.city ?? null,
+     customer.address?.state ?? null, customer.address?.postal_code ?? null, customer.address?.country ?? null]
+  );
+}
+
+router.post("/sync-customer", requireStaffRole(["super_admin"]), async (request: AuthenticatedRequest, response, next) => {
+  try {
+    const client = requireStripe(response);
+    if (!client) return;
+    const organisationId = z.string().uuid().safeParse(request.body?.organisationId);
+    if (!organisationId.success) {
+      response.status(400).json({ error: "A valid customer organisation is required" });
+      return;
+    }
+    const result = await pool.query(
+      `select id, stripe_customer_id as "stripeCustomerId" from billing_accounts where organisation_id=$1`,
+      [organisationId.data]
+    );
+    const account = result.rows[0];
+    if (!account?.stripeCustomerId) {
+      response.status(404).json({ error: "No Stripe customer is linked to this organisation" });
+      return;
+    }
+    await syncCustomerDetails(account.id, account.stripeCustomerId);
+    response.json({ ok: true });
+  } catch (error) {
+    next(error);
+  }
+});
+
 async function ensureOrganisationForBillingAccount(billingAccountId: string) {
   const client = await pool.connect();
   try {
@@ -186,6 +227,9 @@ export async function stripeWebhookHandler(request: Request, response: Response)
     if (event.type === "checkout.session.completed") {
       const session = event.data.object;
       const billingAccountId = session.metadata?.billingAccountId;
+      if (billingAccountId && typeof session.customer === "string") {
+        await syncCustomerDetails(billingAccountId, session.customer);
+      }
       if (billingAccountId && typeof session.subscription === "string") {
         const subscription = await stripe.subscriptions.retrieve(session.subscription);
         await syncSubscription(subscription);
