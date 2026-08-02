@@ -21,6 +21,12 @@ const checkoutSchema = z.object({
   acceptedTerms: z.literal(true)
 });
 
+const planPrices = {
+  essential: { monthly: 14_900, yearly: 149_000 },
+  professional: { monthly: 29_900, yearly: 299_000 },
+  enterprise: { monthly: 149_900, yearly: 1_499_000 }
+} as const;
+
 function requireStripe(response: Response) {
   if (!stripe) {
     response.status(503).json({ error: "Online payments are not configured yet. Please contact SecureObs." });
@@ -139,7 +145,8 @@ router.post("/sync-customer", requireStaffRole(["super_admin"]), async (request:
       return;
     }
     const result = await pool.query(
-      `select id, stripe_customer_id as "stripeCustomerId" from billing_accounts where organisation_id=$1`,
+      `select id, stripe_customer_id as "stripeCustomerId", stripe_subscription_id as "stripeSubscriptionId"
+       from billing_accounts where organisation_id=$1`,
       [organisationId.data]
     );
     const account = result.rows[0];
@@ -148,7 +155,70 @@ router.post("/sync-customer", requireStaffRole(["super_admin"]), async (request:
       return;
     }
     await syncCustomerDetails(account.id, account.stripeCustomerId);
+    if (account.stripeSubscriptionId) {
+      const invoices = await client.invoices.list({ subscription: account.stripeSubscriptionId, status: "paid", limit: 1 });
+      const invoice = invoices.data[0];
+      if (invoice) {
+        await pool.query(
+          `update billing_accounts set last_payment_amount=$2, billing_currency=$3,
+             last_payment_at=coalesce(to_timestamp($4),last_payment_at), last_invoice_id=$5, updated_at=now()
+           where id=$1`,
+          [account.id, invoice.amount_paid, invoice.currency, invoice.status_transitions.paid_at ?? null, invoice.id]
+        );
+      }
+    }
     response.json({ ok: true });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.get("/report", requireStaffRole(["super_admin"]), async (_request, response, next) => {
+  try {
+    const result = await pool.query(
+      `select billing.id, organisations.name as "organisationName",
+              billing.billing_contact_name as "billingContactName", billing.billing_email as "billingEmail",
+              billing.subscription_plan as "subscriptionPlan", billing.billing_interval as "billingInterval",
+              billing.licensed_ward_quantity as "licensedWardQuantity", billing.billing_status as "billingStatus",
+              billing.last_payment_amount as "lastPaymentAmount", billing.billing_currency as "billingCurrency",
+              billing.last_payment_at as "lastPaymentAt", billing.current_period_end as "nextDueAt",
+              billing.payment_failed_at as "paymentFailedAt", billing.grace_period_ends_at as "gracePeriodEndsAt",
+              billing.cancel_at_period_end as "cancelAtPeriodEnd"
+       from billing_accounts billing
+       left join organisations on organisations.id=billing.organisation_id
+       where billing.organisation_id is not null
+       order by coalesce(billing.current_period_end,'infinity'::timestamptz), organisations.name`
+    );
+    const now = Date.now();
+    const dayMs = 86_400_000;
+    const rows = result.rows.map((row) => {
+      const plan = row.subscriptionPlan as keyof typeof planPrices;
+      const interval = row.billingInterval as "monthly" | "yearly";
+      const quantity = Number(row.licensedWardQuantity || 1);
+      const expectedAmount = planPrices[plan][interval] * quantity;
+      const nextDueMs = row.nextDueAt ? new Date(row.nextDueAt).getTime() : null;
+      const daysUntilDue = nextDueMs === null ? null : Math.ceil((nextDueMs - now) / dayMs);
+      const failedMs = row.paymentFailedAt ? new Date(row.paymentFailedAt).getTime() : null;
+      const graceDay = row.billingStatus === "past_due" && failedMs !== null
+        ? Math.max(1, Math.floor((now - failedMs) / dayMs) + 1) : null;
+      const graceDaysRemaining = row.gracePeriodEndsAt
+        ? Math.max(0, Math.ceil((new Date(row.gracePeriodEndsAt).getTime() - now) / dayMs)) : null;
+      let reminderStatus = "No reminder needed";
+      if (["unpaid", "canceled"].includes(row.billingStatus)) reminderStatus = "Access paused — contact customer";
+      else if (row.billingStatus === "past_due") reminderStatus = `Urgent reminder — grace day ${Math.min(graceDay ?? 1, 7)} of 7`;
+      else if (row.cancelAtPeriodEnd) reminderStatus = "Cancellation scheduled — contact customer";
+      else if (daysUntilDue !== null && daysUntilDue <= 7) reminderStatus = `Upcoming renewal reminder — due in ${Math.max(0, daysUntilDue)} days`;
+      return {
+        ...row,
+        expectedAmount,
+        lastPaymentAmount: row.lastPaymentAmount ?? (row.lastPaymentAt ? expectedAmount : null),
+        daysUntilDue,
+        graceDay,
+        graceDaysRemaining,
+        reminderStatus
+      };
+    });
+    response.json({ generatedAt: new Date().toISOString(), rows });
   } catch (error) {
     next(error);
   }
@@ -244,7 +314,11 @@ export async function stripeWebhookHandler(request: Request, response: Response)
         await syncSubscription(subscription, invoice.id);
         const id = subscription.metadata.billingAccountId;
         if (id) {
-          await pool.query(`update billing_accounts set billing_status='active', last_payment_at=now(), payment_failed_at=null, grace_period_ends_at=null, updated_at=now() where id=$1`, [id]);
+          await pool.query(
+            `update billing_accounts set billing_status='active', last_payment_at=now(), last_payment_amount=$2,
+               billing_currency=$3, payment_failed_at=null, grace_period_ends_at=null, updated_at=now() where id=$1`,
+            [id, invoice.amount_paid, invoice.currency]
+          );
           await ensureOrganisationForBillingAccount(id);
         }
       }

@@ -1,13 +1,15 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Alert, Image, Linking, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { Alert, Image, Linking, Platform, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { manipulateAsync, SaveFormat } from "expo-image-manipulator";
 import * as ImagePicker from "expo-image-picker";
+import * as FileSystem from "expo-file-system/legacy";
+import * as Sharing from "expo-sharing";
 
-import type { CustomerOrganisation, OrganisationFeatureKey, OrganisationSettings, ServiceType, Site, StaffMember, Ward } from "../types/domain";
+import type { BillingReportRow, CustomerOrganisation, OrganisationFeatureKey, OrganisationSettings, ServiceType, Site, StaffMember, Ward } from "../types/domain";
 import { buildStaffCardPayload } from "../utils/nfcStaffCard";
 import { writeNfcTextPayload } from "../utils/nfcWriter";
 import { defaultObservationLocations } from "../utils/observationLocations";
-import { createBillingPortalSession, syncBillingCustomerDetails } from "../services/api";
+import { createBillingPortalSession, loadBillingReport, syncBillingCustomerDetails } from "../services/api";
 
 const serviceTypes: ServiceType[] = ["High secure hospital", "Medium secure hospital", "Care home"];
 const intervals = [5, 10, 15, 30, 60];
@@ -94,6 +96,8 @@ export function AdminSettingsScreen({
   const [logoDataUri, setLogoDataUri] = useState(organisationSettings.logoDataUri ?? null);
   const [isSaving, setIsSaving] = useState(false);
   const [isWritingManagerTag, setIsWritingManagerTag] = useState(false);
+  const [billingRows, setBillingRows] = useState<BillingReportRow[]>([]);
+  const [isLoadingBilling, setIsLoadingBilling] = useState(false);
   const [subscriptionPlan, setSubscriptionPlan] = useState(organisationSettings.subscriptionPlan);
   const [featureOverrides, setFeatureOverrides] = useState(organisationSettings.featureOverrides);
   const [serviceStatus, setServiceStatus] = useState(organisationSettings.serviceStatus);
@@ -183,6 +187,57 @@ export function AdminSettingsScreen({
     setSiteLimitOverride(organisationSettings.siteLimitOverride ? String(organisationSettings.siteLimitOverride) : "");
     setWardLimitOverride(organisationSettings.wardsPerSiteLimitOverride ? String(organisationSettings.wardsPerSiteLimitOverride) : "");
   }, [organisationSettings]);
+
+  const refreshBillingReport = async () => {
+    setIsLoadingBilling(true);
+    try {
+      const report = await loadBillingReport();
+      setBillingRows(report.rows);
+      return report.rows;
+    } catch (error) {
+      Alert.alert("Payment report unavailable", error instanceof Error ? error.message : "The payment ledger could not be loaded.");
+      return [];
+    } finally {
+      setIsLoadingBilling(false);
+    }
+  };
+
+  useEffect(() => {
+    void refreshBillingReport();
+  }, []);
+
+  const exportBillingSpreadsheet = async () => {
+    const rows = await refreshBillingReport();
+    if (!rows.length) {
+      Alert.alert("Nothing to export", "There are no linked Stripe subscriptions in the payment ledger.");
+      return;
+    }
+    const csv = buildBillingCsv(rows);
+    const filename = `SecureObs-payment-ledger-${formatBillingFileDate(new Date())}.csv`;
+    try {
+      if (Platform.OS === "web" && typeof document !== "undefined") {
+        const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = filename;
+        link.click();
+        URL.revokeObjectURL(url);
+        return;
+      }
+      if (!FileSystem.cacheDirectory) throw new Error("File storage is unavailable on this device");
+      const path = `${FileSystem.cacheDirectory}${filename}`;
+      await FileSystem.writeAsStringAsync(path, csv, { encoding: FileSystem.EncodingType.UTF8 });
+      if (!(await Sharing.isAvailableAsync())) throw new Error("File sharing is unavailable on this device");
+      await Sharing.shareAsync(path, {
+        dialogTitle: "Share SecureObs payment ledger",
+        mimeType: "text/csv",
+        UTI: "public.comma-separated-values-text"
+      });
+    } catch (error) {
+      Alert.alert("Spreadsheet unavailable", error instanceof Error ? error.message : "The payment spreadsheet could not be created.");
+    }
+  };
 
   useEffect(() => {
     if (!selectedSiteWards.some((ward) => ward.id === managedWardId)) {
@@ -508,6 +563,35 @@ export function AdminSettingsScreen({
         </View>
         <Text style={styles.auditButtonArrow}>Open</Text>
       </TouchableOpacity>
+
+      <View style={styles.panel}>
+        <View style={styles.paymentHeader}>
+          <View>
+            <Text style={styles.panelTitle}>Payment ledger</Text>
+            <Text style={styles.meta}>Paid amounts, renewal dates, reminders and seven-day grace-period tracking.</Text>
+          </View>
+          <View style={styles.billingActions}>
+            <TouchableOpacity accessibilityRole="button" disabled={isLoadingBilling} onPress={() => void refreshBillingReport()} style={styles.secondaryButton}>
+              <Text style={styles.secondaryButtonText}>{isLoadingBilling ? "Refreshing…" : "Refresh"}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity accessibilityRole="button" disabled={isLoadingBilling} onPress={() => void exportBillingSpreadsheet()} style={styles.primarySmallButton}>
+              <Text style={styles.primaryButtonText}>Export spreadsheet</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+        {billingRows.length ? billingRows.map((row) => (
+          <View key={row.id} style={[styles.paymentRow, row.billingStatus === "past_due" && styles.paymentRowWarning]}>
+            <View style={styles.paymentMain}>
+              <Text style={styles.listTitle}>{row.organisationName}</Text>
+              <Text style={styles.listMeta}>{row.billingContactName} · {row.billingEmail}</Text>
+              <Text style={styles.listMeta}>{row.subscriptionPlan} · {row.billingInterval} · {row.licensedWardQuantity} licensed {row.subscriptionPlan === "enterprise" ? "organisation" : row.licensedWardQuantity === 1 ? "ward" : "wards"}</Text>
+            </View>
+            <View style={styles.paymentMetric}><Text style={styles.label}>Last paid</Text><Text style={styles.paymentValue}>{row.lastPaymentAmount === null ? "—" : formatBillingMoney(row.lastPaymentAmount)}</Text><Text style={styles.listMeta}>{formatBillingDate(row.lastPaymentAt)}</Text></View>
+            <View style={styles.paymentMetric}><Text style={styles.label}>Next due</Text><Text style={styles.paymentValue}>{formatBillingMoney(row.expectedAmount)}</Text><Text style={styles.listMeta}>{formatBillingDate(row.nextDueAt)}</Text></View>
+            <View style={styles.paymentAction}><Text style={styles.label}>Action</Text><Text style={row.reminderStatus === "No reminder needed" ? styles.paymentOk : styles.billingWarning}>{row.reminderStatus}</Text>{row.graceDay ? <Text style={styles.listMeta}>{row.graceDaysRemaining} grace day(s) remaining</Text> : null}</View>
+          </View>
+        )) : <Text style={styles.meta}>{isLoadingBilling ? "Loading subscriptions…" : "No Stripe subscriptions are linked yet."}</Text>}
+      </View>
 
       <View style={styles.panel}>
         <Text style={styles.panelTitle}>Customer organisation</Text>
@@ -902,6 +986,40 @@ function createId(prefix: string, value: string) {
   return `${prefix}-${slug || Date.now()}`;
 }
 
+function formatBillingMoney(pence: number) {
+  return new Intl.NumberFormat("en-GB", { style: "currency", currency: "GBP" }).format(pence / 100);
+}
+
+function formatBillingDate(value: string | null) {
+  return value ? new Date(value).toLocaleDateString("en-GB") : "—";
+}
+
+function formatBillingFileDate(date: Date) {
+  return date.toISOString().slice(0, 10);
+}
+
+function csvCell(value: string | number | boolean | null) {
+  const text = value === null ? "" : String(value);
+  return `"${text.replace(/"/g, '""')}"`;
+}
+
+function buildBillingCsv(rows: BillingReportRow[]) {
+  const headers = [
+    "Organisation", "Contact", "Email", "Package", "Billing frequency", "Licensed quantity",
+    "Status", "Last amount paid GBP", "Last payment date", "Next amount due GBP", "Next due date",
+    "Days until due", "Reminder/action", "Grace day", "Grace days remaining", "Grace period ends", "Cancellation scheduled"
+  ];
+  const records = rows.map((row) => [
+    row.organisationName, row.billingContactName, row.billingEmail, row.subscriptionPlan, row.billingInterval,
+    row.licensedWardQuantity, row.billingStatus,
+    row.lastPaymentAmount === null ? null : (row.lastPaymentAmount / 100).toFixed(2),
+    row.lastPaymentAt?.slice(0, 10) ?? null, (row.expectedAmount / 100).toFixed(2),
+    row.nextDueAt?.slice(0, 10) ?? null, row.daysUntilDue, row.reminderStatus, row.graceDay,
+    row.graceDaysRemaining, row.gracePeriodEndsAt?.slice(0, 10) ?? null, row.cancelAtPeriodEnd
+  ]);
+  return `\uFEFF${[headers, ...records].map((record) => record.map(csvCell).join(",")).join("\r\n")}`;
+}
+
 const styles = StyleSheet.create({
   screen: { gap: 12 },
   header: {
@@ -973,6 +1091,15 @@ const styles = StyleSheet.create({
   billingContact: { borderTopColor: "#d8e0e3", borderTopWidth: 1, gap: 2, marginTop: 3, paddingTop: 8 },
   billingActions: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   billingWarning: { color: "#8a4b08", fontSize: 12, fontWeight: "900" },
+  paymentHeader: { alignItems: "center", flexDirection: "row", flexWrap: "wrap", gap: 12, justifyContent: "space-between" },
+  primarySmallButton: { alignItems: "center", backgroundColor: "#1f5262", borderRadius: 6, justifyContent: "center", minHeight: 42, paddingHorizontal: 12 },
+  paymentRow: { alignItems: "center", borderColor: "#d8e0e3", borderRadius: 7, borderWidth: 1, flexDirection: "row", flexWrap: "wrap", gap: 12, padding: 11 },
+  paymentRowWarning: { backgroundColor: "#fff9e8", borderColor: "#e0bd55" },
+  paymentMain: { flex: 2, minWidth: 230 },
+  paymentMetric: { minWidth: 125 },
+  paymentAction: { flex: 1, minWidth: 220 },
+  paymentValue: { color: "#18262c", fontSize: 15, fontWeight: "900", marginTop: 2 },
+  paymentOk: { color: "#26704b", fontSize: 12, fontWeight: "900" },
   panel: {
     backgroundColor: "#ffffff",
     borderColor: "#d8e0e3",

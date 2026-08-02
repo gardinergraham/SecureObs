@@ -123,6 +123,29 @@ export type OrganisationFeatureKey =
   | "dedicatedDatabase"
   | "sqlIntegration";
 
+export type BillingReportRow = {
+  id: string;
+  organisationName: string;
+  billingContactName: string;
+  billingEmail: string;
+  subscriptionPlan: "essential" | "professional" | "enterprise";
+  billingInterval: "monthly" | "yearly";
+  licensedWardQuantity: number;
+  billingStatus: "pending_checkout" | "incomplete" | "trialing" | "active" | "past_due" | "unpaid" | "canceled";
+  expectedAmount: number;
+  lastPaymentAmount: number | null;
+  billingCurrency: string;
+  lastPaymentAt: string | null;
+  nextDueAt: string | null;
+  daysUntilDue: number | null;
+  paymentFailedAt: string | null;
+  gracePeriodEndsAt: string | null;
+  graceDay: number | null;
+  graceDaysRemaining: number | null;
+  cancelAtPeriodEnd: boolean;
+  reminderStatus: string;
+};
+
 export type PatientNote = {
   id: string;
   patientId: string;
