@@ -24,6 +24,26 @@ Required environment variables:
 - `SESSION_TTL_MINUTES=720` for 12-hour staff sessions, or another trust-approved timeout
 - `PORT` is supplied by Railway automatically
 
+### Stripe subscriptions
+
+Create six recurring GBP prices in Stripe test mode and add their IDs to Railway:
+
+- Essential monthly: £149 per ward; yearly: £1,490 per ward
+- Professional monthly: £299 per ward; yearly: £2,990 per ward
+- Enterprise monthly: £1,499 per organisation; yearly: £14,990 per organisation
+
+Set `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, the six `STRIPE_PRICE_...` variables shown in `.env.example`,
+`PUBLIC_WEBSITE_URL=https://secure-obs.com`, and optionally `BILLING_GRACE_DAYS=7`.
+
+In Stripe Workbench, add a webhook endpoint at:
+
+`https://adequate-energy-production.up.railway.app/api/billing/webhook`
+
+Subscribe it to `checkout.session.completed`, `invoice.paid`, `invoice.payment_failed`,
+`customer.subscription.updated`, and `customer.subscription.deleted`. Enable the Stripe Customer Portal,
+customer emails, and Smart Retries in the Stripe Dashboard. The webhook—not the browser success page—is the
+source of truth for creating organisations and changing billing access.
+
 The mobile app should call this API. It should not connect directly to Postgres.
 
 ## Staff Sessions

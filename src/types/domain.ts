@@ -69,6 +69,10 @@ export type CustomerOrganisation = {
   wardsPerSiteLimitOverride?: number | null;
   siteCount: number;
   wardCount: number;
+  billingStatus?: OrganisationSettings["billingStatus"];
+  billingInterval?: OrganisationSettings["billingInterval"];
+  currentPeriodEnd?: string | null;
+  gracePeriodEndsAt?: string | null;
 };
 
 export type OrganisationSettings = {
@@ -81,6 +85,13 @@ export type OrganisationSettings = {
   suspensionMessage: string;
   siteLimitOverride?: number | null;
   wardsPerSiteLimitOverride?: number | null;
+  billingStatus?: "not_configured" | "pending_checkout" | "incomplete" | "trialing" | "active" | "past_due" | "unpaid" | "canceled";
+  billingInterval?: "monthly" | "yearly" | null;
+  licensedWardQuantity?: number | null;
+  currentPeriodEnd?: string | null;
+  gracePeriodEndsAt?: string | null;
+  cancelAtPeriodEnd?: boolean;
+  billingPortalAvailable?: boolean;
 };
 
 export type OrganisationFeatureKey =

@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Alert, Image, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { Alert, Image, Linking, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { manipulateAsync, SaveFormat } from "expo-image-manipulator";
 import * as ImagePicker from "expo-image-picker";
 
@@ -7,6 +7,7 @@ import type { CustomerOrganisation, OrganisationFeatureKey, OrganisationSettings
 import { buildStaffCardPayload } from "../utils/nfcStaffCard";
 import { writeNfcTextPayload } from "../utils/nfcWriter";
 import { defaultObservationLocations } from "../utils/observationLocations";
+import { createBillingPortalSession } from "../services/api";
 
 const serviceTypes: ServiceType[] = ["High secure hospital", "Medium secure hospital", "Care home"];
 const intervals = [5, 10, 15, 30, 60];
@@ -548,6 +549,28 @@ export function AdminSettingsScreen({
       <View style={styles.panel}>
         <Text style={styles.panelTitle}>Subscription and service control</Text>
         <Text style={styles.meta}>SecureObs super-admin only. Select a package, then use overrides for an agreed customer variation.</Text>
+        <View style={styles.billingSummary}>
+          <Text style={styles.listTitle}>Stripe billing: {(organisationSettings.billingStatus ?? "not_configured").replace("_", " ")}</Text>
+          <Text style={styles.listMeta}>
+            {organisationSettings.billingInterval ? `${organisationSettings.billingInterval} billing` : "No online subscription linked"}
+            {organisationSettings.currentPeriodEnd ? ` · Current period ends ${new Date(organisationSettings.currentPeriodEnd).toLocaleDateString("en-GB")}` : ""}
+          </Text>
+          {organisationSettings.billingStatus === "past_due" && organisationSettings.gracePeriodEndsAt ? (
+            <Text style={styles.billingWarning}>Payment overdue · access remains available until {new Date(organisationSettings.gracePeriodEndsAt).toLocaleString("en-GB")}</Text>
+          ) : null}
+          {organisationSettings.billingPortalAvailable ? (
+            <TouchableOpacity accessibilityRole="button" onPress={async () => {
+              try {
+                const result = await createBillingPortalSession(selectedOrganisationId);
+                await Linking.openURL(result.portalUrl);
+              } catch (error) {
+                Alert.alert("Billing portal unavailable", error instanceof Error ? error.message : "The billing portal could not be opened.");
+              }
+            }} style={styles.secondaryButton}>
+              <Text style={styles.secondaryButtonText}>Open Stripe billing portal</Text>
+            </TouchableOpacity>
+          ) : null}
+        </View>
         <View style={styles.optionRow}>
           {plans.map((plan) => (
             <TouchableOpacity
@@ -909,6 +932,8 @@ const styles = StyleSheet.create({
   managerRow: { alignItems: "center", flexDirection: "row", flexWrap: "wrap", gap: 8 },
   allowanceRow: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
   allowanceField: { flex: 1, minWidth: 220 },
+  billingSummary: { backgroundColor: "#f4f8fa", borderColor: "#c7d2d6", borderRadius: 7, borderWidth: 1, gap: 7, padding: 11 },
+  billingWarning: { color: "#8a4b08", fontSize: 12, fontWeight: "900" },
   panel: {
     backgroundColor: "#ffffff",
     borderColor: "#d8e0e3",

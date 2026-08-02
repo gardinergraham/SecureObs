@@ -398,6 +398,13 @@ export async function saveOrganisationSettings(settings: OrganisationScoped<Orga
   });
 }
 
+export async function createBillingPortalSession(organisationId?: string) {
+  return request<{ portalUrl: string }>("/api/billing/portal", {
+    method: "POST",
+    body: JSON.stringify({ organisationId })
+  });
+}
+
 export async function loadSecurityAreas(organisationId?: string, wardId?: string) {
   return request<{ securityAreas: SecurityArea[] }>(
     withOptionalQuery(withOrganisationId("/api/config/security-areas", organisationId), "wardId", wardId)

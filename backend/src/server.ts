@@ -13,17 +13,20 @@ import { patientRouter } from "./routes/patients.js";
 import { organisationsRouter } from "./routes/organisations.js";
 import { staffRouter } from "./routes/staff.js";
 import { staffPortalRouter } from "./routes/staffPortal.js";
+import { billingRouter, stripeWebhookHandler } from "./routes/billing.js";
 
 const app = express();
 
 app.use(helmet());
 app.use(cors({ origin: config.corsOrigin === "*" ? true : config.corsOrigin }));
+app.post("/api/billing/webhook", express.raw({ type: "application/json" }), stripeWebhookHandler);
 app.use(express.json({ limit: "1mb" }));
 app.use(authenticateRequest);
 app.use(enforceActiveSubscription);
 
 app.use("/health", healthRouter);
 app.use("/api/staff", staffRouter);
+app.use("/api/billing", billingRouter);
 app.use("/api/organisations", organisationsRouter);
 app.use("/api/staff-portal", staffPortalRouter);
 app.use("/api/family-access", familyAccessRouter);

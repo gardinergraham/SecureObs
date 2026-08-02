@@ -89,17 +89,25 @@ router.get("/organisation-settings", async (request, response, next) => {
     const result = await pool.query(
       `
         select
-          organisation_id as "organisationId",
-          nfc_staff_code_format as "nfcStaffCodeFormat",
-          logo_data_uri as "logoDataUri",
-          subscription_plan as "subscriptionPlan",
-          feature_overrides as "featureOverrides",
-          service_status as "serviceStatus",
-          suspension_message as "suspensionMessage",
-          site_limit_override as "siteLimitOverride",
-          wards_per_site_limit_override as "wardsPerSiteLimitOverride"
-        from organisation_settings
-        where organisation_id = $1
+          settings.organisation_id as "organisationId",
+          settings.nfc_staff_code_format as "nfcStaffCodeFormat",
+          settings.logo_data_uri as "logoDataUri",
+          settings.subscription_plan as "subscriptionPlan",
+          settings.feature_overrides as "featureOverrides",
+          settings.service_status as "serviceStatus",
+          settings.suspension_message as "suspensionMessage",
+          settings.site_limit_override as "siteLimitOverride",
+          settings.wards_per_site_limit_override as "wardsPerSiteLimitOverride",
+          billing.billing_status as "billingStatus",
+          billing.billing_interval as "billingInterval",
+          billing.licensed_ward_quantity as "licensedWardQuantity",
+          billing.current_period_end as "currentPeriodEnd",
+          billing.grace_period_ends_at as "gracePeriodEndsAt",
+          billing.cancel_at_period_end as "cancelAtPeriodEnd",
+          (billing.stripe_customer_id is not null) as "billingPortalAvailable"
+        from organisation_settings settings
+        left join billing_accounts billing on billing.organisation_id = settings.organisation_id
+        where settings.organisation_id = $1
       `,
       [organisationId]
     );
@@ -114,7 +122,14 @@ router.get("/organisation-settings", async (request, response, next) => {
         serviceStatus: "active",
         suspensionMessage: "",
         siteLimitOverride: null,
-        wardsPerSiteLimitOverride: null
+        wardsPerSiteLimitOverride: null,
+        billingStatus: "not_configured",
+        billingInterval: null,
+        licensedWardQuantity: null,
+        currentPeriodEnd: null,
+        gracePeriodEndsAt: null,
+        cancelAtPeriodEnd: false,
+        billingPortalAvailable: false
       }
     });
   } catch (error) {

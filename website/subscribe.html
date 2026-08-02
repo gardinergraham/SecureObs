@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Subscribe to SecureObs</title>
+  <meta name="description" content="Choose a monthly or annual SecureObs subscription for your care service." />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="site-header">
+    <a class="brand" href="index.html"><img src="assets/secureobs-logo-new.png" alt="" /><span>SecureObs</span></a>
+    <nav><a href="index.html#packages">Compare packages</a><a href="demo.html">Book a demo</a></nav>
+  </header>
+  <main class="subscription-page">
+    <div class="subscription-shell">
+      <section class="subscription-summary">
+        <p class="eyebrow">Secure Stripe checkout</p>
+        <h1>Start your SecureObs subscription.</h1>
+        <p>Choose monthly flexibility or pay annually and receive twelve months for the price of ten.</p>
+        <ul>
+          <li>Recurring billing managed securely by Stripe</li>
+          <li>Invoices and payment receipts sent to your billing email</li>
+          <li>Card details never stored by SecureObs</li>
+          <li>Your organisation is created after payment confirmation</li>
+        </ul>
+      </section>
+      <form class="subscription-form" id="subscription-form">
+        <h2>Organisation and billing details</h2>
+        <div class="form-grid">
+          <div class="form-field form-field-wide"><label for="organisationName">Organisation name</label><input id="organisationName" name="organisationName" required maxlength="255" /></div>
+          <div class="form-field"><label for="contactName">Billing contact</label><input id="contactName" name="contactName" required maxlength="255" /></div>
+          <div class="form-field"><label for="billingEmail">Billing email</label><input id="billingEmail" name="billingEmail" required type="email" /></div>
+          <div class="form-field"><label for="billingPhone">Telephone (optional)</label><input id="billingPhone" name="billingPhone" type="tel" /></div>
+          <div class="form-field"><label for="plan">Package</label><select id="plan" name="plan"><option value="essential">Essential</option><option value="professional">Professional</option><option value="enterprise">Enterprise</option></select></div>
+          <div class="form-field" id="ward-field"><label for="wardQuantity">Number of wards</label><input id="wardQuantity" name="wardQuantity" type="number" value="1" min="1" max="100" required /></div>
+          <div class="form-field form-field-wide">
+            <span>Billing frequency</span>
+            <div class="billing-toggle"><label><input type="radio" name="interval" value="monthly" checked />Monthly</label><label><input type="radio" name="interval" value="yearly" />Yearly — two months free</label></div>
+          </div>
+          <label class="form-field-wide"><input id="acceptedTerms" type="checkbox" required /> I agree to the SecureObs subscription terms and privacy policy.</label>
+        </div>
+        <div class="checkout-total" id="checkout-total"></div>
+        <p class="form-message" id="form-message" role="alert"></p>
+        <button class="checkout-button" id="checkout-button" type="submit">Continue to secure payment</button>
+        <p class="secure-payment-note">Prices exclude VAT. Payment and card details are handled securely on Stripe's website.</p>
+      </form>
+    </div>
+  </main>
+  <footer><span>SecureObs</span><span><a href="privacy.html">Privacy</a> · <a href="support.html">Support</a></span></footer>
+  <script src="subscribe.js"></script>
+</body>
+</html>

@@ -18,14 +18,20 @@ router.get("/", requireStaffRole(["super_admin"]), async (_request, response, ne
               coalesce(settings.service_status, 'active') as "serviceStatus",
               settings.site_limit_override as "siteLimitOverride",
               settings.wards_per_site_limit_override as "wardsPerSiteLimitOverride",
+              coalesce(billing.billing_status, 'not_configured') as "billingStatus",
+              billing.billing_interval as "billingInterval",
+              billing.current_period_end as "currentPeriodEnd",
+              billing.grace_period_ends_at as "gracePeriodEndsAt",
               count(distinct sites.id)::integer as "siteCount",
               count(distinct wards.id)::integer as "wardCount"
        from organisations
        left join organisation_settings settings on settings.organisation_id = organisations.id
+       left join billing_accounts billing on billing.organisation_id = organisations.id
        left join sites on sites.organisation_id = organisations.id
        left join wards on wards.site_id = sites.id
        group by organisations.id, organisations.name, settings.subscription_plan, settings.service_status,
                 settings.site_limit_override, settings.wards_per_site_limit_override
+                , billing.billing_status, billing.billing_interval, billing.current_period_end, billing.grace_period_ends_at
        order by organisations.name`,
     );
     response.json({ organisations: result.rows });

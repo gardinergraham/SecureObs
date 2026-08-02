@@ -1564,6 +1564,18 @@ export default function App() {
         </TouchableOpacity>
       </View>
 
+      {selectedStaff && organisationSettings.billingStatus === "past_due" ? (
+        <View style={styles.billingBanner}>
+          <Text style={styles.billingBannerTitle}>Subscription payment overdue</Text>
+          <Text style={styles.billingBannerText}>
+            SecureObs remains available during the payment grace period
+            {organisationSettings.gracePeriodEndsAt
+              ? ` until ${new Date(organisationSettings.gracePeriodEndsAt).toLocaleString("en-GB")}`
+              : ""}. Please ask a manager to update the billing details.
+          </Text>
+        </View>
+      ) : null}
+
       <ScrollView
         contentContainerStyle={screen === "home" ? styles.homeContent : styles.content}
         horizontal={false}
@@ -2490,6 +2502,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: 18,
     paddingVertical: 14
   },
+  billingBanner: {
+    backgroundColor: "#fff2cb",
+    borderBottomColor: "#e0bd55",
+    borderBottomWidth: 1,
+    paddingHorizontal: 18,
+    paddingVertical: 9
+  },
+  billingBannerTitle: { color: "#6d4700", fontSize: 13, fontWeight: "900" },
+  billingBannerText: { color: "#6d4700", fontSize: 12, marginTop: 2 },
   brand: {
     alignItems: "center",
     flexDirection: "row",
