@@ -1,9 +1,17 @@
-import React, { useMemo, useState } from "react";
-import { StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+import React, { useEffect, useMemo, useState } from "react";
+import { Linking, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 
 import appConfig from "../../app.json";
 import type { Site, StaffMember, Ward } from "../types/domain";
 import { hasAdminAccess, hasStaffRole } from "../utils/staffRole";
+
+type AndroidRelease = {
+  version: string;
+  minimumSupportedVersion: string;
+  downloadPageUrl: string;
+};
+
+const releaseManifestUrl = "https://secure-obs.com/downloads/release.json";
 
 type HomeScreenProps = {
   sites: Site[];
@@ -68,6 +76,7 @@ export function HomeScreen({
   const [isChangingPin, setIsChangingPin] = useState(false);
   const [isUnlockingAccess, setIsUnlockingAccess] = useState(false);
   const [isScanningStaffCard, setIsScanningStaffCard] = useState(false);
+  const [availableRelease, setAvailableRelease] = useState<AndroidRelease | null>(null);
   const selectedWard = wards.find((ward) => ward.id === selectedWardId);
   const selectedStaff = staff.find((member) => member.id === selectedStaffId);
   const selectedSite = sites.find((site) => site.id === selectedSiteId);
@@ -77,6 +86,28 @@ export function HomeScreen({
   const canOpenAdminSettings = !pinChangeRequired && hasAdminAccess(selectedStaff);
   const canEditWardSettings = !pinChangeRequired && (hasStaffRole(selectedStaff, "manager") || hasAdminAccess(selectedStaff));
   const canOpenCompliance = !pinChangeRequired && Boolean(selectedWard) && canEditWardSettings && complianceGovernanceEnabled;
+  const updateAvailable = Boolean(availableRelease && compareVersions(availableRelease.version, appVersion) > 0);
+  const updateRequired = Boolean(availableRelease && compareVersions(availableRelease.minimumSupportedVersion, appVersion) > 0);
+
+  useEffect(() => {
+    let active = true;
+    const checkForUpdate = async () => {
+      try {
+        const response = await fetch(`${releaseManifestUrl}?checked=${Date.now()}`, {
+          headers: { Accept: "application/json" }
+        });
+        if (!response.ok) return;
+        const release = await response.json() as AndroidRelease;
+        if (active && release.version && release.downloadPageUrl) setAvailableRelease(release);
+      } catch {
+        // Update checks must never interrupt offline clinical use.
+      }
+    };
+    void checkForUpdate();
+    return () => {
+      active = false;
+    };
+  }, []);
   const sessionMeta = useMemo(() => {
     const staffLabel = selectedStaff ? `${selectedStaff.name} (${selectedStaff.staffCode})` : "No staff";
     const siteLabel = selectedSite?.name ?? "No site";
@@ -420,6 +451,18 @@ export function HomeScreen({
         </View>
       </View>
 
+      {updateAvailable ? (
+        <View style={[styles.updateBanner, updateRequired && styles.updateBannerRequired]}>
+          <View style={styles.updateCopy}>
+            <Text style={styles.updateTitle}>{updateRequired ? "SecureObs update required" : "SecureObs update available"}</Text>
+            <Text style={styles.updateText}>Version {availableRelease?.version} is available. You are using {appVersion}.</Text>
+          </View>
+          <TouchableOpacity accessibilityRole="link" onPress={() => void Linking.openURL(availableRelease?.downloadPageUrl ?? "https://secure-obs.com/download")} style={styles.updateButton}>
+            <Text style={styles.updateButtonText}>Open download page</Text>
+          </TouchableOpacity>
+        </View>
+      ) : null}
+
       <View style={styles.menu}>
         <MenuTile
           disabled={!canStart}
@@ -493,6 +536,17 @@ function SelectorRow({ label, options, selectedId, onSelect }: SelectorRowProps)
       </View>
     </View>
   );
+}
+
+function compareVersions(left: string, right: string) {
+  const leftParts = left.split(".").map((part) => Number(part) || 0);
+  const rightParts = right.split(".").map((part) => Number(part) || 0);
+  const length = Math.max(leftParts.length, rightParts.length);
+  for (let index = 0; index < length; index += 1) {
+    const difference = (leftParts[index] ?? 0) - (rightParts[index] ?? 0);
+    if (difference !== 0) return difference;
+  }
+  return 0;
 }
 
 function SectionHeader({ title, meta }: { title: string; meta: string }) {
@@ -812,6 +866,34 @@ const styles = StyleSheet.create({
     flexWrap: "wrap",
     gap: 12
   },
+  updateBanner: {
+    alignItems: "center",
+    backgroundColor: "#e7f4f8",
+    borderColor: "#7db6c3",
+    borderRadius: 8,
+    borderWidth: 1,
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 12,
+    justifyContent: "space-between",
+    padding: 12
+  },
+  updateBannerRequired: {
+    backgroundColor: "#fff2cb",
+    borderColor: "#d6ad36"
+  },
+  updateCopy: { flex: 1, minWidth: 240 },
+  updateTitle: { color: "#153f4b", fontSize: 14, fontWeight: "900" },
+  updateText: { color: "#49636c", fontSize: 12, fontWeight: "700", marginTop: 2 },
+  updateButton: {
+    alignItems: "center",
+    backgroundColor: "#1f5262",
+    borderRadius: 6,
+    justifyContent: "center",
+    minHeight: 40,
+    paddingHorizontal: 13
+  },
+  updateButtonText: { color: "#ffffff", fontSize: 12, fontWeight: "900" },
   menuTile: {
     backgroundColor: "#ffffff",
     borderColor: "#d8e0e3",

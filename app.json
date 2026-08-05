@@ -2,7 +2,7 @@
   "expo": {
     "name": "Secure Obs",
     "slug": "secureobs",
-    "version": "0.1.7",
+    "version": "0.1.8",
     "icon": "./assets/SecureObs.png",
     "orientation": "default",
     "userInterfaceStyle": "light",
@@ -11,14 +11,20 @@
       "bundleIdentifier": "geckostudios.SecureSolutions"
     },
     "android": {
-      "package": "com.geckostudios.secureobs"
+      "package": "com.geckostudios.secureobs",
+      "allowBackup": false,
+      "blockedPermissions": [
+        "android.permission.RECORD_AUDIO",
+        "android.permission.SYSTEM_ALERT_WINDOW"
+      ]
     },
     "plugins": [
       "react-native-nfc-manager",
       [
         "expo-image-picker",
         {
-          "photosPermission": "Allow Secure Obs to select your company logo."
+          "photosPermission": "Allow Secure Obs to select your company logo.",
+          "microphonePermission": false
         }
       ],
       "@react-native-community/datetimepicker"
