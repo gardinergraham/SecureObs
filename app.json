@@ -12,6 +12,7 @@
     },
     "android": {
       "package": "com.geckostudios.secureobs",
+      "versionCode": 2,
       "allowBackup": false,
       "blockedPermissions": [
         "android.permission.RECORD_AUDIO",

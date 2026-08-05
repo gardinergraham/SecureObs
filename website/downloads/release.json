@@ -1,15 +1,15 @@
 {
-  "version": "0.1.7",
+  "version": "0.1.8",
   "minimumSupportedVersion": "0.1.7",
   "publishedAt": "2026-08-05",
   "size": "61.8 MB",
   "downloadUrl": "https://secure-obs.com/downloads/SecureObs.apk",
   "downloadPageUrl": "https://secure-obs.com/download",
-  "sha256": "c453b36f28552b8b1be2fee81c2c60f21ef79ae65ca3babe1a0afd66e4ec5805",
+  "sha256": "216c11554bd6de8de8574be74faada1f00c91c328ae0e5e3524049e65e5b1ead",
   "signingCertificateSha256": "62cbdb9832aa007b14daf1b97a703ac9c153825f9fe6b560693d1853d176af09",
   "releaseNotes": [
-    "Secure Stripe subscription and payment status integration",
-    "Super-admin payment ledger and billing contact details",
-    "Patient observations, notes, care plans and offline synchronisation"
+    "Secure Android download page and automatic update notifications",
+    "Improved Android backup and permission security",
+    "Secure Stripe subscriptions, billing status and payment administration"
   ]
 }
