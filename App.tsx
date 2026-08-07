@@ -15,6 +15,7 @@ import { HomeScreen } from "./src/screens/HomeScreen";
 import { MedicationChartScreen } from "./src/screens/MedicationChartScreen";
 import { News2Screen } from "./src/screens/News2Screen";
 import { PatientManagementScreen } from "./src/screens/PatientManagementScreen";
+import { PatientIdentificationScreen } from "./src/screens/PatientIdentificationScreen";
 import { PatientAssessmentFormsScreen } from "./src/screens/PatientAssessmentFormsScreen";
 import { PatientCarePlansScreen } from "./src/screens/PatientCarePlansScreen";
 import { PatientDashboardScreen } from "./src/screens/PatientDashboardScreen";
@@ -165,6 +166,7 @@ type AppScreen =
   | "observations"
   | "enhanced"
   | "patientManagement"
+  | "patientIdentification"
   | "patientAssessmentForms"
   | "patientCarePlans"
   | "patientDashboard"
@@ -188,6 +190,7 @@ type AppScreen =
 
 export default function App() {
   const [screen, setScreen] = useState<AppScreen>("home");
+  const [identificationPatientId, setIdentificationPatientId] = useState("");
   const [workspaceBackScreen, setWorkspaceBackScreen] = useState<"wardOverview" | "observations" | "complianceGovernance">("wardOverview");
   const [news2Readings, setNews2Readings] = useState<News2Reading[]>(() => createDemoNews2Readings(seedData.patients[0]?.id ?? ""));
   const [foodFluidEntries, setFoodFluidEntries] = useState<FoodFluidEntry[]>([]);
@@ -1878,6 +1881,7 @@ export default function App() {
             onMissedObservationSaved={handleCreateMissedObservation}
             onObservationSaved={handleObservationSaved}
             onSelectPatient={setSelectedPatientId}
+            verifiedObservationsEnabled={isOrganisationFeatureEnabled(organisationSettings, "verifiedObservations")}
           />
         ) : screen === "enhanced" ? (
           <EnhancedObservationScreen
@@ -1924,6 +1928,21 @@ export default function App() {
             onTransferPatient={handleTransferManagedPatient}
             onArchivePatient={handleArchiveManagedPatient}
             onRestorePatient={handleRestoreManagedPatient}
+            verifiedObservationsEnabled={isOrganisationFeatureEnabled(organisationSettings, "verifiedObservations")}
+            onOpenIdentification={(patientId) => {
+              setIdentificationPatientId(patientId);
+              setScreen("patientIdentification");
+            }}
+          />
+        ) : screen === "patientIdentification" ? (
+          <PatientIdentificationScreen
+            patientId={identificationPatientId}
+            patients={patients}
+            selectedStaffId={selectedStaffId}
+            staff={staffMembers}
+            wards={accessibleWards}
+            onBack={() => setScreen("patientManagement")}
+            onSavePatient={handleSaveManagedPatient}
           />
         ) : screen === "patientAssessmentForms" ? (
           <PatientAssessmentFormsScreen
@@ -2464,7 +2483,9 @@ function isOrganisationFeatureEnabled(
   settings: OrganisationSettings,
   feature: OrganisationFeatureKey
 ) {
-  const packageDefault = settings.subscriptionPlan !== "essential";
+  const packageDefault = feature === "verifiedObservations"
+    ? settings.subscriptionPlan === "enterprise" || settings.subscriptionPlan === "hospital"
+    : settings.subscriptionPlan !== "essential";
   return settings.featureOverrides[feature] ?? packageDefault;
 }
 

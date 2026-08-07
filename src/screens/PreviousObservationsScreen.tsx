@@ -214,6 +214,13 @@ export function PreviousObservationsScreen({
                           <Text style={styles.entryMeta}>
                             {item.location} | {item.presentation} | {item.type}
                           </Text>
+                          {item.verificationMethod && item.verificationMethod !== "none" ? (
+                            <Text style={item.verificationMethod === "manual_exception" ? styles.exceptionEvidence : styles.verifiedEvidence}>
+                              {item.verificationMethod === "manual_exception"
+                                ? `Tag exception: ${item.verificationExceptionReason || "Reason recorded"}`
+                                : `✓ Verified ${item.verificationMethod.replace("_", " ").toUpperCase()} · visual observation confirmed`}
+                            </Text>
+                          ) : null}
                           {item.comments ? <Text style={styles.entryComments}>{item.comments}</Text> : null}
                         </View>
                         <View style={styles.entryStaffBlock}>
@@ -400,6 +407,8 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     marginTop: 3
   },
+  verifiedEvidence: { color: "#0d674d", fontSize: 12, fontWeight: "900", marginTop: 5 },
+  exceptionEvidence: { color: "#825913", fontSize: 12, fontWeight: "900", marginTop: 5 },
   historyPanel: {
     backgroundColor: "#ffffff",
     borderColor: "#d8e0e3",

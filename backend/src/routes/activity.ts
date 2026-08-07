@@ -29,7 +29,12 @@ const observationSchema = z.object({
   location: z.string().min(1),
   presentation: z.string().min(1),
   comments: z.string().default(""),
-  observedAt: z.string().datetime()
+  observedAt: z.string().datetime(),
+  verificationMethod: z.enum(["none", "nfc_room", "nfc_personal", "qr_room", "qr_personal", "manual_exception"]).default("none"),
+  verificationToken: z.string().max(100).optional(),
+  verificationScannedAt: z.string().datetime().optional(),
+  visualConfirmation: z.boolean().default(false),
+  verificationExceptionReason: z.string().max(1000).default("")
 });
 
 const securityCheckSchema = z.object({
@@ -348,7 +353,11 @@ router.get("/observations", async (request, response, next) => {
           location,
           presentation,
           comments,
-          observed_at as "observedAt"
+          observed_at as "observedAt",
+          verification_method as "verificationMethod",
+          verification_scanned_at as "verificationScannedAt",
+          visual_confirmation as "visualConfirmation",
+          verification_exception_reason as "verificationExceptionReason"
         from observations
         where organisation_id = $1
         order by observed_at desc
@@ -373,11 +382,37 @@ router.post("/observations", requireStaffRole([...anyWardStaff]), async (request
     const organisationId = requireOrganisationId(request, response);
     if (!organisationId) return;
     const observation = { ...parsed.data, organisationId, id: parsed.data.id ?? `observation-${Date.now()}` };
+    if (observation.verificationMethod !== "none" && !observation.visualConfirmation) {
+      response.status(400).json({ error: "Visual confirmation is required for a verified observation" });
+      return;
+    }
+    if (observation.verificationMethod === "manual_exception" && observation.verificationExceptionReason.trim().length < 3) {
+      response.status(400).json({ error: "Record why NFC or QR verification could not be used" });
+      return;
+    }
+    if (["nfc_room", "nfc_personal", "qr_room", "qr_personal"].includes(observation.verificationMethod)) {
+      const tokenKey = observation.verificationMethod.endsWith("room") ? "roomTagToken" : "personalTagToken";
+      const patientTag = await pool.query(
+        `select identification_profile ->> $3 as token,
+                identification_profile ->> 'consentStatus' as "consentStatus"
+         from patients where organisation_id = $1 and id = $2 and archived = false`,
+        [organisationId, observation.patientId, tokenKey]
+      );
+      if (!observation.verificationToken || patientTag.rows[0]?.token !== observation.verificationToken) {
+        response.status(400).json({ error: "The scanned tag does not match this patient" });
+        return;
+      }
+      if (tokenKey === "personalTagToken" && !["consented", "best_interests"].includes(patientTag.rows[0]?.consentStatus)) {
+        response.status(400).json({ error: "This personal tag does not have a current consent or best-interests authorisation" });
+        return;
+      }
+    }
     const result = await pool.query(
       `
         insert into observations (
-          id, organisation_id, patient_id, observer_name, source, type, location, presentation, comments, observed_at
-        ) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+          id, organisation_id, patient_id, observer_name, source, type, location, presentation, comments, observed_at,
+          verification_method, verification_scanned_at, visual_confirmation, verification_exception_reason
+        ) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
         on conflict (id) do update set
           comments = excluded.comments
         returning
@@ -389,7 +424,11 @@ router.post("/observations", requireStaffRole([...anyWardStaff]), async (request
           location,
           presentation,
           comments,
-          observed_at as "observedAt"
+          observed_at as "observedAt",
+          verification_method as "verificationMethod",
+          verification_scanned_at as "verificationScannedAt",
+          visual_confirmation as "visualConfirmation",
+          verification_exception_reason as "verificationExceptionReason"
       `,
       [
         observation.id,
@@ -401,7 +440,11 @@ router.post("/observations", requireStaffRole([...anyWardStaff]), async (request
         observation.location,
         observation.presentation,
         observation.comments,
-        observation.observedAt
+        observation.observedAt,
+        observation.verificationMethod,
+        observation.verificationScannedAt ?? null,
+        observation.visualConfirmation,
+        observation.verificationExceptionReason
       ]
     );
 
@@ -411,7 +454,13 @@ router.post("/observations", requireStaffRole([...anyWardStaff]), async (request
       eventType: "observation.save",
       entityType: "observation",
       entityId: observation.id,
-      details: { patientId: observation.patientId, source: observation.source }
+      details: {
+        patientId: observation.patientId,
+        source: observation.source,
+        verificationMethod: observation.verificationMethod,
+        visualConfirmation: observation.visualConfirmation,
+        verificationExceptionReason: observation.verificationExceptionReason || null
+      }
     });
     response.status(201).json(result.rows[0]);
   } catch (error) {

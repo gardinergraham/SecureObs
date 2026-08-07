@@ -114,6 +114,7 @@ export type OrganisationFeatureKey =
   | "rostering"
   | "dashboard"
   | "cqcReporting"
+  | "verifiedObservations"
   | "securityChecks"
   | "multiSite"
   | "multiWard"
@@ -122,6 +123,19 @@ export type OrganisationFeatureKey =
   | "staffTraining"
   | "dedicatedDatabase"
   | "sqlIntegration";
+
+export type PatientIdentificationProfile = {
+  roomTagToken?: string;
+  personalTagToken?: string;
+  photoDataUri?: string;
+  showPhoto: boolean;
+  showDateOfBirth: boolean;
+  showHospitalNumber: boolean;
+  showWardAndRoom: boolean;
+  consentStatus: "not_recorded" | "consented" | "best_interests" | "declined";
+  updatedAt?: string;
+  updatedBy?: string;
+};
 
 export type BillingReportRow = {
   id: string;
@@ -526,6 +540,7 @@ export type Patient = {
   allergies?: string;
   adverseDrugReactions?: string;
   archived?: boolean;
+  identificationProfile?: PatientIdentificationProfile;
   enhancedObservation?: EnhancedObservationPlan;
   tesoHistory?: TesoEpisode[];
   patientForms?: PatientFormRecord[];
@@ -545,6 +560,11 @@ export type Observation = {
   presentation: PatientPresentation;
   comments: string;
   observedAt: string;
+  verificationMethod?: "none" | "nfc_room" | "nfc_personal" | "qr_room" | "qr_personal" | "manual_exception";
+  verificationToken?: string;
+  verificationScannedAt?: string;
+  visualConfirmation?: boolean;
+  verificationExceptionReason?: string;
 };
 
 export type MissedObservation = {

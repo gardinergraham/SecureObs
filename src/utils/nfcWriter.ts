@@ -6,7 +6,7 @@ export async function writeNfcTextPayload(payload: string) {
   const trimmedPayload = payload.trim();
 
   if (!trimmedPayload) {
-    throw new Error("There is no staff code to write to the NFC tag.");
+    throw new Error("There is no SecureObs identifier to write to the NFC tag.");
   }
 
   const isSupported = await NfcManager.isSupported();

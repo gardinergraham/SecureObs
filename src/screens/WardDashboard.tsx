@@ -1,7 +1,8 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Alert, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 
 import { createObservation } from "../services/api";
+import { PatientQrScannerModal } from "../components/PatientQrScannerModal";
 import type {
   News2Reading,
   MissedObservation,
@@ -16,6 +17,8 @@ import type {
   Ward
 } from "../types/domain";
 import { wardObservationLocations } from "../utils/observationLocations";
+import { readNfcTextPayload } from "../utils/nfcReader";
+import { parsePatientTagPayload, type PatientTagType } from "../utils/patientIdentification";
 
 const presentations: PatientPresentation[] = ["Awake", "Asleep"];
 const patientSortModes = ["Rooms", "Ending soonest", "On Enhanced observations"] as const;
@@ -57,6 +60,7 @@ type WardDashboardProps = {
   onObservationSaved: (observation: Observation) => void;
   onMissedObservationSaved: (missedObservation: MissedObservation) => void;
   onSelectPatient: (patientId: string) => void;
+  verifiedObservationsEnabled: boolean;
 };
 
 export function WardDashboard({
@@ -92,7 +96,8 @@ export function WardDashboard({
   onOpenPatientManagement,
   onObservationSaved,
   onMissedObservationSaved,
-  onSelectPatient
+  onSelectPatient,
+  verifiedObservationsEnabled
 }: WardDashboardProps) {
   const selectedWard = wards.find((ward) => ward.id === selectedWardId);
   const selectedPatient = patients.find((patient) => patient.id === selectedPatientId);
@@ -134,6 +139,19 @@ export function WardDashboard({
   const [missedReason, setMissedReason] = useState(missedObservationReasons[0] ?? "Other");
   const [missedDetails, setMissedDetails] = useState("");
   const [patientSortMode, setPatientSortMode] = useState<PatientSortMode>("Rooms");
+  const [qrScannerVisible, setQrScannerVisible] = useState(false);
+  const [verification, setVerification] = useState<{
+    method: Observation["verificationMethod"];
+    token?: string;
+    scannedAt?: string;
+    visualConfirmation: boolean;
+    exceptionReason: string;
+  }>({ method: "none", visualConfirmation: false, exceptionReason: "" });
+  const pendingTagVerification = useRef<{
+    patientId: string;
+    type: PatientTagType;
+    value: typeof verification;
+  } | null>(null);
   const selectedPatientTiming = selectedPatient
     ? getObservationTiming(selectedPatient, selectedWard?.observationIntervalMinutes ?? 15, now)
     : undefined;
@@ -217,7 +235,64 @@ export function WardDashboard({
     if (selectedPatient) {
       setLocation(locationFromPatient(selectedPatient.latestObservationPlace, locations));
     }
+    const pending = pendingTagVerification.current;
+    if (pending && pending.patientId === selectedPatient?.id) {
+      setVerification(pending.value);
+      if (pending.type === "room") {
+        const roomLocation = locations.includes("Bedroom") ? "Bedroom" : locations.includes("Side room") ? "Side room" : locations[0];
+        if (roomLocation) setLocation(roomLocation);
+      }
+      pendingTagVerification.current = null;
+    } else {
+      setVerification({ method: "none", visualConfirmation: false, exceptionReason: "" });
+    }
   }, [selectedPatient]);
+
+  const acceptTagPayload = (payload: string, source: "nfc" | "qr") => {
+    const parsed = parsePatientTagPayload(payload);
+    if (!parsed) {
+      Alert.alert("Tag not recognised", "This is not a valid SecureObs room or patient identification tag.");
+      return;
+    }
+    const matchedPatient = patients.find((patient) => tagMatchesPatient(patient, parsed.type, parsed.token));
+    if (!matchedPatient) {
+      Alert.alert("Tag not assigned", "This tag is not assigned to an active patient on this ward.");
+      return;
+    }
+    if (parsed.type === "personal" && !["consented", "best_interests"].includes(matchedPatient.identificationProfile?.consentStatus ?? "")) {
+      Alert.alert("Personal tag inactive", "This personal tag does not have a current consent or best-interests authorisation.");
+      return;
+    }
+    const nextVerification = {
+      method: `${source}_${parsed.type}` as Observation["verificationMethod"],
+      token: parsed.token,
+      scannedAt: new Date().toISOString(),
+      visualConfirmation: false,
+      exceptionReason: ""
+    };
+    if (matchedPatient.id === selectedPatient?.id) {
+      setVerification(nextVerification);
+      if (parsed.type === "room") {
+        const roomLocation = locations.includes("Bedroom") ? "Bedroom" : locations.includes("Side room") ? "Side room" : locations[0];
+        if (roomLocation) setLocation(roomLocation);
+      }
+    } else {
+      pendingTagVerification.current = { patientId: matchedPatient.id, type: parsed.type, value: nextVerification };
+      onSelectPatient(matchedPatient.id);
+    }
+    Alert.alert(
+      parsed.type === "room" ? "Room location verified" : "Patient identity verified",
+      `${matchedPatient.firstName} ${matchedPatient.surname} selected. Complete the visual observation before saving.`
+    );
+  };
+
+  const scanNfcTag = async () => {
+    try {
+      acceptTagPayload(await readNfcTextPayload(), "nfc");
+    } catch (error) {
+      Alert.alert("NFC tag not read", error instanceof Error ? error.message : "Please try again.");
+    }
+  };
 
   const saveObservation = async () => {
     if (!selectedPatient) {
@@ -229,6 +304,14 @@ export function WardDashboard({
         "Missed observation needs recording",
         "Record the missed observation reason before saving the new observation."
       );
+      return;
+    }
+    if (verification.method !== "none" && !verification.visualConfirmation) {
+      Alert.alert("Visual confirmation required", "Confirm that you directly observed the selected patient before saving.");
+      return;
+    }
+    if (verification.method === "manual_exception" && verification.exceptionReason.trim().length < 3) {
+      Alert.alert("Exception reason required", "Record why the NFC or QR tag could not be used.");
       return;
     }
 
@@ -244,6 +327,11 @@ export function WardDashboard({
       presentation,
       comments,
       observedAt,
+      verificationMethod: verification.method,
+      verificationToken: verification.token,
+      verificationScannedAt: verification.scannedAt,
+      visualConfirmation: verification.visualConfirmation,
+      verificationExceptionReason: verification.exceptionReason.trim(),
       organisationId: selectedStaff?.organisationId,
       actorStaffId: selectedStaff?.id,
       actorStaffCode: selectedStaff?.staffCode
@@ -253,6 +341,7 @@ export function WardDashboard({
     setNow(Date.now());
     Alert.alert("Observation saved", `${selectedPatient.firstName} ${selectedPatient.surname} checked.`);
     setComments("");
+    setVerification({ method: "none", visualConfirmation: false, exceptionReason: "" });
     onSelectPatient("");
   };
 
@@ -441,6 +530,39 @@ export function WardDashboard({
                   value={comments}
                 />
 
+                {verifiedObservationsEnabled ? (
+                  <View style={styles.verificationPanel}>
+                    <Text style={styles.verificationTitle}>NFC / QR verification</Text>
+                    <Text style={styles.verificationMeta}>
+                      {verification.method === "none"
+                        ? "Optional: scan the room or personal tag to verify location or identity."
+                        : verification.method === "manual_exception"
+                          ? "Manual exception selected"
+                          : `Verified by ${verification.method?.replace("_", " ").toUpperCase()}`}
+                    </Text>
+                    <View style={styles.verificationActions}>
+                      <TouchableOpacity accessibilityRole="button" onPress={() => void scanNfcTag()} style={styles.verifyButton}><Text style={styles.verifyButtonText}>Scan NFC</Text></TouchableOpacity>
+                      <TouchableOpacity accessibilityRole="button" onPress={() => setQrScannerVisible(true)} style={styles.verifyButton}><Text style={styles.verifyButtonText}>Scan QR</Text></TouchableOpacity>
+                      <TouchableOpacity accessibilityRole="button" onPress={() => setVerification({ method: "manual_exception", visualConfirmation: false, exceptionReason: "" })} style={styles.exceptionButton}><Text style={styles.exceptionButtonText}>Tag unavailable</Text></TouchableOpacity>
+                    </View>
+                    {verification.method === "manual_exception" ? (
+                      <TextInput placeholderTextColor="#6f7f87" multiline onChangeText={(exceptionReason) => setVerification((current) => ({ ...current, exceptionReason }))} placeholder="Reason tag could not be used (required)" style={styles.notes} value={verification.exceptionReason} />
+                    ) : null}
+                    {verification.method !== "none" ? (
+                      <TouchableOpacity
+                        accessibilityRole="checkbox"
+                        accessibilityState={{ checked: verification.visualConfirmation }}
+                        onPress={() => setVerification((current) => ({ ...current, visualConfirmation: !current.visualConfirmation }))}
+                        style={[styles.visualConfirmation, verification.visualConfirmation && styles.visualConfirmationActive]}
+                      >
+                        <Text style={[styles.visualConfirmationText, verification.visualConfirmation && styles.visualConfirmationTextActive]}>
+                          {verification.visualConfirmation ? "✓ " : ""}I directly observed the selected patient
+                        </Text>
+                      </TouchableOpacity>
+                    ) : null}
+                  </View>
+                ) : null}
+
                 {mustValidateMissedObservation ? (
                   <Text style={styles.validationNotice}>
                     This check is overdue. Record the missed observation reason before saving a new check.
@@ -504,8 +626,22 @@ export function WardDashboard({
           </View>
         ) : null}
       </View>
+      <PatientQrScannerModal
+        visible={qrScannerVisible}
+        onClose={() => setQrScannerVisible(false)}
+        onScanned={(payload) => {
+          setQrScannerVisible(false);
+          acceptTagPayload(payload, "qr");
+        }}
+      />
     </View>
   );
+}
+
+function tagMatchesPatient(patient: Patient, type: PatientTagType, token: string) {
+  return type === "room"
+    ? patient.identificationProfile?.roomTagToken === token
+    : patient.identificationProfile?.personalTagToken === token;
 }
 
 function ModeButton({
@@ -1397,6 +1533,18 @@ const styles = StyleSheet.create({
     padding: 10,
     textAlignVertical: "top"
   },
+  verificationPanel: { backgroundColor: "#eef9fa", borderColor: "#88c9d2", borderRadius: 8, borderWidth: 1, gap: 9, marginTop: 14, padding: 12 },
+  verificationTitle: { color: "#07566a", fontSize: 15, fontWeight: "900" },
+  verificationMeta: { color: "#38565f", fontSize: 12, fontWeight: "700" },
+  verificationActions: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  verifyButton: { backgroundColor: "#087f92", borderRadius: 6, minHeight: 40, justifyContent: "center", paddingHorizontal: 12 },
+  verifyButtonText: { color: "#fff", fontWeight: "900" },
+  exceptionButton: { borderColor: "#8b6726", borderRadius: 6, borderWidth: 1, minHeight: 40, justifyContent: "center", paddingHorizontal: 12 },
+  exceptionButtonText: { color: "#71501b", fontWeight: "900" },
+  visualConfirmation: { borderColor: "#6e858e", borderRadius: 6, borderWidth: 1, padding: 11 },
+  visualConfirmationActive: { backgroundColor: "#dff3e9", borderColor: "#18815f" },
+  visualConfirmationText: { color: "#425b64", fontWeight: "900" },
+  visualConfirmationTextActive: { color: "#0e6249" },
   saveButton: {
     alignItems: "center",
     backgroundColor: "#1f5262",

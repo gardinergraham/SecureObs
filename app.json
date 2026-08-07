@@ -2,7 +2,7 @@
   "expo": {
     "name": "Secure Obs",
     "slug": "secureobs",
-    "version": "0.1.8",
+    "version": "0.1.9",
     "icon": "./assets/SecureObs.png",
     "orientation": "default",
     "userInterfaceStyle": "light",
@@ -24,11 +24,18 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "Allow Secure Obs to select your company logo.",
+          "photosPermission": "Allow SecureObs to select authorised organisation logos and patient identification photographs.",
           "microphonePermission": false
         }
       ],
-      "@react-native-community/datetimepicker"
+      "@react-native-community/datetimepicker",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Allow SecureObs to scan authorised patient and room QR identification tags.",
+          "recordAudioAndroid": false
+        }
+      ]
     ],
     "extra": {
       "apiUrl": "",

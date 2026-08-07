@@ -164,6 +164,7 @@ function subscriptionFeatures(plan: "essential" | "professional" | "enterprise" 
     rostering: professional,
     dashboard: professional,
     cqcReporting: professional,
+    verifiedObservations: enterprise,
     securityChecks: professional,
     multiSite: enterprise,
     multiWard: enterprise,

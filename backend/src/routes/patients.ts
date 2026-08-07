@@ -114,6 +114,18 @@ const patientSchema = z.object({
   allergies: z.string().default(""),
   adverseDrugReactions: z.string().default(""),
   archived: z.boolean().default(false),
+  identificationProfile: z.object({
+    roomTagToken: z.string().max(200).optional(),
+    personalTagToken: z.string().max(200).optional(),
+    photoDataUri: z.string().max(450_000).regex(/^data:image\/(?:jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/).optional(),
+    showPhoto: z.boolean().default(true),
+    showDateOfBirth: z.boolean().default(true),
+    showHospitalNumber: z.boolean().default(true),
+    showWardAndRoom: z.boolean().default(true),
+    consentStatus: z.enum(["not_recorded", "consented", "best_interests", "declined"]).default("not_recorded"),
+    updatedAt: z.string().datetime().optional(),
+    updatedBy: z.string().max(255).optional()
+  }).nullable().optional().transform((value) => value ?? undefined),
   enhancedObservation: z.record(z.string(), z.unknown()).nullable().optional().transform((value) => value ?? undefined),
   tesoHistory: z.array(z.record(z.string(), z.unknown())).default([]),
   patientForms: z.array(z.record(z.string(), z.unknown())).default([]),
@@ -168,6 +180,7 @@ router.get("/", async (request, response, next) => {
           patient_voice_check_ins as "patientVoiceCheckIns",
           family_sharing as "familySharing",
           family_contributions as "familyContributions",
+          identification_profile as "identificationProfile",
           archived
         from patients
         where organisation_id = $1
@@ -306,7 +319,7 @@ router.post("/:id/restore", requireStaffRole(["manager", "super_admin"]), async 
   }
 });
 
-router.post("/", requireStaffRole(["nurse", "manager", "doctor", "super_admin"]), async (request, response, next) => {
+router.post("/", requireStaffRole(["nurse", "manager", "doctor", "super_admin"]), async (request: AuthenticatedRequest, response, next) => {
   try {
     const parsed = patientSchema.safeParse(request.body);
 
@@ -357,6 +370,7 @@ router.post("/", requireStaffRole(["nurse", "manager", "doctor", "super_admin"])
           patient_voice_check_ins as "patientVoiceCheckIns",
           family_sharing as "familySharing",
           family_contributions as "familyContributions"
+          , identification_profile as "identificationProfile"
         from patients
         where organisation_id = $1 and id = $2
       `,
@@ -376,8 +390,20 @@ router.post("/", requireStaffRole(["nurse", "manager", "doctor", "super_admin"])
           patientVoiceCheckIns?: unknown[];
           familySharing?: unknown;
           familyContributions?: unknown[];
+          identificationProfile?: unknown;
         }
       | undefined;
+
+    const identificationChanged = JSON.stringify(existingPatient?.identificationProfile ?? null)
+      !== JSON.stringify(patient.identificationProfile ?? null);
+    if (identificationChanged && !["manager", "super_admin"].includes(request.auth?.staff.role ?? "")) {
+      response.status(403).json({ error: "Manager access is required to create or change patient identification tags" });
+      return;
+    }
+    if (identificationChanged && request.auth?.staff.role !== "super_admin" && !(await verifiedObservationsEnabled(organisationId))) {
+      response.status(403).json({ error: "Verified Observations is not included in this SecureObs package. Please upgrade or add the feature." });
+      return;
+    }
 
     if (
       existingPatient &&
@@ -398,10 +424,10 @@ router.post("/", requireStaffRole(["nurse", "manager", "doctor", "super_admin"])
           observation_level, latest_observation_place, latest_observation_time, latest_observed_by,
           latest_presentation, on_off_ward, seclusion, long_term_seclusion, archived,
           allergies, adverse_drug_reactions, enhanced_observation, teso_history, patient_forms,
-          patient_voice_profile, patient_voice_check_ins, family_sharing, family_contributions
+          patient_voice_profile, patient_voice_check_ins, family_sharing, family_contributions, identification_profile
         ) values (
           $1,$2,$3,$4,$5,$6,nullif($7, '')::date,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,
-          $25::jsonb,$26::jsonb,$27::jsonb,$28::jsonb,$29::jsonb,$30::jsonb,$31::jsonb
+          $25::jsonb,$26::jsonb,$27::jsonb,$28::jsonb,$29::jsonb,$30::jsonb,$31::jsonb,$32::jsonb
         )
         on conflict (id) do update set
           patient_number = excluded.patient_number,
@@ -432,6 +458,7 @@ router.post("/", requireStaffRole(["nurse", "manager", "doctor", "super_admin"])
           patient_voice_check_ins = excluded.patient_voice_check_ins,
           family_sharing = excluded.family_sharing,
           family_contributions = excluded.family_contributions,
+          identification_profile = excluded.identification_profile,
           archived = excluded.archived,
           updated_at = now()
         returning
@@ -464,6 +491,7 @@ router.post("/", requireStaffRole(["nurse", "manager", "doctor", "super_admin"])
           patient_voice_check_ins as "patientVoiceCheckIns",
           family_sharing as "familySharing",
           family_contributions as "familyContributions",
+          identification_profile as "identificationProfile",
           archived
       `,
       [
@@ -497,7 +525,8 @@ router.post("/", requireStaffRole(["nurse", "manager", "doctor", "super_admin"])
         JSON.stringify(patient.patientVoiceProfile ?? null),
         JSON.stringify(patient.patientVoiceCheckIns ?? []),
         JSON.stringify(patient.familySharing ?? null),
-        JSON.stringify(patient.familyContributions ?? [])
+        JSON.stringify(patient.familyContributions ?? []),
+        JSON.stringify(patient.identificationProfile ?? null)
       ]
     );
 
@@ -547,7 +576,8 @@ async function loadPatient(organisationId: string, patientId: string) {
        adverse_drug_reactions as "adverseDrugReactions", enhanced_observation as "enhancedObservation",
        teso_history as "tesoHistory", patient_forms as "patientForms",
        patient_voice_profile as "patientVoiceProfile", patient_voice_check_ins as "patientVoiceCheckIns",
-       family_sharing as "familySharing", family_contributions as "familyContributions", archived
+       family_sharing as "familySharing", family_contributions as "familyContributions",
+       identification_profile as "identificationProfile", archived
      from patients where organisation_id = $1 and id = $2`,
     [organisationId, patientId]
   );
@@ -593,6 +623,7 @@ async function recordPatientAuditEvents({
     patientVoiceCheckIns?: unknown[];
     familySharing?: unknown;
     familyContributions?: unknown[];
+    identificationProfile?: unknown;
   };
 }) {
   const actor = auditActorFromBody(requestBody);
@@ -701,6 +732,19 @@ async function recordPatientAuditEvents({
     });
   }
 
+  if (JSON.stringify(existingPatient.identificationProfile ?? null) !== JSON.stringify(patient.identificationProfile ?? null)) {
+    await recordAuditEvent({
+      ...baseEvent,
+      eventType: "patient.identification.update",
+      details: {
+        patientId: patient.id,
+        roomTagConfigured: Boolean(patient.identificationProfile?.roomTagToken),
+        personalTagConfigured: Boolean(patient.identificationProfile?.personalTagToken),
+        consentStatus: patient.identificationProfile?.consentStatus ?? "not_recorded"
+      }
+    });
+  }
+
   if (
     JSON.stringify(existingPatient.familySharing ?? null) !==
       JSON.stringify(patient.familySharing ?? null) ||
@@ -727,6 +771,17 @@ async function recordPatientAuditEvents({
       }
     });
   }
+}
+
+async function verifiedObservationsEnabled(organisationId: string) {
+  const result = await pool.query(
+    `select subscription_plan as "subscriptionPlan", feature_overrides as "featureOverrides"
+     from organisation_settings where organisation_id = $1`,
+    [organisationId]
+  );
+  const plan = result.rows[0]?.subscriptionPlan ?? "hospital";
+  const overrides = (result.rows[0]?.featureOverrides ?? {}) as Record<string, boolean>;
+  return overrides.verifiedObservations ?? (plan === "enterprise" || plan === "hospital");
 }
 
 export { router as patientRouter };

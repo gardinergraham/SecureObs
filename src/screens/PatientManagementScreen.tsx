@@ -32,6 +32,8 @@ type PatientManagementScreenProps = {
   onTransferPatient: (patientId: string, wardId: string, reason: string) => Promise<void>;
   onArchivePatient: (patientId: string, reason: string) => Promise<void>;
   onRestorePatient: (patientId: string, wardId: string, reason: string) => Promise<void>;
+  verifiedObservationsEnabled: boolean;
+  onOpenIdentification: (patientId: string) => void;
 };
 
 export function PatientManagementScreen({
@@ -44,7 +46,9 @@ export function PatientManagementScreen({
   onSavePatient,
   onTransferPatient,
   onArchivePatient,
-  onRestorePatient
+  onRestorePatient,
+  verifiedObservationsEnabled,
+  onOpenIdentification
 }: PatientManagementScreenProps) {
   const selectedStaff = staff.find((member) => member.id === selectedStaffId);
   const selectedWard = wards.find((ward) => ward.id === selectedWardId);
@@ -498,6 +502,26 @@ export function PatientManagementScreen({
 
           {selectedPatient ? (
             <>
+              <View style={styles.identificationPanel}>
+                <View style={styles.archivedCopy}>
+                  <Text style={styles.label}>NFC & QR patient identification</Text>
+                  <Text style={styles.patientMeta}>
+                    {verifiedObservationsEnabled
+                      ? "Create room tags, optional personal ID badges and printable QR codes."
+                      : "Available with the Verified Observations add-on."}
+                  </Text>
+                </View>
+                <TouchableOpacity
+                  accessibilityRole="button"
+                  disabled={!canManagePatients}
+                  onPress={() => verifiedObservationsEnabled
+                    ? onOpenIdentification(selectedPatient.id)
+                    : Alert.alert("Verified Observations is not enabled", "Please contact SecureObs to add NFC and QR observation verification to this organisation.")}
+                  style={[styles.smallButton, !canManagePatients && styles.disabledControl]}
+                >
+                  <Text style={styles.smallButtonText}>{verifiedObservationsEnabled ? "Manage tags" : "Upgrade"}</Text>
+                </TouchableOpacity>
+              </View>
               <View style={styles.transferPanel}>
                 <Text style={styles.label}>Transfer patient</Text>
                 <TextInput
@@ -612,6 +636,7 @@ const styles = StyleSheet.create({
   },
   backButtonText: { color: "#1f5262", fontSize: 13, fontWeight: "900" },
   split: { alignItems: "stretch", flexDirection: "row", gap: 12 },
+  identificationPanel: { alignItems: "center", backgroundColor: "#edf9fa", borderColor: "#8fcbd4", borderRadius: 7, borderWidth: 1, flexDirection: "row", justifyContent: "space-between", padding: 12 },
   patientList: {
     backgroundColor: "#ffffff",
     borderColor: "#d8e0e3",
