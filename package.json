@@ -9,6 +9,7 @@
     "ios": "expo start --ios",
     "web": "expo start --web",
     "web:build": "expo export --platform web",
+    "prepare-apk-release": "node scripts/prepare-apk-release.js",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
