@@ -28,6 +28,7 @@ export function defaultIdentificationProfile(): PatientIdentificationProfile {
     showDateOfBirth: true,
     showHospitalNumber: true,
     showWardAndRoom: true,
+    showAllergies: false,
     consentStatus: "not_recorded"
   };
 }

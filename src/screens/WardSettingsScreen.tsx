@@ -53,6 +53,7 @@ export function WardSettingsScreen({
   const medicationEntitled = isPackageFeatureEnabled(organisationSettings, "medication");
   const securityChecksEntitled = isPackageFeatureEnabled(organisationSettings, "securityChecks");
   const rosteringEntitled = isPackageFeatureEnabled(organisationSettings, "rostering");
+  const verifiedObservationsEntitled = isPackageFeatureEnabled(organisationSettings, "verifiedObservations");
   const [newStaffName, setNewStaffName] = useState("");
   const [newStaffCode, setNewStaffCode] = useState("");
   const [newStaffRole, setNewStaffRole] = useState<StaffMember["role"]>("nurse");
@@ -675,6 +676,16 @@ export function WardSettingsScreen({
           meta="Three-day meal, snack and drink intake monitoring"
           onToggle={() => updateWardSettings({ foodFluidChartEnabled: !selectedWard?.foodFluidChartEnabled })}
         />
+        <FeatureToggle
+          disabled={!selectedWard || !canEditWardSettings}
+          enabled={Boolean(selectedWard?.verifiedObservationsEnabled)}
+          label="Verified observations (NFC / QR)"
+          locked={!verifiedObservationsEntitled}
+          meta={verifiedObservationsEntitled
+            ? "Allow staff to verify patient checks using room or personal tags"
+            : "Not included in this package · Contact SecureObs to add the module"}
+          onToggle={() => updateWardSettings({ verifiedObservationsEnabled: !selectedWard?.verifiedObservationsEnabled })}
+        />
 
         <Text style={styles.settingLabel}>Intermittent observation interval</Text>
         <View style={styles.optionRow}>
@@ -946,7 +957,9 @@ function FeatureToggle({ disabled, enabled, label, locked = false, meta, onToggl
 }
 
 function isPackageFeatureEnabled(settings: OrganisationSettings, feature: OrganisationFeatureKey) {
-  const packageDefault = settings.subscriptionPlan !== "essential";
+  const packageDefault = feature === "verifiedObservations"
+    ? settings.subscriptionPlan === "enterprise" || settings.subscriptionPlan === "hospital"
+    : settings.subscriptionPlan !== "essential";
   return settings.featureOverrides[feature] ?? packageDefault;
 }
 

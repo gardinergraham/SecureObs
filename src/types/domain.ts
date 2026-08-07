@@ -132,6 +132,7 @@ export type PatientIdentificationProfile = {
   showDateOfBirth: boolean;
   showHospitalNumber: boolean;
   showWardAndRoom: boolean;
+  showAllergies: boolean;
   consentStatus: "not_recorded" | "consented" | "best_interests" | "declined";
   updatedAt?: string;
   updatedBy?: string;
@@ -294,6 +295,7 @@ export type Ward = {
   staffRotaEnabled: boolean;
   assessmentFormsEnabled: boolean;
   foodFluidChartEnabled: boolean;
+  verifiedObservationsEnabled: boolean;
   observationLocations?: PatientLocation[];
   landingPage: WardLandingPage;
   sessionTimeoutMinutes: number;

@@ -411,6 +411,8 @@ export function AdminSettingsScreen({
       staffRotaEnabled: true,
       assessmentFormsEnabled: serviceType === "Care home",
       foodFluidChartEnabled: serviceType === "Care home",
+      verifiedObservationsEnabled:
+        featureOverrides.verifiedObservations ?? planFeatures[subscriptionPlan].verifiedObservations,
       observationLocations: defaultObservationLocations(serviceType),
       landingPage: "overview",
       sessionTimeoutMinutes: 15,

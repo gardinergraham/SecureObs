@@ -44,6 +44,7 @@ const wardSchema = z.object({
   staffRotaEnabled: z.boolean().default(true),
   assessmentFormsEnabled: z.boolean().default(false),
   foodFluidChartEnabled: z.boolean().default(false),
+  verifiedObservationsEnabled: z.boolean().default(true),
   observationLocations: z.array(z.string().trim().min(1).max(50)).min(1).max(20).default([
     "Side room", "Day room", "Corridor", "Dining room", "Bathroom", "Laundry", "Off ward", "LOA"
   ]),
@@ -379,6 +380,7 @@ router.get("/wards", async (request, response, next) => {
         wards.staff_rota_enabled as "staffRotaEnabled",
         wards.assessment_forms_enabled as "assessmentFormsEnabled",
         wards.food_fluid_chart_enabled as "foodFluidChartEnabled",
+        wards.verified_observations_enabled as "verifiedObservationsEnabled",
         wards.observation_locations as "observationLocations",
         wards.landing_page as "landingPage",
         wards.session_timeout_minutes as "sessionTimeoutMinutes",
@@ -446,6 +448,8 @@ router.post("/wards", requireStaffRole(["manager", "super_admin"]), async (reque
         parsed.data.medicationChartEnabled && (await organisationFeatureEnabled(organisationId, "medication")),
       staffRotaEnabled:
         parsed.data.staffRotaEnabled && (await organisationFeatureEnabled(organisationId, "rostering")),
+      verifiedObservationsEnabled:
+        parsed.data.verifiedObservationsEnabled && (await organisationFeatureEnabled(organisationId, "verifiedObservations")),
       id: parsed.data.id ?? createId("ward", parsed.data.name)
     };
 
@@ -463,9 +467,9 @@ router.post("/wards", requireStaffRole(["manager", "super_admin"]), async (reque
         insert into wards (
           id, site_id, name, service_type, observation_interval_minutes, news2_enabled,
           enhanced_observations_enabled, security_checks_enabled, medication_chart_enabled, staff_rota_enabled,
-          assessment_forms_enabled, food_fluid_chart_enabled, landing_page, session_timeout_minutes,
+          assessment_forms_enabled, food_fluid_chart_enabled, verified_observations_enabled, landing_page, session_timeout_minutes,
           rota_shift_count, rota_shifts, break_duration_minutes, observation_locations
-        ) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16::jsonb,$17,$18)
+        ) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17::jsonb,$18,$19)
         on conflict (id) do update set
           site_id = excluded.site_id,
           name = excluded.name,
@@ -478,6 +482,7 @@ router.post("/wards", requireStaffRole(["manager", "super_admin"]), async (reque
           staff_rota_enabled = excluded.staff_rota_enabled,
           assessment_forms_enabled = excluded.assessment_forms_enabled,
           food_fluid_chart_enabled = excluded.food_fluid_chart_enabled,
+          verified_observations_enabled = excluded.verified_observations_enabled,
           landing_page = excluded.landing_page,
           session_timeout_minutes = excluded.session_timeout_minutes,
           rota_shift_count = excluded.rota_shift_count,
@@ -497,6 +502,7 @@ router.post("/wards", requireStaffRole(["manager", "super_admin"]), async (reque
           staff_rota_enabled as "staffRotaEnabled",
           assessment_forms_enabled as "assessmentFormsEnabled",
           food_fluid_chart_enabled as "foodFluidChartEnabled",
+          verified_observations_enabled as "verifiedObservationsEnabled",
           observation_locations as "observationLocations",
           landing_page as "landingPage",
           session_timeout_minutes as "sessionTimeoutMinutes",
@@ -517,6 +523,7 @@ router.post("/wards", requireStaffRole(["manager", "super_admin"]), async (reque
         ward.staffRotaEnabled,
         ward.assessmentFormsEnabled,
         ward.foodFluidChartEnabled,
+        ward.verifiedObservationsEnabled,
         ward.landingPage,
         ward.sessionTimeoutMinutes,
         ward.rotaShiftCount,
@@ -537,6 +544,7 @@ router.post("/wards", requireStaffRole(["manager", "super_admin"]), async (reque
         siteId: ward.siteId,
         observationIntervalMinutes: ward.observationIntervalMinutes,
         foodFluidChartEnabled: ward.foodFluidChartEnabled,
+        verifiedObservationsEnabled: ward.verifiedObservationsEnabled,
         landingPage: ward.landingPage
       }
     });
@@ -837,6 +845,7 @@ function toAppWard(row: Record<string, unknown>) {
     breakDurationMinutes: Number(row.breakDurationMinutes ?? 30),
     assessmentFormsEnabled: Boolean(row.assessmentFormsEnabled ?? false),
     foodFluidChartEnabled: Boolean(row.foodFluidChartEnabled ?? false),
+    verifiedObservationsEnabled: Boolean(row.verifiedObservationsEnabled ?? true),
     landingPage: row.landingPage === "observations" ? "observations" : "overview",
     selected: false
   };

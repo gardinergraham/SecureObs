@@ -122,6 +122,7 @@ const patientSchema = z.object({
     showDateOfBirth: z.boolean().default(true),
     showHospitalNumber: z.boolean().default(true),
     showWardAndRoom: z.boolean().default(true),
+    showAllergies: z.boolean().default(false),
     consentStatus: z.enum(["not_recorded", "consented", "best_interests", "declined"]).default("not_recorded"),
     updatedAt: z.string().datetime().optional(),
     updatedBy: z.string().max(255).optional()

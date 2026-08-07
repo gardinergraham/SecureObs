@@ -1881,7 +1881,7 @@ export default function App() {
             onMissedObservationSaved={handleCreateMissedObservation}
             onObservationSaved={handleObservationSaved}
             onSelectPatient={setSelectedPatientId}
-            verifiedObservationsEnabled={isOrganisationFeatureEnabled(organisationSettings, "verifiedObservations")}
+            verifiedObservationsEnabled={Boolean(selectedWard?.verifiedObservationsEnabled) && isOrganisationFeatureEnabled(organisationSettings, "verifiedObservations")}
           />
         ) : screen === "enhanced" ? (
           <EnhancedObservationScreen
@@ -1936,6 +1936,7 @@ export default function App() {
           />
         ) : screen === "patientIdentification" ? (
           <PatientIdentificationScreen
+            organisationSettings={organisationSettings}
             patientId={identificationPatientId}
             patients={patients}
             selectedStaffId={selectedStaffId}
@@ -2497,7 +2498,9 @@ function applyOrganisationEntitlements(ward: Ward, settings: OrganisationSetting
     securityChecksEnabled:
       ward.securityChecksEnabled && isOrganisationFeatureEnabled(settings, "securityChecks"),
     staffRotaEnabled:
-      ward.staffRotaEnabled && isOrganisationFeatureEnabled(settings, "rostering")
+      ward.staffRotaEnabled && isOrganisationFeatureEnabled(settings, "rostering"),
+    verifiedObservationsEnabled:
+      ward.verifiedObservationsEnabled && isOrganisationFeatureEnabled(settings, "verifiedObservations")
   };
 }
 

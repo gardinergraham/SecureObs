@@ -142,6 +142,7 @@ export function WardDashboard({
   const [qrScannerVisible, setQrScannerVisible] = useState(false);
   const [verification, setVerification] = useState<{
     method: Observation["verificationMethod"];
+    patientId?: string;
     token?: string;
     scannedAt?: string;
     visualConfirmation: boolean;
@@ -265,6 +266,7 @@ export function WardDashboard({
     }
     const nextVerification = {
       method: `${source}_${parsed.type}` as Observation["verificationMethod"],
+      patientId: matchedPatient.id,
       token: parsed.token,
       scannedAt: new Date().toISOString(),
       visualConfirmation: false,
@@ -296,6 +298,15 @@ export function WardDashboard({
 
   const saveObservation = async () => {
     if (!selectedPatient) {
+      return;
+    }
+
+    if (verification.patientId && verification.patientId !== selectedPatient.id) {
+      const scannedPatient = patients.find((patient) => patient.id === verification.patientId);
+      Alert.alert(
+        "Patient selection changed",
+        `The scanned tag belongs to ${scannedPatient?.firstName ?? "another"} ${scannedPatient?.surname ?? "patient"}. Scan the tag again before saving so no other patient can be marked as checked.`
+      );
       return;
     }
 
@@ -543,7 +554,7 @@ export function WardDashboard({
                     <View style={styles.verificationActions}>
                       <TouchableOpacity accessibilityRole="button" onPress={() => void scanNfcTag()} style={styles.verifyButton}><Text style={styles.verifyButtonText}>Scan NFC</Text></TouchableOpacity>
                       <TouchableOpacity accessibilityRole="button" onPress={() => setQrScannerVisible(true)} style={styles.verifyButton}><Text style={styles.verifyButtonText}>Scan QR</Text></TouchableOpacity>
-                      <TouchableOpacity accessibilityRole="button" onPress={() => setVerification({ method: "manual_exception", visualConfirmation: false, exceptionReason: "" })} style={styles.exceptionButton}><Text style={styles.exceptionButtonText}>Tag unavailable</Text></TouchableOpacity>
+                      <TouchableOpacity accessibilityRole="button" onPress={() => setVerification({ method: "manual_exception", patientId: selectedPatient.id, visualConfirmation: false, exceptionReason: "" })} style={styles.exceptionButton}><Text style={styles.exceptionButtonText}>Tag unavailable</Text></TouchableOpacity>
                     </View>
                     {verification.method === "manual_exception" ? (
                       <TextInput placeholderTextColor="#6f7f87" multiline onChangeText={(exceptionReason) => setVerification((current) => ({ ...current, exceptionReason }))} placeholder="Reason tag could not be used (required)" style={styles.notes} value={verification.exceptionReason} />
