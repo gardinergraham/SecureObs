@@ -1,16 +1,17 @@
 {
-  "version": "0.1.9",
-  "androidVersionCode": 6,
+  "version": "0.1.10",
+  "androidVersionCode": 7,
   "minimumSupportedVersion": "0.1.7",
   "publishedAt": "2026-08-07",
-  "size": "84.9 MB",
+  "size": "91.6 MB",
   "downloadUrl": "https://secure-obs.com/downloads/SecureObs.apk",
   "downloadPageUrl": "https://secure-obs.com/download",
-  "sha256": "e230873541b4c4488b9644d168bd7a8523049eb05fc69eeeef27c9669d2da96b",
+  "sha256": "ccf0ef1d39f5e8305072dd149bbb90f442965267075ba541b860775264b7bc70",
   "signingCertificateSha256": "62cbdb9832aa007b14daf1b97a703ac9c153825f9fe6b560693d1853d176af09",
   "releaseNotes": [
-    "Added Verified Observations using NFC and QR room tags",
-    "Added optional patient identification badges with configurable details",
-    "Added visual observation confirmation and documented tag exceptions"
+    "Prevented a scanned observation from updating the previously selected patient",
+    "Added manager ward-level controls for Verified Observations",
+    "Added printable patient ID cards with organisation logo, photograph and QR code",
+    "Added optional hospital/NHS number, ward, room, date of birth and allergy details"
   ]
 }
