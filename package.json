@@ -10,12 +10,14 @@
     "web": "expo start --web",
     "web:build": "expo export --platform web",
     "prepare-apk-release": "node scripts/prepare-apk-release.js",
+    "migrate-apk-to-blob": "node scripts/migrate-apk-to-blob.js",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@react-native-async-storage/async-storage": "2.2.0",
     "@react-native-community/datetimepicker": "8.4.4",
     "@types/qrcode": "^1.5.6",
+    "@vercel/blob": "^2.7.0",
     "expo": "~54.0.36",
     "expo-camera": "~17.0.10",
     "expo-file-system": "~19.0.23",

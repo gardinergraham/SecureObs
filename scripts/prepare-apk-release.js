@@ -4,10 +4,10 @@ const os = require('os');
 const path = require('path');
 const readline = require('readline/promises');
 const { execFileSync } = require('child_process');
+const { uploadApk } = require('./vercel-blob');
 
 const root = path.resolve(__dirname, '..');
 const downloadsDir = path.join(root, 'website', 'downloads');
-const publishedApk = path.join(downloadsDir, 'SecureObs.apk');
 const manifestPath = path.join(downloadsDir, 'release.json');
 const expectedPackage = 'com.geckostudios.secureobs';
 const blockedPermissions = [
@@ -141,30 +141,31 @@ async function main() {
   if (compareVersions(minimum, version) > 0) fail('Minimum supported version cannot be newer than this release.');
 
   const bytes = fs.statSync(source).size;
+  console.log(`Uploading verified SecureObs ${version} to Vercel Blob...`);
+  const downloadUrl = await uploadApk(source, version);
+
   const release = {
     version,
     androidVersionCode: versionCode,
     minimumSupportedVersion: minimum,
     publishedAt: new Date().toISOString().slice(0, 10),
     size: `${(bytes / 1_000_000).toFixed(1)} MB`,
-    downloadUrl: current.downloadUrl,
+    downloadUrl,
     downloadPageUrl: current.downloadPageUrl,
     sha256: sha256(source),
     signingCertificateSha256: certificate,
     releaseNotes: notes,
   };
 
-  const stagedApk = `${publishedApk}.new`;
-  fs.copyFileSync(source, stagedApk);
-  fs.renameSync(stagedApk, publishedApk);
-  if (path.resolve(source) !== path.resolve(publishedApk)) fs.unlinkSync(source);
   fs.writeFileSync(manifestPath, `${JSON.stringify(release, null, 2)}\n`);
+  if (path.resolve(source) !== path.join(downloadsDir, 'SecureObs.apk')) fs.unlinkSync(source);
 
   console.log(`\nSecureObs ${version} (Android ${versionCode}) is ready to publish.`);
   console.log(`Size: ${release.size}`);
   console.log(`SHA-256: ${release.sha256}`);
   console.log(`Certificate: ${certificate}`);
-  console.log('Next: review the changes, then commit and push them to deploy through Vercel.');
+  console.log(`Download: ${downloadUrl}`);
+  console.log('Next: review release.json, then commit and push it to deploy through Vercel.');
 }
 
 main().catch((error) => fail(error.message));
