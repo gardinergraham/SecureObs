@@ -21,17 +21,18 @@ async function loadRelease() {
       ? `APK SHA-256: ${release.sha256}${release.signingCertificateSha256 ? ` · Signing certificate: ${release.signingCertificateSha256}` : ""}`
       : "The SHA-256 verification code will appear when the signed APK is uploaded.";
 
-    const fileResponse = await fetch(release.downloadUrl, { method: "HEAD", cache: "no-store" });
-    if (!fileResponse.ok) throw new Error("APK_NOT_UPLOADED");
-    downloadButton.href = release.downloadUrl;
+    const downloadUrl = new URL(release.downloadUrl, window.location.href);
+    const trustedDownload = downloadUrl.protocol === "https:"
+      && (downloadUrl.hostname === window.location.hostname
+        || downloadUrl.hostname.endsWith(".public.blob.vercel-storage.com"));
+    if (!trustedDownload) throw new Error("INVALID_DOWNLOAD_URL");
+    downloadButton.href = downloadUrl.href;
     downloadButton.textContent = `Download SecureObs ${release.version}`;
     downloadButton.classList.remove("download-button-disabled");
     downloadButton.removeAttribute("aria-disabled");
     downloadButton.setAttribute("download", "SecureObs.apk");
   } catch (error) {
-    if (error instanceof Error && error.message !== "APK_NOT_UPLOADED") {
-      releaseStatus.textContent = "Release information is temporarily unavailable.";
-    }
+    releaseStatus.textContent = "Release information is temporarily unavailable.";
     downloadButton.textContent = "Download being prepared";
     downloadButton.classList.add("download-button-disabled");
     downloadButton.setAttribute("aria-disabled", "true");
