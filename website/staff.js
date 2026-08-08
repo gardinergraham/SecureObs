@@ -1,6 +1,14 @@
-const API_URL = window.SECUREOBS_API_URL || "https://adequate-energy-production.up.railway.app";
+const isDemoWorkspace = new URLSearchParams(window.location.search).get("environment") === "demo";
+const API_URL = window.SECUREOBS_API_URL || (isDemoWorkspace
+  ? "https://adequate-energy-demo.up.railway.app"
+  : "https://adequate-energy-production.up.railway.app");
 const ORGANISATION_ID = window.SECUREOBS_ORGANISATION_ID || "";
-const SESSION_KEY = "secureobs-staff-web-session";
+const SESSION_KEY = isDemoWorkspace ? "secureobs-demo-staff-web-session" : "secureobs-staff-web-session";
+
+if (isDemoWorkspace) {
+  document.title = "SecureObs Demo Staff Workspace";
+  document.body.insertAdjacentHTML("afterbegin", '<div style="background:#8a5800;color:#fff;font-size:12px;font-weight:900;letter-spacing:.05em;padding:7px;text-align:center">DEMONSTRATION ENVIRONMENT · FICTIONAL DATA ONLY</div>');
+}
 
 const state = { session: null, data: null, wardId: "", patientId: "", page: "notes" };
 const loginView = document.querySelector("#login-view");

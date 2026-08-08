@@ -15,6 +15,7 @@ ios/
 
 # Android release binaries are published to Vercel Blob, not Git
 website/downloads/*.apk
+website/demo-downloads/*.apk
 
 # Environment files
 .env

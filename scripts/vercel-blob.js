@@ -38,7 +38,7 @@ function blobEnvironment() {
   return environment;
 }
 
-async function uploadApk(file, version) {
+async function uploadApk(file, version, channel = 'android') {
   const environment = blobEnvironment();
   const names = ['VERCEL_OIDC_TOKEN', 'BLOB_STORE_ID', 'VERCEL_ENV', 'VERCEL_TARGET_ENV'];
   const previous = Object.fromEntries(names.map((name) => [name, process.env[name]]));
@@ -47,7 +47,8 @@ async function uploadApk(file, version) {
   }
 
   try {
-    const blob = await put(`android/SecureObs-${version}.apk`, fs.createReadStream(file), {
+    const filename = channel === 'android-demo' ? `SecureObs-Demo-${version}.apk` : `SecureObs-${version}.apk`;
+    const blob = await put(`${channel}/${filename}`, fs.createReadStream(file), {
       access: 'public',
       addRandomSuffix: false,
       allowOverwrite: true,

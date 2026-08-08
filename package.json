@@ -10,6 +10,7 @@
     "web": "expo start --web",
     "web:build": "expo export --platform web",
     "prepare-apk-release": "node scripts/prepare-apk-release.js",
+    "prepare-demo-apk-release": "node scripts/prepare-apk-release.js --demo",
     "migrate-apk-to-blob": "node scripts/migrate-apk-to-blob.js",
     "typecheck": "tsc --noEmit"
   },

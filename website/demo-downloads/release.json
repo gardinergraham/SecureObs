@@ -1,0 +1,16 @@
+{
+  "version": "0.1.10",
+  "androidVersionCode": 3,
+  "minimumSupportedVersion": "0.1.10",
+  "publishedAt": "2026-08-08",
+  "size": "91.6 MB",
+  "downloadUrl": "https://ziydoaoxastnvilu.public.blob.vercel-storage.com/android-demo/SecureObs-Demo-0.1.10.apk",
+  "downloadPageUrl": "https://secure-obs.com/demo-download",
+  "sha256": "c73029e816318ed4e185d9551234da36ff6f715a3b3e21d92ba1e54a306f124c",
+  "signingCertificateSha256": "4226e99b3e0cd87d79af75439f12e1c9941cfcffe5579bc4a5cb4a8832d110e2",
+  "releaseNotes": [
+    "Private 14-day SecureObs demonstration environment",
+    "Fictional demonstration ward and patient records",
+    "Separate from all production SecureObs services"
+  ]
+}

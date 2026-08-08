@@ -46,6 +46,17 @@ source of truth for creating organisations and changing billing access.
 
 The mobile app should call this API. It should not connect directly to Postgres.
 
+### Isolated demonstration environment
+
+Deploy the same backend into a separate Railway environment with its own Postgres database. Set
+`DEMO_MODE=true`, `DEMO_REGISTRATION_ENABLED=true`, `DEMO_TRIAL_DAYS=14`, and
+`DEMO_RETENTION_DAYS=30`. Use a unique `SESSION_SECRET`, set `PUBLIC_WEBSITE_URL=https://secure-obs.com`,
+and set `CORS_ORIGIN=https://secure-obs.com`. Do not copy production Stripe secrets into this environment;
+billing routes are disabled whenever demo mode is active.
+
+`POST /api/demo/register` creates an isolated fictional ward and a time-limited manager login. Access expires
+automatically, and trial organisations are deleted after the retention period when a later registration runs.
+
 ## Staff Sessions
 
 `POST /api/staff/lookup` and `POST /api/staff/bank-pin-login` return a signed staff session as well as the staff record.

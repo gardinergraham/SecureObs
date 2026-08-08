@@ -213,6 +213,30 @@ h3 {
 .secure-payment-note { color: var(--muted); font-size: 12px; margin: 12px 0 0; text-align: center; }
 @media (max-width: 760px) { .subscription-shell { grid-template-columns: 1fr; } .form-grid { grid-template-columns: 1fr; } .form-field-wide { grid-column: auto; } }
 
+.trial-page { min-height: calc(100vh - 140px); }
+.trial-hero { align-items: center; background: linear-gradient(135deg,#fff,#e8f6f8); display: grid; gap: 32px; grid-template-columns: 1.3fr .7fr; padding: 58px clamp(18px,7vw,100px); }
+.trial-hero h1 { max-width: 820px; }
+.trial-assurances { display: flex; flex-wrap: wrap; gap: 8px; }
+.trial-assurances span { background: #fff; border: 1px solid #cfe0e5; border-radius: 999px; color: var(--navy); font-size: 13px; font-weight: 900; padding: 8px 12px; }
+.trial-warning { background: #fff5d7; border: 1px solid #ead18a; border-radius: 12px; color: #563f00; padding: 18px; }
+.trial-warning p { margin: 6px 0 0; }
+.trial-shell { display: grid; gap: 28px; grid-template-columns: minmax(260px,.8fr) minmax(360px,1.2fr); margin: 0 auto; max-width: 1120px; padding: 48px 20px 70px; }
+.trial-overview { padding: 20px; }
+.trial-overview li { margin-bottom: 9px; }
+.trial-honeypot { height: 0; left: -10000px; overflow: hidden; position: absolute; width: 0; }
+.trial-consent { align-items: flex-start; display: flex; gap: 9px; }
+.trial-consent input { margin-top: 5px; }
+.trial-result { background: #fff; border: 1px solid var(--line); border-radius: 16px; box-shadow: 0 20px 55px rgba(10,47,99,.12); grid-column: 1 / -1; padding: clamp(24px,5vw,48px); }
+.credential-grid { display: grid; gap: 14px; grid-template-columns: 1fr 1fr; margin: 24px 0 14px; }
+.credential-grid div { background: #eef7f9; border: 1px solid #cce3e8; border-radius: 12px; padding: 18px; }
+.credential-grid span { color: var(--muted); display: block; font-size: 12px; font-weight: 900; }
+.credential-grid strong { color: var(--navy); font-size: clamp(25px,5vw,40px); letter-spacing: .04em; }
+.copy-credentials { border: 1px solid var(--platform-blue); cursor: pointer; }
+.trial-actions { display: flex; flex-wrap: wrap; gap: 12px; margin: 24px 0; }
+.hidden { display: none !important; }
+.demo-environment-banner { background: #8a5800; color: #fff; font-size: 12px; font-weight: 900; letter-spacing: .04em; padding: 7px; text-align: center; }
+@media (max-width:760px) { .trial-hero,.trial-shell { grid-template-columns:1fr; } .credential-grid { grid-template-columns:1fr; } }
+
 .primary-link {
   background: linear-gradient(135deg, var(--platform-blue), #00489f);
   box-shadow: 0 14px 30px rgba(7, 94, 201, 0.2);

@@ -7,6 +7,7 @@ import { config } from "./config.js";
 import { enforceActiveSubscription } from "./subscription.js";
 import { activityRouter } from "./routes/activity.js";
 import { configRouter } from "./routes/config.js";
+import { demoRouter } from "./routes/demo.js";
 import { familyAccessRouter, familyPortalRouter } from "./routes/familyPortal.js";
 import { healthRouter } from "./routes/health.js";
 import { patientRouter } from "./routes/patients.js";
@@ -19,14 +20,15 @@ const app = express();
 
 app.use(helmet());
 app.use(cors({ origin: config.corsOrigin === "*" ? true : config.corsOrigin }));
-app.post("/api/billing/webhook", express.raw({ type: "application/json" }), stripeWebhookHandler);
+if (!config.demoMode) app.post("/api/billing/webhook", express.raw({ type: "application/json" }), stripeWebhookHandler);
 app.use(express.json({ limit: "1mb" }));
 app.use(authenticateRequest);
 app.use(enforceActiveSubscription);
 
 app.use("/health", healthRouter);
 app.use("/api/staff", staffRouter);
-app.use("/api/billing", billingRouter);
+if (!config.demoMode) app.use("/api/billing", billingRouter);
+app.use("/api/demo", demoRouter);
 app.use("/api/organisations", organisationsRouter);
 app.use("/api/staff-portal", staffPortalRouter);
 app.use("/api/family-access", familyAccessRouter);

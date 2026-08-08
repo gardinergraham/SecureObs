@@ -7,9 +7,11 @@ const { execFileSync } = require('child_process');
 const { uploadApk } = require('./vercel-blob');
 
 const root = path.resolve(__dirname, '..');
-const downloadsDir = path.join(root, 'website', 'downloads');
+const isDemo = process.argv.includes('--demo');
+const downloadsDir = path.join(root, 'website', isDemo ? 'demo-downloads' : 'downloads');
 const manifestPath = path.join(downloadsDir, 'release.json');
-const expectedPackage = 'com.geckostudios.secureobs';
+const expectedPackage = isDemo ? 'com.geckostudios.secureobs.demo' : 'com.geckostudios.secureobs';
+const releaseName = isDemo ? 'SecureObs Demo' : 'SecureObs';
 const blockedPermissions = [
   'android.permission.RECORD_AUDIO',
   'android.permission.SYSTEM_ALERT_WINDOW',
@@ -48,6 +50,7 @@ function parseArgs() {
     if (value === '--apk') result.apk = args[++i];
     else if (value === '--minimum') result.minimum = args[++i];
     else if (value === '--note') result.notes.push(args[++i]);
+    else if (value === '--demo') result.demo = true;
     else fail(`Unknown option ${value}`);
   }
   return result;
@@ -78,7 +81,7 @@ async function main() {
   const options = parseArgs();
   const current = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
   const candidates = fs.readdirSync(downloadsDir)
-    .filter((name) => name.toLowerCase().endsWith('.apk') && name !== 'SecureObs.apk');
+    .filter((name) => name.toLowerCase().endsWith('.apk') && (isDemo || name !== 'SecureObs.apk'));
   const source = options.apk
     ? path.resolve(root, options.apk)
     : candidates.length === 1
@@ -87,7 +90,7 @@ async function main() {
 
   if (!source) {
     fail(candidates.length === 0
-      ? 'Place the newly generated APK in website/downloads first.'
+      ? `Place the newly generated APK in website/${isDemo ? 'demo-downloads' : 'downloads'} first.`
       : 'More than one new APK was found. Use --apk followed by the required file path.');
   }
   if (!fs.existsSync(source)) fail(`APK not found: ${source}`);
@@ -109,7 +112,7 @@ async function main() {
   if (!/Verified using v2 scheme .*: true/.test(signature)) fail('APK Signature Scheme v2 verification did not pass.');
   const certificate = signature.match(/Signer #1 certificate SHA-256 digest: ([a-f0-9]+)/i)?.[1]?.toLowerCase();
   if (!certificate) fail('Could not read the APK signing certificate.');
-  if (certificate !== current.signingCertificateSha256.toLowerCase()) {
+  if (current.signingCertificateSha256 && certificate !== current.signingCertificateSha256.toLowerCase()) {
     fail('The signing certificate does not match the currently published app.');
   }
 
@@ -141,8 +144,8 @@ async function main() {
   if (compareVersions(minimum, version) > 0) fail('Minimum supported version cannot be newer than this release.');
 
   const bytes = fs.statSync(source).size;
-  console.log(`Uploading verified SecureObs ${version} to Vercel Blob...`);
-  const downloadUrl = await uploadApk(source, version);
+  console.log(`Uploading verified ${releaseName} ${version} to Vercel Blob...`);
+  const downloadUrl = await uploadApk(source, version, isDemo ? 'android-demo' : 'android');
 
   const release = {
     version,
@@ -160,7 +163,7 @@ async function main() {
   fs.writeFileSync(manifestPath, `${JSON.stringify(release, null, 2)}\n`);
   if (path.resolve(source) !== path.join(downloadsDir, 'SecureObs.apk')) fs.unlinkSync(source);
 
-  console.log(`\nSecureObs ${version} (Android ${versionCode}) is ready to publish.`);
+  console.log(`\n${releaseName} ${version} (Android ${versionCode}) is ready to publish.`);
   console.log(`Size: ${release.size}`);
   console.log(`SHA-256: ${release.sha256}`);
   console.log(`Certificate: ${certificate}`);

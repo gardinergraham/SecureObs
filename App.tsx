@@ -144,6 +144,7 @@ import type {
 } from "./src/types/domain";
 
 const defaultOrganisationId = "00000000-0000-0000-0000-000000000001";
+const isDemoBuild = process.env.EXPO_PUBLIC_APP_VARIANT === "demo";
 const defaultOrganisationSettings: OrganisationSettings = {
   organisationId: defaultOrganisationId,
   nfcStaffCodeFormat: "passcode={STAFFCODE}",
@@ -1567,6 +1568,13 @@ export default function App() {
         </TouchableOpacity>
       </View>
 
+      {isDemoBuild ? (
+        <View style={styles.demoBanner}>
+          <Text style={styles.demoBannerTitle}>DEMONSTRATION ENVIRONMENT</Text>
+          <Text style={styles.demoBannerText}>Fictional information only · Never enter real patient or staff data</Text>
+        </View>
+      ) : null}
+
       {selectedStaff && organisationSettings.billingStatus === "past_due" ? (
         <View style={styles.billingBanner}>
           <Text style={styles.billingBannerTitle}>Subscription payment overdue</Text>
@@ -2535,6 +2543,16 @@ const styles = StyleSheet.create({
   },
   billingBannerTitle: { color: "#6d4700", fontSize: 13, fontWeight: "900" },
   billingBannerText: { color: "#6d4700", fontSize: 12, marginTop: 2 },
+  demoBanner: {
+    alignItems: "center",
+    backgroundColor: "#8a5800",
+    borderBottomColor: "#684300",
+    borderBottomWidth: 1,
+    paddingHorizontal: 18,
+    paddingVertical: 7
+  },
+  demoBannerTitle: { color: "#ffffff", fontSize: 12, fontWeight: "900", letterSpacing: 0.7 },
+  demoBannerText: { color: "#fff4d6", fontSize: 11, marginTop: 1 },
   brand: {
     alignItems: "center",
     flexDirection: "row",

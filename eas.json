@@ -4,6 +4,18 @@
     "appVersionSource": "remote"
   },
   "build": {
+    "demo": {
+      "distribution": "internal",
+      "autoIncrement": true,
+      "env": {
+        "EXPO_PUBLIC_APP_VARIANT": "demo",
+        "EXPO_PUBLIC_API_URL": "https://adequate-energy-demo.up.railway.app",
+        "EXPO_PUBLIC_RELEASE_MANIFEST_URL": "https://secure-obs.com/demo-downloads/release.json"
+      },
+      "android": {
+        "buildType": "apk"
+      }
+    },
     "preview": {
       "autoIncrement": true,
       "android": {

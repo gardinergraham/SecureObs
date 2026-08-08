@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="robots" content="noindex,nofollow,noarchive" />
+  <title>Try SecureObs</title>
+  <meta name="description" content="Create a private 14-day SecureObs demonstration environment using fictional patient information." />
+  <link rel="stylesheet" href="styles.css" />
+  <script src="try.js" defer></script>
+</head>
+<body>
+  <header class="site-header">
+    <a class="brand" href="index.html"><img src="assets/secureobs-logo-new.png" alt="" /><span>SecureObs</span></a>
+    <nav><a href="index.html#packages">Packages</a><a href="demo.html">Book a guided demo</a><a href="support.html">Support</a></nav>
+  </header>
+  <main class="trial-page">
+    <section class="trial-hero">
+      <div>
+        <p class="eyebrow">Private self-guided demonstration</p>
+        <h1>Experience SecureObs with your own fictional ward.</h1>
+        <p class="lead">Create a private 14-day trial, download SecureObs Demo and explore the real tablet and desktop workflows without entering any real patient information.</p>
+        <div class="trial-assurances"><span>Separate demo database</span><span>Fictional patients supplied</span><span>No payment required</span><span>Access expires automatically</span></div>
+      </div>
+      <aside class="trial-warning">
+        <strong>Demonstration data only</strong>
+        <p>Never enter real names, NHS numbers, clinical information or other identifiable personal data into the trial.</p>
+      </aside>
+    </section>
+
+    <section class="trial-shell">
+      <div class="trial-overview">
+        <p class="eyebrow">What you can test</p>
+        <h2>A working SecureObs environment—not a slideshow.</h2>
+        <ul>
+          <li>Ward overview, observations and offline synchronisation</li>
+          <li>NEWS2, patient tasks, incidents and risk information</li>
+          <li>Patient notes and care plans on tablet or desktop</li>
+          <li>Medication, rostering, security and manager workflows</li>
+          <li>Audit evidence, dashboards and governance tools</li>
+        </ul>
+        <p>Your environment includes one fictional site, one ward, four fictional patients and a manager account.</p>
+      </div>
+
+      <form class="subscription-form" id="trial-form" novalidate>
+        <p class="eyebrow">Create your trial</p>
+        <h2>Tell us who is evaluating SecureObs.</h2>
+        <div class="form-grid">
+          <div class="form-field form-field-wide"><label for="trial-organisation">Organisation name</label><input id="trial-organisation" name="organisationName" autocomplete="organization" maxlength="120" required /></div>
+          <div class="form-field"><label for="trial-name">Your name</label><input id="trial-name" name="contactName" autocomplete="name" maxlength="120" required /></div>
+          <div class="form-field"><label for="trial-email">Work email</label><input id="trial-email" name="email" autocomplete="email" maxlength="254" type="email" required /></div>
+          <div class="form-field form-field-wide"><label for="trial-phone">Telephone (optional)</label><input id="trial-phone" name="phone" autocomplete="tel" maxlength="40" type="tel" /></div>
+          <div class="trial-honeypot" aria-hidden="true"><label>Website<input name="website" tabindex="-1" autocomplete="off" /></label></div>
+          <label class="form-field-wide trial-consent"><input name="acceptedTerms" type="checkbox" required /> I agree to use fictional information only and accept the <a href="privacy.html" target="_blank">privacy notice</a>.</label>
+        </div>
+        <p class="form-message" id="trial-message" role="alert"></p>
+        <button class="checkout-button" id="trial-submit" type="submit">Create my private trial</button>
+        <p class="secure-payment-note">Your contact details are used to administer the trial and discuss SecureObs with you.</p>
+      </form>
+
+      <section class="trial-result hidden" id="trial-result" aria-live="polite">
+        <p class="eyebrow">Your SecureObs trial is ready</p>
+        <h2>Save these sign-in details now.</h2>
+        <p>For security, the PIN is displayed on this page only. Your access expires <strong id="trial-expiry"></strong>.</p>
+        <div class="credential-grid">
+          <div><span>STAFFCODE</span><strong id="trial-staff-code"></strong></div>
+          <div><span>PIN</span><strong id="trial-pin"></strong></div>
+        </div>
+        <button class="secondary-link copy-credentials" id="copy-credentials" type="button">Copy sign-in details</button>
+        <div class="trial-actions">
+          <a class="primary-link" href="demo-download.html">Download SecureObs Demo</a>
+          <a class="secondary-link" href="staff.html?environment=demo">Open desktop notes and care plans</a>
+        </div>
+        <div class="trial-warning"><strong>Keep this separate from live care</strong><p>The Demo application and desktop workspace must only contain fictional test information.</p></div>
+      </section>
+    </section>
+  </main>
+  <footer><span>SecureObs</span><span><a href="privacy.html">Privacy</a> · <a href="support.html">Support</a></span></footer>
+</body>
+</html>

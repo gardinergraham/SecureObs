@@ -35,7 +35,11 @@ export const config = {
       yearly: process.env.STRIPE_PRICE_ENTERPRISE_YEARLY
     }
   },
-  billingGraceDays: Math.max(1, Number(process.env.BILLING_GRACE_DAYS ?? 7))
+  billingGraceDays: Math.max(1, Number(process.env.BILLING_GRACE_DAYS ?? 7)),
+  demoMode: process.env.DEMO_MODE === "true",
+  demoRegistrationEnabled: process.env.DEMO_REGISTRATION_ENABLED === "true",
+  demoTrialDays: Math.min(30, Math.max(1, Number(process.env.DEMO_TRIAL_DAYS ?? 14))),
+  demoRetentionDays: Math.min(365, Math.max(1, Number(process.env.DEMO_RETENTION_DAYS ?? 30)))
 };
 
 if (!config.databaseUrl) {

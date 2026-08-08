@@ -11,7 +11,9 @@ type AndroidRelease = {
   downloadPageUrl: string;
 };
 
-const releaseManifestUrl = "https://secure-obs.com/downloads/release.json";
+const releaseManifestUrl = process.env.EXPO_PUBLIC_RELEASE_MANIFEST_URL
+  ?? "https://secure-obs.com/downloads/release.json";
+const isDemoBuild = process.env.EXPO_PUBLIC_APP_VARIANT === "demo";
 
 type HomeScreenProps = {
   sites: Site[];
@@ -213,7 +215,7 @@ export function HomeScreen({
     <View style={styles.screen}>
       <View style={styles.hero}>
         <View style={styles.heroText}>
-          <Text style={styles.title}>SecureObs</Text>
+          <Text style={styles.title}>{isDemoBuild ? "SecureObs Demo" : "SecureObs"}</Text>
           <Text style={styles.subtitle}>Ward observation control centre</Text>
         </View>
         <View style={styles.sessionBadge}>
@@ -502,8 +504,8 @@ export function HomeScreen({
           onPress={onOpenAdminSettings}
         />
       </View>
-      <Text accessibilityLabel={`SecureObs version ${appVersion}`} style={styles.versionText}>
-        SecureObs version {appVersion}
+      <Text accessibilityLabel={`${isDemoBuild ? "SecureObs Demo" : "SecureObs"} version ${appVersion}`} style={styles.versionText}>
+        {isDemoBuild ? "SecureObs Demo" : "SecureObs"} version {appVersion}
       </Text>
     </View>
   );
