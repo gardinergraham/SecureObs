@@ -1,17 +1,17 @@
 {
-  "version": "0.1.10",
-  "androidVersionCode": 7,
+  "version": "0.1.11",
+  "androidVersionCode": 9,
   "minimumSupportedVersion": "0.1.7",
-  "publishedAt": "2026-08-07",
+  "publishedAt": "2026-08-29",
   "size": "91.6 MB",
-  "downloadUrl": "https://ziydoaoxastnvilu.public.blob.vercel-storage.com/android/SecureObs-0.1.10.apk",
+  "downloadUrl": "https://ziydoaoxastnvilu.public.blob.vercel-storage.com/android/SecureObs-0.1.11.apk",
   "downloadPageUrl": "https://secure-obs.com/download",
-  "sha256": "ccf0ef1d39f5e8305072dd149bbb90f442965267075ba541b860775264b7bc70",
+  "sha256": "19fad3ba7947fd8d8c330b48b5ad630731a120576cbb1c9691a34ec3419fc676",
   "signingCertificateSha256": "62cbdb9832aa007b14daf1b97a703ac9c153825f9fe6b560693d1853d176af09",
   "releaseNotes": [
-    "Prevented a scanned observation from updating the previously selected patient",
-    "Added manager ward-level controls for Verified Observations",
-    "Added printable patient ID cards with organisation logo, photograph and QR code",
-    "Added optional hospital/NHS number, ward, room, date of birth and allergy details"
+    "Improved offline synchronisation when Wi-Fi reconnects",
+    "Clear sign-in guidance when staff authentication has expired",
+    "Human-readable sync details showing the record type, patient, time and staff member",
+    "Reduced repeated upload attempts when authentication is required"
   ]
 }

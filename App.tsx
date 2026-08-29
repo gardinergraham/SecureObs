@@ -2243,8 +2243,18 @@ export default function App() {
                       </Text>
                       <Text style={styles.syncItemAttempts}>Attempts {item.attempts}</Text>
                     </View>
-                    <Text style={styles.syncItemMeta}>Path: {item.path}</Text>
+                    <Text style={styles.syncItemSummary}>
+                      {item.patientId
+                        ? item.summary.replace(
+                            `patient record ${item.patientId}`,
+                            patients.find((patient) => patient.id === item.patientId)
+                              ? `${patients.find((patient) => patient.id === item.patientId)?.firstName} ${patients.find((patient) => patient.id === item.patientId)?.surname}`
+                              : `patient record ${item.patientId}`
+                          )
+                        : item.summary}
+                    </Text>
                     <Text style={styles.syncItemMeta}>Queued: {formatSyncDate(item.createdAt)}</Text>
+                    <Text style={styles.syncItemMeta}>Technical route: {item.path}</Text>
                     {item.needsReview ? (
                       <Text style={styles.syncItemReview}>Needs review before automatic retry</Text>
                     ) : null}
@@ -2753,6 +2763,12 @@ const styles = StyleSheet.create({
     color: "#617078",
     fontSize: 12,
     fontWeight: "800"
+  },
+  syncItemSummary: {
+    color: "#183f4b",
+    fontSize: 13,
+    fontWeight: "900",
+    lineHeight: 18
   },
   syncItemError: {
     color: "#8a2d2d",

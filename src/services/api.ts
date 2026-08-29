@@ -31,7 +31,10 @@ import type {
 const defaultApiUrl = "https://adequate-energy-production.up.railway.app";
 const apiUrl = process.env.EXPO_PUBLIC_API_URL ?? defaultApiUrl;
 
-configureSyncQueue((path, init) => request(path, init, { expireSessionOnUnauthorized: false }));
+// A queued clinical upload must use the currently authenticated staff session.
+// If the backend rejects that session, expire it so the UI requests a fresh
+// staff sign-in instead of silently retrying an unusable token forever.
+configureSyncQueue((path, init) => request(path, init));
 
 class ApiRequestError extends Error {
   constructor(

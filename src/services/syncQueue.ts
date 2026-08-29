@@ -20,6 +20,11 @@ export type SyncQueueStateItem = {
   attempts: number;
   lastError?: string;
   needsReview?: boolean;
+  recordType: string;
+  patientId?: string;
+  recordedAt?: string;
+  recordedBy?: string;
+  summary: string;
 };
 
 type SerializableRequestInit = {
@@ -37,6 +42,11 @@ type SyncQueueItem = {
   attempts: number;
   lastError?: string;
   needsReview?: boolean;
+  recordType?: string;
+  patientId?: string;
+  recordedAt?: string;
+  recordedBy?: string;
+  summary?: string;
 };
 
 type SyncQueueListener = (state: SyncQueueState) => void;
@@ -87,6 +97,7 @@ export function getSyncQueueState(): SyncQueueState {
 }
 
 function toStateItem(item: SyncQueueItem): SyncQueueStateItem {
+  const details = describeQueueItem(item);
   return {
     id: item.id,
     label: item.label,
@@ -94,7 +105,8 @@ function toStateItem(item: SyncQueueItem): SyncQueueStateItem {
     createdAt: item.createdAt,
     attempts: item.attempts,
     lastError: item.lastError,
-    needsReview: item.needsReview
+    needsReview: item.needsReview,
+    ...details
   };
 }
 
@@ -114,14 +126,17 @@ export async function restoreSyncQueue() {
 export async function enqueueFailedRequest(label: string, path: string, init: RequestInit | undefined, error: unknown) {
   await restoreSyncQueue();
 
+  const request = serialiseRequestInit(init);
+  const details = describeQueueItem({ label, path, init: request });
   queue.push({
     id: `sync-${Date.now()}-${queue.length}`,
     label,
     path,
-    init: serialiseRequestInit(init),
+    init: request,
     createdAt: new Date().toISOString(),
     attempts: 0,
-    lastError: toErrorMessage(error)
+    lastError: toErrorMessage(error),
+    ...details
   });
   lastError = `${label}: ${toErrorMessage(error)}`;
   await persistQueue();
@@ -164,11 +179,16 @@ export async function flushSyncQueue(options: { includeNeedsReview?: boolean } =
         notify();
       } catch (error) {
         failedCount += 1;
-        item.lastError = toErrorMessage(error);
+        item.lastError = humanUploadError(error);
         item.needsReview = isPermanentUploadError(error);
         lastError = `${item.label}: ${item.lastError}`;
         await persistQueue();
         notify();
+        if (isAuthenticationError(error)) {
+          // The remaining records require the same fresh staff session. Do not
+          // repeatedly hit the backend or inflate every item's attempt count.
+          break;
+        }
       }
     }
 
@@ -243,10 +263,10 @@ async function loadQueueFromStorage() {
 
 function makePreviouslyEmptyResponseRetryable(item: SyncQueueItem): SyncQueueItem {
   if (!item.lastError?.toLowerCase().includes("unexpected end of input")) {
-    return item;
+    return { ...item, ...describeQueueItem(item) };
   }
 
-  return { ...item, needsReview: false };
+  return { ...item, needsReview: false, ...describeQueueItem(item) };
 }
 
 async function persistQueue() {
@@ -288,6 +308,70 @@ function normaliseHeaders(headers?: HeadersInit): Record<string, string> | undef
 
 function toErrorMessage(error: unknown) {
   return error instanceof Error ? error.message : "Unable to reach backend";
+}
+
+function humanUploadError(error: unknown) {
+  if (isAuthenticationError(error)) {
+    return "Staff authentication has expired. Sign in again with an authorised staff card or PIN, then retry.";
+  }
+  return toErrorMessage(error);
+}
+
+function isAuthenticationError(error: unknown) {
+  const status = typeof error === "object" && error !== null && "status" in error ? Number(error.status) : 0;
+  const message = toErrorMessage(error).toLowerCase();
+  return status === 401 || message.includes("authenticated staff session required");
+}
+
+function describeQueueItem(item: Pick<SyncQueueItem, "label" | "path" | "init" | "recordType" | "patientId" | "recordedAt" | "recordedBy" | "summary">) {
+  const body = parseBody(item.init?.body);
+  const recordType = item.recordType || friendlyRecordType(item.label);
+  const patientId = item.patientId || stringValue(body.patientId);
+  const recordedAt = item.recordedAt || firstString(body, ["observedAt", "recordedAt", "createdAt", "completedAt", "checkedAt", "administeredAt", "date"]);
+  const recordedBy = item.recordedBy || firstString(body, ["observerName", "recordedBy", "recordedByName", "createdByName", "completedByName", "checkedByName", "staffName"]);
+  const clinicalDetail = item.label === "observation"
+    ? [stringValue(body.source), stringValue(body.type), stringValue(body.location)].filter(Boolean).join(" · ")
+    : undefined;
+  const parts = [clinicalDetail ? `${recordType}: ${clinicalDetail}` : recordType];
+  if (patientId) parts.push(`patient record ${patientId}`);
+  if (recordedAt) parts.push(`recorded ${formatQueuedTimestamp(recordedAt)}`);
+  if (recordedBy) parts.push(`by ${recordedBy}`);
+  return { recordType, patientId, recordedAt, recordedBy, summary: item.summary || parts.join(" · ") };
+}
+
+function parseBody(body?: string): Record<string, unknown> {
+  if (!body) return {};
+  try {
+    const parsed = JSON.parse(body);
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function friendlyRecordType(label: string) {
+  return label
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((word) => word.toUpperCase() === "NEWS2" ? "NEWS2" : `${word[0]?.toUpperCase() ?? ""}${word.slice(1)}`)
+    .join(" ");
+}
+
+function firstString(body: Record<string, unknown>, keys: string[]) {
+  for (const key of keys) {
+    const value = stringValue(body[key]);
+    if (value) return value;
+  }
+  return undefined;
+}
+
+function stringValue(value: unknown) {
+  return typeof value === "string" && value.trim() ? value.trim() : undefined;
+}
+
+function formatQueuedTimestamp(value: string) {
+  const timestamp = new Date(value);
+  return Number.isNaN(timestamp.getTime()) ? value : timestamp.toLocaleString("en-GB");
 }
 
 function isPermanentUploadError(error: unknown) {
