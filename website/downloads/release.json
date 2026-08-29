@@ -1,17 +1,17 @@
 {
-  "version": "0.1.11",
-  "androidVersionCode": 9,
+  "version": "0.1.12",
+  "androidVersionCode": 10,
   "minimumSupportedVersion": "0.1.7",
   "publishedAt": "2026-08-29",
   "size": "91.6 MB",
-  "downloadUrl": "https://ziydoaoxastnvilu.public.blob.vercel-storage.com/android/SecureObs-0.1.11.apk",
+  "downloadUrl": "https://ziydoaoxastnvilu.public.blob.vercel-storage.com/android/SecureObs-0.1.12.apk",
   "downloadPageUrl": "https://secure-obs.com/download",
-  "sha256": "19fad3ba7947fd8d8c330b48b5ad630731a120576cbb1c9691a34ec3419fc676",
+  "sha256": "1849b506042319708b250b2f31c4e8acb452e15d2424a4a1f0166199cdb03a4d",
   "signingCertificateSha256": "62cbdb9832aa007b14daf1b97a703ac9c153825f9fe6b560693d1853d176af09",
   "releaseNotes": [
-    "Improved offline synchronisation when Wi-Fi reconnects",
-    "Clear sign-in guidance when staff authentication has expired",
-    "Human-readable sync details showing the record type, patient, time and staff member",
-    "Reduced repeated upload attempts when authentication is required"
+    "Fixed authentication when uploading records saved offline",
+    "Waiting records now use the latest authorised staff session",
+    "Screens now open at the top for clearer navigation",
+    "Improved offline sync reliability and security"
   ]
 }
