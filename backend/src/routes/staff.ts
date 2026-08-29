@@ -523,7 +523,11 @@ router.post("/unlock-access", async (request, response, next) => {
 
     const lockouts = await getActiveAccessLockouts(parsed.data.organisationId, parsed.data.lockedStaffCode);
     if (lockouts.length === 0) {
-      response.json({ ok: true, unlocked: false, message: "No active lockout found for that STAFFCODE." });
+      response.json({
+        ok: true,
+        unlocked: false,
+        message: "This STAFFCODE is not temporarily locked. If the PIN has been forgotten, ask an authenticated manager to reset it in Ward settings → Staff setup."
+      });
       return;
     }
 

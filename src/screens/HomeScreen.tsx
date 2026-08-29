@@ -371,8 +371,12 @@ export function HomeScreen({
 
           <View style={styles.nfcPanel}>
             <View style={styles.nfcHeader}>
-              <Text style={styles.nfcTitle}>Unlock sign-in</Text>
+              <Text style={styles.nfcTitle}>Clear failed-attempt lock</Text>
             </View>
+            <Text style={styles.noticeText}>
+              Use this only after SecureObs says the STAFFCODE is temporarily locked. If a PIN has been forgotten,
+              an authenticated manager must reset it in Ward settings → Staff setup.
+            </Text>
             <TextInput placeholderTextColor="#6f7f87"
               autoCapitalize="none"
               onChangeText={setLockedStaffCode}
@@ -383,7 +387,7 @@ export function HomeScreen({
             <TextInput placeholderTextColor="#6f7f87"
               autoCapitalize="none"
               onChangeText={setNurseInChargeStaffCode}
-              placeholder="Nurse in charge STAFFCODE"
+              placeholder="Authorised nurse in charge STAFFCODE"
               secureTextEntry
               style={styles.cardInput}
               value={nurseInChargeStaffCode}
@@ -394,7 +398,7 @@ export function HomeScreen({
               onPress={unlockAccess}
               style={[styles.secondaryButton, isUnlockingAccess && styles.disabledOutline]}
             >
-              <Text style={styles.secondaryButtonText}>{isUnlockingAccess ? "Checking" : "Unlock sign-in"}</Text>
+              <Text style={styles.secondaryButtonText}>{isUnlockingAccess ? "Checking" : "Clear temporary lock"}</Text>
             </TouchableOpacity>
             {unlockMessage ? <Text style={styles.cardMessage}>{unlockMessage}</Text> : null}
           </View>

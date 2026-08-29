@@ -1,17 +1,15 @@
 {
-  "version": "0.1.12",
-  "androidVersionCode": 10,
+  "version": "0.1.13",
+  "androidVersionCode": 11,
   "minimumSupportedVersion": "0.1.7",
   "publishedAt": "2026-08-29",
   "size": "91.6 MB",
-  "downloadUrl": "https://ziydoaoxastnvilu.public.blob.vercel-storage.com/android/SecureObs-0.1.12.apk",
+  "downloadUrl": "https://ziydoaoxastnvilu.public.blob.vercel-storage.com/android/SecureObs-0.1.13.apk",
   "downloadPageUrl": "https://secure-obs.com/download",
-  "sha256": "1849b506042319708b250b2f31c4e8acb452e15d2424a4a1f0166199cdb03a4d",
+  "sha256": "dde1eba45e7b6c7e5c395ba0a788aa2f92ca4e7ad6688f859419eea97589fe0a",
   "signingCertificateSha256": "62cbdb9832aa007b14daf1b97a703ac9c153825f9fe6b560693d1853d176af09",
   "releaseNotes": [
-    "Fixed authentication when uploading records saved offline",
-    "Waiting records now use the latest authorised staff session",
-    "Screens now open at the top for clearer navigation",
-    "Improved offline sync reliability and security"
+    "Added a clearer manager reset process for forgotten PINs",
+    "Clarified the difference between temporary lockouts and forgotten PINs"
   ]
 }

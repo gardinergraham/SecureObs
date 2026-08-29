@@ -222,6 +222,28 @@ export function WardSettingsScreen({
     setNewStaffWardIds(selectedWardId ? [selectedWardId] : []);
   };
 
+  const findOrAddStaff = () => {
+    const query = staffSearch.trim();
+    if (!query) return;
+    const exactMatch = staffSearchResults.find(
+      (member) => member.staffCode.toLowerCase() === query.toLowerCase()
+    );
+    const match = exactMatch ?? (staffSearchResults.length === 1 ? staffSearchResults[0] : undefined);
+    if (match) {
+      selectStaffForEditing(match);
+      return;
+    }
+    if (staffSearchResults.length > 1) {
+      Alert.alert("Choose a staff member", "More than one member matches. Select the correct person from the results.");
+      return;
+    }
+
+    clearStaffDraft();
+    setNewStaffCode(query);
+    setStaffSearch("");
+    Alert.alert("No existing staff found", `Complete the details below to add STAFFCODE ${query}.`);
+  };
+
   const writeStaffNfcTag = async (staffMember: StaffMember) => {
     if (!canEditWardSettings) return;
     if (staffMember.employmentType !== "permanent") {
@@ -396,8 +418,15 @@ export function WardSettingsScreen({
               style={[styles.input, styles.staffSearchInput]}
               value={staffSearch}
             />
-            <TouchableOpacity accessibilityRole="button" onPress={clearStaffDraft} style={styles.addNewButton}>
-              <Text style={styles.addNewButtonText}>Add new</Text>
+            <TouchableOpacity
+              accessibilityRole="button"
+              disabled={!canEditWardSettings || !staffSearch.trim()}
+              onPress={findOrAddStaff}
+              style={[styles.addNewButton, (!canEditWardSettings || !staffSearch.trim()) && styles.disabledControl]}
+            >
+              <Text style={styles.addNewButtonText}>
+                {staffSearch.trim() && staffSearchResults.length === 0 ? "Add new" : "Find"}
+              </Text>
             </TouchableOpacity>
           </View>
           {staffSearch.trim() ? (
@@ -448,15 +477,33 @@ export function WardSettingsScreen({
             style={styles.input}
             value={newStaffDesignation}
           />
-          <TextInput placeholderTextColor="#6f7f87"
-            editable={canEditWardSettings}
-            keyboardType="number-pad"
-            onChangeText={setNewStaffLoginPin}
-            placeholder={editingStaffId ? "Set new PIN (optional)" : "Initial PIN optional - default 1111"}
-            secureTextEntry
-            style={styles.input}
-            value={newStaffLoginPin}
-          />
+          {!editingStaffId ? (
+            <TextInput placeholderTextColor="#6f7f87"
+              editable={canEditWardSettings}
+              keyboardType="number-pad"
+              onChangeText={setNewStaffLoginPin}
+              placeholder="Initial PIN optional - default 1111"
+              secureTextEntry
+              style={styles.input}
+              value={newStaffLoginPin}
+            />
+          ) : (
+            <View style={styles.staffActionRow}>
+              {staff.find((member) => member.id === editingStaffId)?.employmentType !== "bank" ? (
+                <TouchableOpacity
+                  accessibilityRole="button"
+                  disabled={!canEditWardSettings || isResettingPin}
+                  onPress={resetSelectedStaffPin}
+                  style={[styles.resetPinButton, (!canEditWardSettings || isResettingPin) && styles.disabledControl]}
+                >
+                  <Text style={styles.resetPinButtonText}>{isResettingPin ? "Resetting..." : "Reset forgotten PIN to 1111"}</Text>
+                </TouchableOpacity>
+              ) : null}
+              <TouchableOpacity accessibilityRole="button" onPress={clearStaffDraft} style={styles.clearStaffButton}>
+                <Text style={styles.clearStaffButtonText}>Clear selection</Text>
+              </TouchableOpacity>
+            </View>
+          )}
           <View style={styles.optionRow}>
             {(["nurse", "hcf", "ot", "security", "doctor"] as StaffMember["role"][]).map((role) => (
               <TouchableOpacity
@@ -548,23 +595,6 @@ export function WardSettingsScreen({
               <Text style={styles.writeTagButtonText}>{isWritingStaffTag ? "Hold tag..." : "Write NFC tag"}</Text>
             </TouchableOpacity>
           </View>
-          {editingStaffId ? (
-            <View style={styles.staffActionRow}>
-              {staff.find((member) => member.id === editingStaffId)?.employmentType !== "bank" ? (
-                <TouchableOpacity
-                  accessibilityRole="button"
-                  disabled={!canEditWardSettings || isResettingPin}
-                  onPress={resetSelectedStaffPin}
-                  style={[styles.resetPinButton, (!canEditWardSettings || isResettingPin) && styles.disabledControl]}
-                >
-                  <Text style={styles.resetPinButtonText}>{isResettingPin ? "Resetting..." : "Reset PIN to 1111"}</Text>
-                </TouchableOpacity>
-              ) : null}
-              <TouchableOpacity accessibilityRole="button" onPress={clearStaffDraft} style={styles.clearStaffButton}>
-                <Text style={styles.clearStaffButtonText}>Clear selection</Text>
-              </TouchableOpacity>
-            </View>
-          ) : null}
         </View>
 
         <View style={styles.serviceSummary}>

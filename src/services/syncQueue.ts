@@ -283,9 +283,10 @@ function serialiseRequestInit(init?: RequestInit): SerializableRequestInit | und
     return undefined;
   }
 
+  const headers = normaliseHeaders(init.headers);
   return {
     method: init.method,
-    headers: normaliseHeaders(init.headers),
+    ...(headers && Object.keys(headers).length > 0 ? { headers } : {}),
     body: typeof init.body === "string" ? init.body : undefined
   };
 }
@@ -295,15 +296,14 @@ function normaliseHeaders(headers?: HeadersInit): Record<string, string> | undef
     return undefined;
   }
 
-  if (headers instanceof Headers) {
-    return Object.fromEntries(headers.entries());
-  }
-
-  if (Array.isArray(headers)) {
-    return Object.fromEntries(headers);
-  }
-
-  return headers;
+  const entries = headers instanceof Headers
+    ? Array.from(headers.entries())
+    : Array.isArray(headers)
+      ? headers
+      : Object.entries(headers);
+  // Authentication is deliberately never persisted with an offline record.
+  // Every retry must use the staff session that is current at upload time.
+  return Object.fromEntries(entries.filter(([key]) => key.toLowerCase() !== "authorization"));
 }
 
 function toErrorMessage(error: unknown) {

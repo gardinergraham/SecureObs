@@ -56,13 +56,16 @@ async function request<T>(
   }
 
   const session = await getAuthSession();
+  const headers = new Headers(init?.headers);
+  headers.set("Content-Type", "application/json");
+  if (session?.token) {
+    headers.set("Authorization", `Bearer ${session.token}`);
+  } else {
+    headers.delete("Authorization");
+  }
   const response = await fetch(`${apiUrl}${path}`, {
-    headers: {
-      "Content-Type": "application/json",
-      ...(session?.token ? { Authorization: `Bearer ${session.token}` } : {}),
-      ...init?.headers
-    },
-    ...init
+    ...init,
+    headers
   });
 
   if (!response.ok) {

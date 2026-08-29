@@ -191,6 +191,7 @@ type AppScreen =
 
 export default function App() {
   const [screen, setScreen] = useState<AppScreen>("home");
+  const mainScrollRef = useRef<ScrollView>(null);
   const [identificationPatientId, setIdentificationPatientId] = useState("");
   const [workspaceBackScreen, setWorkspaceBackScreen] = useState<"wardOverview" | "observations" | "complianceGovernance">("wardOverview");
   const [news2Readings, setNews2Readings] = useState<News2Reading[]>(() => createDemoNews2Readings(seedData.patients[0]?.id ?? ""));
@@ -248,6 +249,13 @@ export default function App() {
     items: []
   });
   const [isSyncStatusVisible, setIsSyncStatusVisible] = useState(false);
+
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => {
+      mainScrollRef.current?.scrollTo({ x: 0, y: 0, animated: false });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [screen]);
 
   const refreshClinicalDocuments = useCallback(async () => {
     if (screen === "adminSettings" || !selectedStaff || !selectedWardId) {
@@ -1588,6 +1596,7 @@ export default function App() {
       ) : null}
 
       <ScrollView
+        ref={mainScrollRef}
         contentContainerStyle={screen === "home" ? styles.homeContent : styles.content}
         horizontal={false}
         keyboardShouldPersistTaps="handled"
