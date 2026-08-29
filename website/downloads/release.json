@@ -1,15 +1,14 @@
 {
-  "version": "0.1.13",
-  "androidVersionCode": 11,
+  "version": "0.1.14",
+  "androidVersionCode": 13,
   "minimumSupportedVersion": "0.1.7",
   "publishedAt": "2026-08-29",
   "size": "91.6 MB",
-  "downloadUrl": "https://ziydoaoxastnvilu.public.blob.vercel-storage.com/android/SecureObs-0.1.13.apk",
+  "downloadUrl": "https://ziydoaoxastnvilu.public.blob.vercel-storage.com/android/SecureObs-0.1.14.apk",
   "downloadPageUrl": "https://secure-obs.com/download",
-  "sha256": "dde1eba45e7b6c7e5c395ba0a788aa2f92ca4e7ad6688f859419eea97589fe0a",
+  "sha256": "0fb4a1b8f5ed5f590c3261d6866b4485bf11c418023d29fda9f3cdf5e387048d",
   "signingCertificateSha256": "62cbdb9832aa007b14daf1b97a703ac9c153825f9fe6b560693d1853d176af09",
   "releaseNotes": [
-    "Added a clearer manager reset process for forgotten PINs",
-    "Clarified the difference between temporary lockouts and forgotten PINs"
+    "Implemented the new five-minute observation grace policy for both:genobs and teso obs"
   ]
 }
