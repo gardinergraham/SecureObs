@@ -1,14 +1,14 @@
 {
-  "version": "0.1.16",
-  "androidVersionCode": 15,
+  "version": "0.1.17",
+  "androidVersionCode": 16,
   "minimumSupportedVersion": "0.1.7",
   "publishedAt": "2026-09-03",
   "size": "91.6 MB",
-  "downloadUrl": "https://ziydoaoxastnvilu.public.blob.vercel-storage.com/android/SecureObs-0.1.16.apk",
+  "downloadUrl": "https://ziydoaoxastnvilu.public.blob.vercel-storage.com/android/SecureObs-0.1.17.apk",
   "downloadPageUrl": "https://secure-obs.com/download",
-  "sha256": "dce4246b2e4feb4a44b574519a75a00bb559ef852bcc2d4ba66dea9cdd87f7b7",
+  "sha256": "78e0b019525e1c54bdc922a16a86d0dea85367edcb7e31488d63f56967805766",
   "signingCertificateSha256": "62cbdb9832aa007b14daf1b97a703ac9c153825f9fe6b560693d1853d176af09",
   "releaseNotes": [
-    "Updated the APK to 0.1.6 with manual sign in for Agency staff"
+    "Updated the Agency staff with start and end time"
   ]
 }
