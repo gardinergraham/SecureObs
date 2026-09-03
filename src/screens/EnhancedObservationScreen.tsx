@@ -13,6 +13,7 @@ import type {
   Ward
 } from "../types/domain";
 import { wardObservationLocations } from "../utils/observationLocations";
+import { getObservationLateness, missedObservationReasonMinutes } from "../utils/observationGrace";
 const presentations: PatientPresentation[] = ["Awake", "Asleep"];
 const missedObservationReasons = ["Attending another incident", "Staff shortage", "Clinical emergency", "Other"];
 
@@ -81,9 +82,10 @@ export function EnhancedObservationScreen({
           new Date(missedObservation.dueAt).getTime() === new Date(selectedTesoDueAt).getTime()
       )
   );
+  const selectedTesoLateness = getObservationLateness(selectedTesoDueAt, now);
   const tesoGeneralObservationOverdue =
     selectedPatient?.observationLevel === "General observation" &&
-    selectedTesoTiming?.status === "overdue" &&
+    selectedTesoLateness.reasonRequired &&
     !selectedTesoMissedObservationValidated;
   const selectedTesoMissedObservations = missedObservations
     .filter(
@@ -175,7 +177,12 @@ export function EnhancedObservationScreen({
       return;
     }
 
-    if (tesoGeneralObservationOverdue) {
+    const lateness = getObservationLateness(selectedTesoDueAt);
+    if (
+      selectedPatient.observationLevel === "General observation" &&
+      lateness.reasonRequired &&
+      !selectedTesoMissedObservationValidated
+    ) {
       Alert.alert(
         "Missed TESO observation needs recording",
         "Record the missed TESO observation reason before saving the new TESO general observation."
@@ -201,6 +208,30 @@ export function EnhancedObservationScreen({
     });
 
     onObservationSaved(observation);
+    if (
+      selectedPatient.observationLevel === "General observation" &&
+      selectedStaff &&
+      selectedTesoDueAt &&
+      lateness.recordLateCompletion &&
+      !lateness.reasonRequired &&
+      !selectedTesoMissedObservationValidated
+    ) {
+      onMissedObservationSaved({
+        id: `late-teso-observation-${Date.now()}`,
+        patientId: selectedPatient.id,
+        patientName: `${selectedPatient.firstName} ${selectedPatient.surname}`,
+        wardId: selectedPatient.wardId,
+        source: "Enhanced/TESO",
+        dueAt: selectedTesoDueAt,
+        recordedAt: observedAt,
+        allocatedStaffId: recordingStaff[0]?.id ?? selectedStaff.id,
+        allocatedStaffName: assignedNames || selectedStaff.name,
+        recordedByStaffId: selectedStaff.id,
+        recordedByName: selectedStaff.name,
+        reason: "Late completion within grace period",
+        details: `Completed ${lateness.lateMinutes} minute${lateness.lateMinutes === 1 ? "" : "s"} after the scheduled time. No staff explanation required.`
+      });
+    }
     setComments("");
     Alert.alert("Enhanced observation saved", `${selectedPatient.firstName} ${selectedPatient.surname} checked.`);
   };
@@ -444,7 +475,16 @@ export function EnhancedObservationScreen({
                 </Text>
               </TouchableOpacity>
 
-              {selectedPatient.observationLevel === "General observation" && selectedTesoTiming?.status === "overdue" ? (
+              {selectedPatient.observationLevel === "General observation" &&
+              selectedTesoLateness.recordLateCompletion &&
+              !selectedTesoLateness.reasonRequired ? (
+                <Text style={styles.validationNotice}>
+                  This check is within the {missedObservationReasonMinutes}-minute grace period. Its late completion
+                  will be recorded automatically; no reason is required.
+                </Text>
+              ) : null}
+
+              {selectedPatient.observationLevel === "General observation" && selectedTesoLateness.reasonRequired ? (
                 <View style={styles.missedPanel}>
                   <Text style={styles.missedTitle}>
                     {selectedTesoMissedObservationValidated
@@ -1083,6 +1123,17 @@ const styles = StyleSheet.create({
     color: "#ffffff",
     fontSize: 16,
     fontWeight: "900"
+  },
+  validationNotice: {
+    backgroundColor: "#fff8e8",
+    borderColor: "#e4b75f",
+    borderRadius: 6,
+    borderWidth: 1,
+    color: "#7b5a1a",
+    fontSize: 13,
+    fontWeight: "900",
+    marginTop: 12,
+    padding: 10
   },
   missedPanel: {
     backgroundColor: "#fff8e8",

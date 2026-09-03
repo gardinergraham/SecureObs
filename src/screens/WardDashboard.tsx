@@ -19,6 +19,7 @@ import type {
 import { wardObservationLocations } from "../utils/observationLocations";
 import { readNfcTextPayload } from "../utils/nfcReader";
 import { parsePatientTagPayload, type PatientTagType } from "../utils/patientIdentification";
+import { getObservationLateness, missedObservationReasonMinutes } from "../utils/observationGrace";
 
 const presentations: PatientPresentation[] = ["Awake", "Asleep"];
 const patientSortModes = ["Rooms", "Ending soonest", "On Enhanced observations"] as const;
@@ -169,8 +170,9 @@ export function WardDashboard({
           new Date(missedObservation.dueAt).getTime() === new Date(selectedPatientDueAt).getTime()
       )
   );
+  const selectedPatientLateness = getObservationLateness(selectedPatientDueAt, now);
   const mustValidateMissedObservation =
-    selectedPatientTiming?.status === "overdue" && !selectedPatientMissedObservationValidated;
+    selectedPatientLateness.reasonRequired && !selectedPatientMissedObservationValidated;
   const selectedPatientMissedObservations = missedObservations
     .filter(
       (missedObservation) =>
@@ -310,7 +312,8 @@ export function WardDashboard({
       return;
     }
 
-    if (mustValidateMissedObservation) {
+    const lateness = getObservationLateness(selectedPatientDueAt);
+    if (lateness.reasonRequired && !selectedPatientMissedObservationValidated) {
       Alert.alert(
         "Missed observation needs recording",
         "Record the missed observation reason before saving the new observation."
@@ -349,6 +352,30 @@ export function WardDashboard({
     });
 
     onObservationSaved(observation);
+    if (
+      selectedWard &&
+      selectedStaff &&
+      selectedPatientDueAt &&
+      lateness.recordLateCompletion &&
+      !lateness.reasonRequired &&
+      !selectedPatientMissedObservationValidated
+    ) {
+      onMissedObservationSaved({
+        id: `late-observation-${Date.now()}`,
+        patientId: selectedPatient.id,
+        patientName: `${selectedPatient.firstName} ${selectedPatient.surname}`,
+        wardId: selectedWard.id,
+        source: "General observations",
+        dueAt: selectedPatientDueAt,
+        recordedAt: observedAt,
+        allocatedStaffId: selectedStaff.id,
+        allocatedStaffName: selectedStaff.name,
+        recordedByStaffId: selectedStaff.id,
+        recordedByName: selectedStaff.name,
+        reason: "Late completion within grace period",
+        details: `Completed ${lateness.lateMinutes} minute${lateness.lateMinutes === 1 ? "" : "s"} after the scheduled time. No staff explanation required.`
+      });
+    }
     setNow(Date.now());
     Alert.alert("Observation saved", `${selectedPatient.firstName} ${selectedPatient.surname} checked.`);
     setComments("");
@@ -580,6 +607,13 @@ export function WardDashboard({
                   </Text>
                 ) : null}
 
+                {selectedPatientLateness.recordLateCompletion && !selectedPatientLateness.reasonRequired ? (
+                  <Text style={styles.validationNotice}>
+                    This check is within the {missedObservationReasonMinutes}-minute grace period. Its late completion
+                    will be recorded automatically; no reason is required.
+                  </Text>
+                ) : null}
+
                 <TouchableOpacity
                   accessibilityRole="button"
                   disabled={mustValidateMissedObservation}
@@ -591,7 +625,7 @@ export function WardDashboard({
                   </Text>
                 </TouchableOpacity>
 
-                {selectedPatientTiming?.status === "overdue" ? (
+                {selectedPatientLateness.reasonRequired ? (
                   <View style={styles.missedPanel}>
                     <Text style={styles.missedTitle}>
                       {selectedPatientMissedObservationValidated

@@ -23,7 +23,7 @@ const staffLookupSchema = z.object({
 const bankStaffPinLookupSchema = z.object({
   staffCode: z.string().min(1),
   loginPin: z.string().min(1),
-  organisationId: z.string().uuid()
+  organisationId: z.string().uuid().optional()
 });
 
 const staffPinLookupSchema = z.object({
@@ -453,34 +453,39 @@ router.post("/bank-pin-login", async (request, response, next) => {
     const parsed = bankStaffPinLookupSchema.safeParse(request.body);
 
     if (!parsed.success) {
-      response.status(400).json({ error: "Virtual NFC code, PIN and organisationId are required" });
+      response.status(400).json({ error: "Virtual NFC code and PIN are required" });
       return;
     }
 
     const staff = await dataProvider.staff.findActiveByCode(parsed.data.staffCode, parsed.data.organisationId);
-    const activeLock = await getActiveAccessLockout(parsed.data.organisationId, parsed.data.staffCode, "bank_pin_login");
+    const organisationId = staff?.organisationId ?? parsed.data.organisationId;
+    const activeLock = organisationId
+      ? await getActiveAccessLockout(organisationId, parsed.data.staffCode, "bank_pin_login")
+      : undefined;
     if (activeLock) {
-      await recordLockedAttempt(parsed.data.organisationId, parsed.data.staffCode, "bank_pin_login", activeLock);
+      await recordLockedAttempt(organisationId!, parsed.data.staffCode, "bank_pin_login", activeLock);
       response.status(423).json({ error: lockoutMessage(activeLock) });
       return;
     }
 
     if (!staff || staff.employmentType !== "bank" || !verifyPin(parsed.data.loginPin, staff)) {
-      await recordAccessFailure({
-        organisationId: parsed.data.organisationId,
-        staffCode: parsed.data.staffCode,
-        attemptType: "bank_pin_login",
-        reason: staff ? "invalid_pin_or_type" : "not_found",
-        staff
-      });
-      await recordAuditEvent({
-        organisationId: parsed.data.organisationId,
-        eventType: "staff.bank_pin_login",
-        entityType: "staff_member",
-        entityId: staff?.id ?? null,
-        outcome: "failure",
-        details: { staffCode: parsed.data.staffCode, reason: staff ? "invalid_pin_or_type" : "not_found" }
-      });
+      if (organisationId) {
+        await recordAccessFailure({
+          organisationId,
+          staffCode: parsed.data.staffCode,
+          attemptType: "bank_pin_login",
+          reason: staff ? "invalid_pin_or_type" : "not_found",
+          staff
+        });
+        await recordAuditEvent({
+          organisationId,
+          eventType: "staff.bank_pin_login",
+          entityType: "staff_member",
+          entityId: staff?.id ?? null,
+          outcome: "failure",
+          details: { staffCode: parsed.data.staffCode, reason: staff ? "invalid_pin_or_type" : "not_found" }
+        });
+      }
       response.status(401).json({ error: "Bank staff login was not accepted" });
       return;
     }
@@ -996,7 +1001,7 @@ function getLoginPinHashForStaffSave(staff: {
     return hashPin(trimmedPin);
   }
 
-  if (!staff.id && staff.employmentType === "permanent") {
+  if (!staff.id) {
     return hashPin(defaultFirstLoginPin);
   }
 

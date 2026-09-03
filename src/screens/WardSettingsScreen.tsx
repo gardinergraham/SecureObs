@@ -28,6 +28,7 @@ type WardSettingsScreenProps = {
   onUpdateWardInterval: (wardId: string, observationIntervalMinutes: number) => void;
   onUpdateWardRotaEnabled: (wardId: string, staffRotaEnabled: boolean) => void;
   onUpdateWardRotaSettings: (ward: Ward) => Promise<void>;
+  onOpenBankAgencyStaff: () => void;
   onOpenSecurityCheckSettings: () => void;
   onCreateStaff: (staff: StaffMember) => Promise<void>;
   onResetStaffPin: (staffId: string) => Promise<void>;
@@ -43,6 +44,7 @@ export function WardSettingsScreen({
   onUpdateWardInterval,
   onUpdateWardRotaEnabled,
   onUpdateWardRotaSettings,
+  onOpenBankAgencyStaff,
   onOpenSecurityCheckSettings,
   onCreateStaff,
   onResetStaffPin
@@ -405,10 +407,22 @@ export function WardSettingsScreen({
 
       <View style={styles.panel}>
         <View style={styles.staffSetupPanel}>
-          <Text style={styles.settingLabel}>Ward staff setup</Text>
-          <Text style={styles.meta}>
-            Search staff assigned to this site, then add or update ward access for {selectedWard?.name ?? "this ward"}.
-          </Text>
+          <View style={styles.staffSetupHeader}>
+            <View style={styles.staffSetupCopy}>
+              <Text style={styles.settingLabel}>Ward staff setup</Text>
+              <Text style={styles.meta}>
+                Search staff assigned to this site, then add or update ward access for {selectedWard?.name ?? "this ward"}.
+              </Text>
+            </View>
+            <TouchableOpacity
+              accessibilityRole="button"
+              disabled={!canEditWardSettings || !selectedWard}
+              onPress={onOpenBankAgencyStaff}
+              style={[styles.temporaryStaffButton, (!canEditWardSettings || !selectedWard) && styles.disabledControl]}
+            >
+              <Text style={styles.temporaryStaffButtonText}>Temporary staff setup</Text>
+            </TouchableOpacity>
+          </View>
           <View style={styles.staffPickerHeader}>
             <TextInput placeholderTextColor="#6f7f87"
               autoCapitalize="none"
@@ -1117,6 +1131,17 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     padding: 12
   },
+  staffSetupHeader: { alignItems: "center", flexDirection: "row", flexWrap: "wrap", gap: 10, justifyContent: "space-between" },
+  staffSetupCopy: { flex: 1, minWidth: 260 },
+  temporaryStaffButton: {
+    alignItems: "center",
+    backgroundColor: "#1f5262",
+    borderRadius: 6,
+    justifyContent: "center",
+    minHeight: 42,
+    paddingHorizontal: 12
+  },
+  temporaryStaffButtonText: { color: "#ffffff", fontSize: 13, fontWeight: "900" },
   staffPickerHeader: { alignItems: "center", flexDirection: "row", gap: 8 },
   staffSearchInput: { flex: 1 },
   addNewButton: {

@@ -184,7 +184,7 @@ export async function lookupStaffByCode(staffCode: string, organisationId?: stri
   return { staff: result.staff };
 }
 
-export async function loginBankStaffByPin(staffCode: string, loginPin: string, organisationId: string) {
+export async function loginBankStaffByPin(staffCode: string, loginPin: string, organisationId?: string) {
   const result = await request<{ staff: StaffMember; session?: AuthSession }>("/api/staff/bank-pin-login", {
     method: "POST",
     body: JSON.stringify({ staffCode, loginPin, organisationId })

@@ -194,6 +194,7 @@ export default function App() {
   const mainScrollRef = useRef<ScrollView>(null);
   const [identificationPatientId, setIdentificationPatientId] = useState("");
   const [workspaceBackScreen, setWorkspaceBackScreen] = useState<"wardOverview" | "observations" | "complianceGovernance">("wardOverview");
+  const [bankAgencyBackScreen, setBankAgencyBackScreen] = useState<"staffRota" | "wardSettings">("staffRota");
   const [news2Readings, setNews2Readings] = useState<News2Reading[]>(() => createDemoNews2Readings(seedData.patients[0]?.id ?? ""));
   const [foodFluidEntries, setFoodFluidEntries] = useState<FoodFluidEntry[]>([]);
   const [observations, setObservations] = useState<Observation[]>(seedData.observations);
@@ -910,10 +911,19 @@ export default function App() {
   };
 
   const handleBankStaffPinLogin = async (staffCode: string, loginPin: string) => {
+    const matchingLocalStaff = staffMembers.filter(
+      (staff) =>
+        staff.employmentType === "bank" &&
+        staff.staffCode.toLowerCase() === staffCode.trim().toLowerCase()
+    );
+    const organisationHint =
+      matchingLocalStaff.length === 1
+        ? matchingLocalStaff[0]?.organisationId
+        : selectedStaff?.organisationId;
     const { staff } = await loginBankStaffByPin(
       staffCode,
       loginPin,
-      selectedStaff?.organisationId ?? defaultOrganisationId
+      organisationHint
     );
     setStaffMembers((currentStaff) => upsertStaffByCode(currentStaff, staff));
     selectStaffSession(staff);
@@ -1702,6 +1712,10 @@ export default function App() {
             onUpdateWardInterval={handleUpdateWardInterval}
             onUpdateWardRotaEnabled={handleUpdateWardRotaEnabled}
             onUpdateWardRotaSettings={handleUpdateWardRotaSettings}
+            onOpenBankAgencyStaff={() => {
+              setBankAgencyBackScreen("wardSettings");
+              setScreen("bankAgencyStaff");
+            }}
             onOpenSecurityCheckSettings={() => setScreen("securityCheckSettings")}
             onCreateStaff={handleCreateStaffMember}
             onResetStaffPin={handleResetStaffPin}
@@ -2101,7 +2115,10 @@ export default function App() {
             wards={siteWards}
             onBack={() => setScreen(workspaceBackScreen)}
             onCreateAssignment={handleCreateRotaAssignment}
-            onOpenBankAgencyStaff={() => setScreen("bankAgencyStaff")}
+            onOpenBankAgencyStaff={() => {
+              setBankAgencyBackScreen("staffRota");
+              setScreen("bankAgencyStaff");
+            }}
             onOpenStaffCover={() => setScreen("staffCover")}
             onRemoveAssignment={handleRemoveRotaAssignment}
             onUpdateAssignment={handleUpdateRotaAssignment}
@@ -2110,9 +2127,10 @@ export default function App() {
           <BankAgencyStaffScreen
             selectedStaffId={selectedStaffId}
             selectedWardId={selectedWardId}
+            organisationSettings={organisationSettings}
             staff={staffMembers}
             wards={siteWards}
-            onBack={() => setScreen("staffRota")}
+            onBack={() => setScreen(bankAgencyBackScreen)}
             onCreateStaff={handleCreateStaffMember}
           />
         ) : screen === "staffCover" ? (

@@ -2,12 +2,15 @@ import React, { useMemo, useState } from "react";
 import { Alert, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 
 import { SecureDateTimeField } from "../components/SecureDateTimeField";
-import type { StaffMember, Ward } from "../types/domain";
+import type { OrganisationSettings, StaffMember, Ward } from "../types/domain";
+import { buildStaffCardPayload } from "../utils/nfcStaffCard";
+import { writeNfcTextPayload } from "../utils/nfcWriter";
 import { hasStaffRole, normaliseStaffRole } from "../utils/staffRole";
 
 type BankAgencyStaffScreenProps = {
   selectedStaffId: string;
   selectedWardId: string;
+  organisationSettings: OrganisationSettings;
   staff: StaffMember[];
   wards: Ward[];
   onBack: () => void;
@@ -20,6 +23,7 @@ const virtualNfcCodes = Array.from({ length: 30 }, (_, index) => `TEMP-${String(
 export function BankAgencyStaffScreen({
   selectedStaffId,
   selectedWardId,
+  organisationSettings,
   staff,
   wards,
   onBack,
@@ -33,7 +37,7 @@ export function BankAgencyStaffScreen({
   const [virtualNfcCode, setVirtualNfcCode] = useState("");
   const [role, setRole] = useState<StaffMember["role"]>("nurse");
   const [designation, setDesignation] = useState("");
-  const [loginPin, setLoginPin] = useState("");
+  const [loginPin, setLoginPin] = useState("1111");
   const [startDate, setStartDate] = useState(() => formatInputDate(new Date()));
   const [startTime, setStartTime] = useState(() => formatInputTime(new Date()));
   const [endDate, setEndDate] = useState(() => formatInputDate(addHours(new Date(), 12)));
@@ -41,6 +45,7 @@ export function BankAgencyStaffScreen({
   const [allowedWardIds, setAllowedWardIds] = useState<string[]>(selectedWardId ? [selectedWardId] : []);
   const [search, setSearch] = useState("");
   const [isSaving, setIsSaving] = useState(false);
+  const [isWritingTag, setIsWritingTag] = useState(false);
   const bankStaff = useMemo(
     () =>
       staff
@@ -76,7 +81,7 @@ export function BankAgencyStaffScreen({
     setVirtualNfcCode("");
     setRole("nurse");
     setDesignation("");
-    setLoginPin("");
+    setLoginPin("1111");
     setStartDate(formatInputDate(new Date()));
     setStartTime(formatInputTime(new Date()));
     setEndDate(formatInputDate(addHours(new Date(), 12)));
@@ -131,14 +136,40 @@ export function BankAgencyStaffScreen({
     setVirtualNfcCode(availableCode);
   };
 
+  const writeStaffNfcTag = async (staffMember: StaffMember) => {
+    if (!canEdit || isWritingTag) return;
+    const payload = buildStaffCardPayload(staffMember.staffCode, organisationSettings.nfcStaffCodeFormat);
+    setIsWritingTag(true);
+    try {
+      await writeNfcTextPayload(payload);
+      Alert.alert(
+        "Temporary staff NFC tag written",
+        `${staffMember.name}'s tag now contains temporary STAFFCODE ${staffMember.staffCode}. Access will still only work during the saved date and time window.`
+      );
+    } catch (error) {
+      Alert.alert("NFC tag not written", error instanceof Error ? error.message : "Unable to write that NFC tag.");
+    } finally {
+      setIsWritingTag(false);
+    }
+  };
+
+  const writeSelectedStaffNfcTag = () => {
+    const staffMember = staff.find((member) => member.id === editingStaffId);
+    if (!staffMember) {
+      Alert.alert("Save temporary staff first", "Save or select the bank/agency staff member before writing their NFC card.");
+      return;
+    }
+    void writeStaffNfcTag(staffMember);
+  };
+
   const saveStaff = async () => {
     if (!selectedWard || !selectedStaff || !canEdit) return;
     if (!name.trim()) {
       Alert.alert("Staff details needed", "Enter the bank or agency staff name.");
       return;
     }
-    if (!editingStaffId && !loginPin.trim()) {
-      Alert.alert("PIN needed", "Enter a temporary login PIN.");
+    if (loginPin.trim() && !/^\d{4,6}$/.test(loginPin.trim())) {
+      Alert.alert("PIN invalid", "The temporary PIN must contain 4 to 6 digits.");
       return;
     }
     if (allowedWardIds.length === 0) {
@@ -205,7 +236,8 @@ export function BankAgencyStaffScreen({
       employmentType: "bank",
       accessStartsAt,
       accessExpiresAt,
-      loginPin: loginPin.trim() || undefined,
+      loginPin: loginPin.trim() || (!editingStaffId ? "1111" : undefined),
+      loginPinMustChange: !editingStaffId || Boolean(loginPin.trim()),
       wardId: primaryWard.id,
       allowedSiteIds,
       allowedWardIds,
@@ -216,7 +248,10 @@ export function BankAgencyStaffScreen({
     try {
       await onCreateStaff(nextStaff);
       clearDraft();
-      Alert.alert("Bank/agency staff saved", `${nextStaff.name} is assigned to virtual NFC code ${nextStaff.staffCode}.`);
+      Alert.alert("Bank/agency staff saved", `${nextStaff.name} is assigned to temporary STAFFCODE ${nextStaff.staffCode}.`, [
+        { text: "Later", style: "cancel" },
+        { text: "Write NFC card", onPress: () => void writeStaffNfcTag(nextStaff) }
+      ]);
     } finally {
       setIsSaving(false);
     }
@@ -288,6 +323,22 @@ export function BankAgencyStaffScreen({
           >
             <Text style={styles.codeAssignButtonText}>Assign next available virtual NFC code</Text>
           </TouchableOpacity>
+          <View style={styles.nfcWriterPanel}>
+            <View style={styles.nfcWriterCopy}>
+              <Text style={styles.nfcWriterTitle}>Temporary staff NFC card</Text>
+              <Text style={styles.nfcWriterMeta}>
+                Save or select the staff member, then write {buildStaffCardPayload(virtualNfcCode || "TEMP-01", organisationSettings.nfcStaffCodeFormat)} to a blank or reusable NFC card.
+              </Text>
+            </View>
+            <TouchableOpacity
+              accessibilityRole="button"
+              disabled={!canEdit || !editingStaffId || isWritingTag}
+              onPress={writeSelectedStaffNfcTag}
+              style={[styles.writeTagButton, (!canEdit || !editingStaffId || isWritingTag) && styles.disabledControl]}
+            >
+              <Text style={styles.writeTagButtonText}>{isWritingTag ? "Hold card…" : "Write NFC card"}</Text>
+            </TouchableOpacity>
+          </View>
           {codeConflict ? (
             <Text style={styles.warningText}>
               {virtualNfcCode.trim()} is already assigned to {codeConflict.name} for an overlapping access window.
@@ -338,10 +389,13 @@ export function BankAgencyStaffScreen({
             editable={canEdit}
             keyboardType="number-pad"
             onChangeText={setLoginPin}
-            placeholder="Temporary login PIN"
+            placeholder={editingStaffId ? "New PIN (leave blank to keep current PIN)" : "First-login PIN 1111"}
             style={styles.input}
             value={loginPin}
           />
+          <Text style={styles.helperText}>
+            New temporary staff start with PIN 1111 and must choose a personal PIN before opening the ward. Entering a PIN while editing resets it and requires another change.
+          </Text>
           <Text style={styles.label}>Access window</Text>
           <View style={styles.dateGrid}>
             <SecureDateTimeField dateFormat="uk" disabled={!canEdit} label="Start date" minimumDate={new Date()} mode="date" onChange={setStartDate} style={styles.dateInput} value={startDate} />
@@ -611,7 +665,32 @@ const styles = StyleSheet.create({
   },
   codeAssignButtonText: { color: "#1f5262", fontSize: 13, fontWeight: "900" },
   codeStatusText: { color: "#315748", fontSize: 13, fontWeight: "900" },
+  nfcWriterPanel: {
+    alignItems: "center",
+    backgroundColor: "#eef6f7",
+    borderColor: "#c5dde2",
+    borderRadius: 7,
+    borderWidth: 1,
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10,
+    justifyContent: "space-between",
+    padding: 10
+  },
+  nfcWriterCopy: { flex: 1, minWidth: 220 },
+  nfcWriterTitle: { color: "#1f5262", fontSize: 13, fontWeight: "900" },
+  nfcWriterMeta: { color: "#4f626a", fontSize: 11, fontWeight: "800", marginTop: 3 },
+  writeTagButton: {
+    alignItems: "center",
+    backgroundColor: "#1f5262",
+    borderRadius: 6,
+    justifyContent: "center",
+    minHeight: 38,
+    paddingHorizontal: 12
+  },
+  writeTagButtonText: { color: "#ffffff", fontSize: 13, fontWeight: "900" },
   label: { color: "#31454d", fontSize: 13, fontWeight: "900", marginTop: 4 },
+  helperText: { color: "#607078", fontSize: 11, fontWeight: "700", lineHeight: 16 },
   optionRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   optionButton: {
     alignItems: "center",
