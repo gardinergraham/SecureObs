@@ -1,14 +1,14 @@
 {
-  "version": "0.1.14",
-  "androidVersionCode": 13,
+  "version": "0.1.15",
+  "androidVersionCode": 14,
   "minimumSupportedVersion": "0.1.7",
-  "publishedAt": "2026-08-29",
+  "publishedAt": "2026-09-03",
   "size": "91.6 MB",
-  "downloadUrl": "https://ziydoaoxastnvilu.public.blob.vercel-storage.com/android/SecureObs-0.1.14.apk",
+  "downloadUrl": "https://ziydoaoxastnvilu.public.blob.vercel-storage.com/android/SecureObs-0.1.15.apk",
   "downloadPageUrl": "https://secure-obs.com/download",
-  "sha256": "0fb4a1b8f5ed5f590c3261d6866b4485bf11c418023d29fda9f3cdf5e387048d",
+  "sha256": "d72e624aacd5fea8d4bb8506630ae8b224c6fe21ce1b5c36c8c530d95f7024f0",
   "signingCertificateSha256": "62cbdb9832aa007b14daf1b97a703ac9c153825f9fe6b560693d1853d176af09",
   "releaseNotes": [
-    "Implemented the new five-minute observation grace policy for both:genobs and teso obs"
+    "Added the Agency staff setup function and NFC tag write"
   ]
 }
