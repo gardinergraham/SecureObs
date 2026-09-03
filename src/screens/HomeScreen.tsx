@@ -115,8 +115,16 @@ export function HomeScreen({
     const siteLabel = selectedSite?.name ?? "No site";
     const wardLabel = selectedWard?.name ?? "No ward";
 
-    return `${staffLabel} | ${siteLabel} | ${wardLabel}`;
+    return selectedStaff?.employmentType === "bank"
+      ? `${staffLabel} | Bank/temp | ${siteLabel} | Assigned ward: ${wardLabel}`
+      : `${staffLabel} | ${siteLabel} | ${wardLabel}`;
   }, [selectedSite, selectedStaff, selectedWard]);
+  const temporaryAccessWindow = useMemo(
+    () => selectedStaff?.employmentType === "bank"
+      ? formatTemporaryAccessWindow(selectedStaff.accessStartsAt, selectedStaff.accessExpiresAt)
+      : "",
+    [selectedStaff]
+  );
 
   const scanCard = async () => {
     setIsScanningStaffCard(true);
@@ -226,6 +234,7 @@ export function HomeScreen({
       <View style={styles.sessionStrip}>
         <Text style={styles.sessionLabel}>Current session</Text>
         <Text style={styles.sessionText}>{sessionMeta}</Text>
+        {temporaryAccessWindow ? <Text style={styles.temporaryAccessText}>{temporaryAccessWindow}</Text> : null}
       </View>
 
       <View style={styles.layout}>
@@ -594,6 +603,35 @@ function MenuTile({
   );
 }
 
+function formatTemporaryAccessWindow(startsAt?: string, expiresAt?: string) {
+  if (!startsAt || !expiresAt) return "Temporary access window not recorded";
+
+  const start = new Date(startsAt);
+  const end = new Date(expiresAt);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+    return "Temporary access window not recorded";
+  }
+
+  const dateFormatter = new Intl.DateTimeFormat("en-GB", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric"
+  });
+  const timeFormatter = new Intl.DateTimeFormat("en-GB", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false
+  });
+  const sameLocalDate =
+    start.getFullYear() === end.getFullYear() &&
+    start.getMonth() === end.getMonth() &&
+    start.getDate() === end.getDate();
+
+  return sameLocalDate
+    ? `Access allocation: ${dateFormatter.format(start)}, ${timeFormatter.format(start)}–${timeFormatter.format(end)}`
+    : `Access allocation: ${dateFormatter.format(start)}, ${timeFormatter.format(start)} – ${dateFormatter.format(end)}, ${timeFormatter.format(end)}`;
+}
+
 const styles = StyleSheet.create({
   screen: {
     alignSelf: "center",
@@ -655,6 +693,12 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: "900",
     marginTop: 4
+  },
+  temporaryAccessText: {
+    color: "#d8edf2",
+    fontSize: 12,
+    fontWeight: "900",
+    marginTop: 3
   },
   layout: {
     alignItems: "stretch",

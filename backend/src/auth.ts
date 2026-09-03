@@ -34,7 +34,13 @@ export type AuthenticatedRequest = Request & {
 
 export function createStaffSession(staff: StaffMemberRecord): AuthSession {
   const issuedAt = Date.now();
-  const expiresAt = issuedAt + config.sessionTtlMinutes * 60 * 1000;
+  const normalSessionExpiry = issuedAt + config.sessionTtlMinutes * 60 * 1000;
+  const temporaryAccessExpiry = staff.employmentType === "bank" && staff.accessExpiresAt
+    ? new Date(staff.accessExpiresAt).getTime()
+    : Number.POSITIVE_INFINITY;
+  const expiresAt = Number.isFinite(temporaryAccessExpiry)
+    ? Math.min(normalSessionExpiry, temporaryAccessExpiry)
+    : normalSessionExpiry;
   const payload: SessionPayload = {
     staffId: staff.id ?? "",
     staffCode: staff.staffCode,

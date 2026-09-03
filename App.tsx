@@ -685,6 +685,39 @@ export default function App() {
     setSelectedPatientId(firstPatient?.id ?? "");
   };
 
+  useEffect(() => {
+    if (selectedStaff?.employmentType !== "bank" || !selectedStaff.accessExpiresAt) {
+      return;
+    }
+
+    const expiresAt = new Date(selectedStaff.accessExpiresAt).getTime();
+    if (!Number.isFinite(expiresAt)) {
+      return;
+    }
+
+    let active = true;
+    let ending = false;
+    const endTemporaryAccess = async () => {
+      if (!active || ending || Date.now() < expiresAt) return;
+      ending = true;
+      await clearAuthSession();
+      if (!active) return;
+      selectStaffSession(undefined);
+      setScreen("home");
+      Alert.alert(
+        "Temporary access ended",
+        `${selectedStaff.name}'s bank/agency allocation ended at ${new Date(expiresAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}. Sign in with an authorised staff account to continue.`
+      );
+    };
+
+    void endTemporaryAccess();
+    const timer = setInterval(() => void endTemporaryAccess(), 5000);
+    return () => {
+      active = false;
+      clearInterval(timer);
+    };
+  }, [selectedStaff]);
+
   const persistActivityDeadline = useCallback(
     (now = Date.now(), force = false) => {
       if (!selectedStaffId) {
