@@ -1257,6 +1257,74 @@ pre {
   padding: 13px;
 }
 
+.security-resilience-section {
+  align-items: start;
+  background: linear-gradient(135deg, #f7fbfc, #e7f5f7);
+  display: grid;
+  gap: clamp(28px, 5vw, 64px);
+  grid-template-columns: minmax(0, 1fr) minmax(320px, 520px);
+}
+
+.security-resilience-copy > p {
+  max-width: 760px;
+}
+
+.security-proof-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin: 24px 0;
+}
+
+.security-proof-grid article {
+  background: #ffffff;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 18px;
+}
+
+.security-proof-grid h3 {
+  color: var(--navy);
+  font-size: 17px;
+  margin-bottom: 7px;
+}
+
+.security-proof-grid p,
+.security-assurance-note {
+  color: var(--muted);
+  font-size: 15px;
+  margin: 0;
+}
+
+.security-assurance-note {
+  margin-bottom: 20px;
+}
+
+.security-resilience-figure {
+  margin: 0;
+}
+
+.security-resilience-figure a {
+  display: block;
+}
+
+.security-resilience-figure img {
+  background: #ffffff;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  box-shadow: 0 18px 42px rgba(8, 45, 103, 0.14);
+  display: block;
+  height: auto;
+  width: 100%;
+}
+
+.security-resilience-figure figcaption {
+  color: var(--muted);
+  font-size: 13px;
+  margin-top: 10px;
+  text-align: center;
+}
+
 .deployment-points {
   display: flex;
   flex-wrap: wrap;
@@ -1553,6 +1621,7 @@ footer {
   .demo-form-section,
   .split-section,
   .secure-band,
+  .security-resilience-section,
   .settings-showcase,
   .screenshot-feature,
   .intelligence-grid,
@@ -1560,6 +1629,12 @@ footer {
   .training-hero,
   .training-split {
     grid-template-columns: 1fr;
+  }
+
+  .security-resilience-figure {
+    margin: 0 auto;
+    max-width: 560px;
+    width: 100%;
   }
 
   .hero {
@@ -1780,6 +1855,7 @@ footer {
   .screenshot-grid,
   .records-showcase,
   .hero-benefits,
+  .security-proof-grid,
   .training-grid,
   .training-grid.two,
   .training-route {

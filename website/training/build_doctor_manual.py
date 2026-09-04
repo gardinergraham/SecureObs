@@ -99,7 +99,7 @@ def add_cover(doc: Document) -> None:
     note.paragraph_format.space_before = Pt(18)
     note.paragraph_format.space_after = Pt(8)
     note.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    r = note.add_run("Version 1.0 • July 2026 • For doctors, prescribers and clinical reviewers")
+    r = note.add_run("Version 1.1 • September 2026 • For doctors, prescribers and clinical reviewers")
     set_run(r, size=9, color=MUTED, bold=True)
 
 
@@ -135,8 +135,8 @@ def build() -> None:
     add_step_blocks(
         doc,
         [
-            ("Sign in", "Use NFC staff card or STAFFCODE/PIN and confirm the correct site and ward."),
-            ("Select patient", "Choose the patient and confirm room and hospital number before reviewing or prescribing."),
+            ("Sign in", "Use NFC staff card or STAFFCODE/PIN and confirm the correct site and ward. If using temporary access, check the allocation end time and save work when the five-minute warning appears."),
+            ("Select patient", "Choose the patient and confirm name, date of birth, room and hospital or NHS number before reviewing or prescribing."),
             ("Review dashboard/timeline", "Look at latest observation location, presentation, NEWS2, food/fluid, incidents, tasks and progress trends."),
             ("Read notes and care plans", "Review recent notes and active care-plan goals before adding decisions or changing medication."),
             ("Check safety information", "Review active safety incidents or escalation items relevant to medical review."),
@@ -189,6 +189,7 @@ def build() -> None:
             ("Patient voice", "Consider what matters to the patient, patient preferences and any shared-care/family contribution that has been reviewed by staff."),
             ("Safety incidents", "Review relevant incidents, body map details, immediate action and resolution notes."),
             ("NEWS2 / physical health", "Use NEWS2 and observation history to support clinical assessment and escalation decisions."),
+            ("Desktop documentation", "The authorised SecureObs staff website can be used for longer patient notes and care-plan writing. Confirm the selected patient before saving."),
         ],
         header=("Record area", "Doctor review focus"),
     )
@@ -224,7 +225,7 @@ def build() -> None:
         [
             ("Cannot prescribe", "Check doctor role, Can prescribe permission and medication chart module status."),
             ("Patient not visible", "Confirm ward selection and ask manager/admin to review patient setup."),
-            ("Medication action not saving", "Check sync status and retry; alert nurse in charge if time-critical."),
+            ("Medication action not saving", "Check the named item and failure reason in sync status. Re-authenticate if requested, retry and confirm successful upload; alert the nurse in charge if time-critical."),
             ("Wrong patient selected", "Stop before saving. Return to the patient list and confirm identity."),
             ("Care-plan review unclear", "Check recent notes, patient voice, incidents and handover before documenting review outcome."),
         ],

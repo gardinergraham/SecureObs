@@ -204,7 +204,7 @@ def add_cover(doc: Document) -> None:
     note.paragraph_format.space_before = Pt(18)
     note.paragraph_format.space_after = Pt(8)
     note.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    r = note.add_run("Version 1.0 • July 2026 • For nurses, nurse in charge, ward staff and clinical trainers")
+    r = note.add_run("Version 1.1 • September 2026 • For nurses, nurse in charge, ward staff and clinical trainers")
     set_run(r, size=9, color=MUTED, bold=True)
 
 
@@ -337,7 +337,7 @@ def build() -> None:
     add_step_blocks(
         doc,
         [
-            ("Sign in", "Use NFC staff card or STAFFCODE/PIN. If prompted to change PIN, complete this before starting clinical work."),
+            ("Sign in", "Use NFC staff card or STAFFCODE/PIN. If prompted to change PIN, complete this before starting clinical work. Temporary staff should also check the allocation start and end time shown in the current session."),
             ("Check current session", "Confirm your name, site and ward are correct. Change staff or ward if the wrong context is showing."),
             ("Review ward overview", "Look at due/overdue observations, NEWS2 concerns, incidents, patient tasks, security checks and sync issues."),
             ("Check role allocation", "If rota is enabled, confirm nurse in charge, medication nurse and enhanced observation cover are correct."),
@@ -351,18 +351,19 @@ def build() -> None:
         doc,
         [
             ("Select patient", "Choose the patient from the list. Check room number and hospital number before saving."),
-            ("Current location", "Record where the patient was seen: side room, day room, corridor, dining room, bathroom, laundry, off ward or LOA."),
+            ("Current location", "Record where the patient was actually seen using the location labels configured for that ward."),
             ("Presentation", "Record whether the patient was awake or asleep."),
             ("Notes", "Add brief relevant context. Longer clinical narrative should go into Patient notes."),
             ("Save check", "Tap Save check. Confirm the patient row updates and the due time resets."),
-            ("If the check is overdue", "Choose the missed/overdue reason where prompted and add context if required."),
+            ("If the check is late", "A late check is recorded from the due time. During the first five minutes, save the completed check without a mandatory reason; after five minutes, choose the missed/overdue reason and add context."),
+            ("NFC or QR verification", "Where enabled, scan the room or personal tag and confirm that you directly observed the selected patient. If the scan identifies another patient, stop and correct the selection."),
         ],
         header=("Action", "Nurse guidance"),
     )
     add_callout(
         doc,
         "Observation timing",
-        "The due time is based on the ward observation interval or the patient’s enhanced observation plan. If the app shows a check as overdue, record the reason honestly and escalate according to local policy.",
+        "The due time is based on the ward observation interval or the patient's enhanced observation plan. A late record remains visible immediately; the five-minute grace period only delays the mandatory reason. Record the reason honestly once required and escalate according to local policy.",
         fill=WARN,
     )
 
@@ -377,6 +378,7 @@ def build() -> None:
             ("Patient notes", "Add longer clinical notes, filter by staff/date and export selected notes as PDF when authorised."),
             ("Care plans", "Create or review structured care plans with needs, risks, goals, interventions, patient preferences and review date."),
             ("Patient dashboard", "Review patient progress and visual summaries across clinical activity."),
+            ("Desktop notes and care plans", "Authorised staff can use the SecureObs staff website for longer notes and care-plan writing. Confirm the correct patient and ward before saving."),
         ],
         header=("Module", "How nurses use it"),
     )
@@ -420,9 +422,10 @@ def build() -> None:
     add_two_col_table(
         doc,
         [
-            ("Sync issues", "If the sync badge shows pending items, open it before leaving the tablet. Retry or review failed uploads according to local process."),
-            ("Offline use", "SecureObs can queue failed saves locally. Continue to check that items eventually upload once connection returns."),
+            ("Sync issues", "Open the sync status to see which record is waiting and the human-readable failure reason. Do not assume a queued record has reached the server."),
+            ("Offline use", "Supported records can queue locally. When connectivity returns, sign in with an authorised staff session, retry and confirm SecureObs reports successful synchronisation."),
             ("Session lock", "If the tablet is unused, it locks after the ward timeout. Activity resets the countdown."),
+            ("Temporary session ending", "Five minutes before a temporary allocation expires, save notes and unfinished work. SecureObs signs the worker out at the saved end time."),
             ("Wrong patient selected", "Stop before saving, reselect the correct patient and confirm room/hospital number."),
             ("Shared tablet", "Sign out or let the session lock before handing the tablet to another staff member."),
             ("Clinical disagreement", "Record facts and escalate to nurse in charge rather than editing around a concern."),
@@ -438,6 +441,7 @@ def build() -> None:
             "Check ward overview for overdue checks, active incidents, tasks and sync issues.",
             "Record each observation against the correct patient.",
             "Use missed/overdue reasons when required.",
+            "Where verification is enabled, scan the correct NFC/QR tag and confirm direct visual observation.",
             "Complete NEWS2, food/fluid, enhanced observations or medication records where needed.",
             "Record safety incidents and patient tasks promptly.",
             "Add patient notes or care-plan updates when clinical context is needed.",
@@ -446,6 +450,7 @@ def build() -> None:
         ]
     )
 
+    doc.add_page_break()
     doc.add_heading("9. Troubleshooting", level=1)
     add_two_col_table(
         doc,
@@ -453,6 +458,7 @@ def build() -> None:
             ("Patient not visible", "Check ward selection and patient list. Ask manager/admin to check patient setup if still missing."),
             ("Feature missing", "The ward module may be switched off. Ask a manager to check Ward settings."),
             ("Observation saved but sync issue appears", "Open sync status, retry when online, or escalate if it needs review."),
+            ("Upload requests sign-in", "Sign in again with an authorised NFC card or STAFFCODE/PIN, retry the named item and confirm that it leaves the queue."),
             ("Cannot access medication", "Check role permissions and whether Medication chart is enabled for the ward."),
             ("Handover looks incomplete", "Check that observations and related records were saved during the shift; add staff notes for context."),
             ("Locked out", "Sign in again with NFC or STAFFCODE/PIN. If locked after failed attempts, ask nurse in charge/manager to unlock access."),

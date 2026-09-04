@@ -164,13 +164,13 @@ def faq_pdf():
     left += qa("Could a queued record be lost with the tablet?", "A record waiting only on one tablet depends on that device until it synchronises. Tablets should be protected, charged, checked for outstanding items and synchronised promptly after connectivity returns.")
     right = []
     right += qa("What happens during a longer outage?", "Staff follow the provider's local business-continuity procedure while SecureObs service recovery is managed. Once service returns, outstanding records are reviewed and synchronised.")
-    right += qa("Does offline working replace backups?", "No. Offline continuity and database disaster recovery solve different problems. Production needs scheduled database backups, recovery procedures and tested restoration arrangements.")
+    right += qa("Does offline working replace backups?", "No. Offline continuity and database disaster recovery solve different problems. The production PostgreSQL service is configured for a full backup every 24 hours, retained for six days, together with continuous write-based point-in-time recovery. Restore procedures should still be tested and documented regularly.")
     story.append(section("OFFLINE CONTINUITY - IMPORTANT LIMITS", two_col(left, right)))
 
     evidence_rows = [
         [P("Product evidence", "q"), P("Operational evidence", "q"), P("Customer assurance", "q")],
         [P("Role and permission matrix<br/>Authentication and session controls<br/>Audit-event design<br/>Signed Android release hashes"),
-         P("Backup schedules<br/>Documented restore tests<br/>Monitoring and incident records<br/>Vulnerability remediation"),
+         P("24-hour full-backup schedule<br/>Six-day backup retention<br/>Point-in-time recovery<br/>Documented restore tests"),
          P("Data Processing Agreement<br/>Subprocessor list<br/>Retention and deletion terms<br/>Business-continuity responsibilities")]
     ]
     evidence = Table(evidence_rows, colWidths=[60*mm]*3)
@@ -258,7 +258,7 @@ def poster_pdf():
         (("3", "ACCOUNTABILITY"), "Time-stamped records\nNamed staff attribution\nAudit events and record context\nControlled administrative actions"),
         (("4", "OFFLINE CONTINUITY"), "Supported records queue locally\nWaiting items remain visible\nHuman-readable sync status\nAuthorised re-login before upload"),
         (("5", "SESSION CONTROL"), "Configurable inactivity lock\nCryptographically signed sessions\nActive-account checks\nAgency access ends with allocation"),
-        (("6", "RECOVERY & GOVERNANCE"), "Backups and restore testing\nIncident and continuity procedures\nDPA and subprocessor review\nCustomer security assessment"),
+        (("6", "RECOVERY & GOVERNANCE"), "Daily full database backup\nSix-day retention and point-in-time recovery\nIncident and continuity procedures\nCustomer security assessment"),
     ]
     for (x, y), (title, body) in zip(positions, nodes):
         bx = x + box_w/2

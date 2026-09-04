@@ -175,7 +175,7 @@ def add_cover(doc: Document) -> None:
     lead = left.add_paragraph()
     lead.paragraph_format.space_after = Pt(15)
     r = lead.add_run(
-        "A practical manager route manual for signing in, creating permanent staff records, writing NFC staff tags and configuring ward modules safely."
+        "A practical manager route manual for staff access, temporary allocations, NFC tags, patient management and safe ward configuration."
     )
     set_run(r, size=11, color=MUTED, bold=True)
 
@@ -208,7 +208,7 @@ def add_cover(doc: Document) -> None:
     note.paragraph_format.space_before = Pt(18)
     note.paragraph_format.space_after = Pt(8)
     note.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    r = note.add_run("Version 1.0 • July 2026 • For SecureObs managers, ward managers and system administrators")
+    r = note.add_run("Version 1.1 • September 2026 • For SecureObs managers, ward managers and system administrators")
     set_run(r, size=9, color=MUTED, bold=True)
 
 
@@ -329,7 +329,7 @@ def build() -> None:
     add_callout(
         doc,
         "Manager route purpose",
-        "The manager route is used to control access, staff records, ward module switches and the operational settings that shape what staff can see and do on a ward tablet.",
+        "The manager route is used to control permanent and temporary staff access, patient administration, ward module switches and the operational settings that shape what staff can see and do on a ward tablet.",
     )
     add_two_col_table(
         doc,
@@ -405,8 +405,8 @@ def build() -> None:
     doc.add_heading("5. Writing NFC staff tags", level=1)
     add_callout(
         doc,
-        "Permanent staff only",
-        "NFC staff tags are intended for permanent staff records. Save the staff member first, then use Write NFC tag from the confirmation prompt or the NFC staff tag panel.",
+        "Permanent staff cards",
+        "For permanent staff, save the staff member first, then use Write NFC tag from the confirmation prompt or the NFC staff tag panel. Temporary staff cards use the separate Temporary staff setup route described next.",
     )
     add_step_blocks(
         doc,
@@ -418,7 +418,26 @@ def build() -> None:
         ],
     )
 
-    doc.add_heading("6. Ward settings map", level=1)
+    doc.add_heading("6. Temporary bank and agency staff", level=1)
+    add_step_blocks(
+        doc,
+        [
+            ("Open Temporary staff setup", "Use the dedicated manager route rather than creating a temporary worker as permanent staff."),
+            ("Record the real staff identity", "Enter the worker's name, designation and an available TEMP STAFFCODE. Never share one temporary record between workers."),
+            ("Set the access window", "Choose the exact start and end date and time. Access works only during that saved allocation."),
+            ("Save before writing NFC", "Save the temporary record, then write and test the reusable NFC card. The card identifies the staff record but does not extend its access window."),
+            ("First sign-in", "Temporary staff begin with PIN 1111 and must choose a personal 4 to 6 digit PIN before opening ward screens."),
+            ("Expiry warning", "Five minutes before the allocation ends, SecureObs warns the worker to save notes or unfinished work. The session signs out automatically at the saved end time."),
+        ],
+    )
+    add_callout(
+        doc,
+        "Temporary access control",
+        "Extending a shift requires an authorised manager to update the saved allocation. Do not bypass expiry by creating duplicate workers or sharing another person's login.",
+        fill="FFF4D6",
+    )
+
+    doc.add_heading("7. Ward settings map", level=1)
     add_two_col_table(
         doc,
         [
@@ -430,6 +449,8 @@ def build() -> None:
             ("Medication chart", "Enables medication due prompts, prescribing and administration recording where roles permit."),
             ("Assessment forms", "Enables care-home style forms, signatures and printable assessments."),
             ("Food and fluid chart", "Enables meal, snack and drink intake monitoring."),
+            ("Observation locations", "Add, remove or restore location labels that match local language, for example Bedroom instead of Side room. Keep at least one location."),
+            ("Verified observations", "When included in the organisation package, enables optional NFC or QR room and personal identification verification."),
             ("Intermittent observation interval", "Sets the default routine observation frequency. Quick buttons are 15, 30 and 60 minutes, with -5/+5 controls."),
             ("Staff session timeout", "Controls the lock countdown after inactivity. The countdown starts after 2 minutes without touch or typing."),
             ("Staff rota", "Shows or hides the staff rota page for that ward."),
@@ -438,13 +459,28 @@ def build() -> None:
     )
 
     add_page_break(doc)
-    doc.add_heading("7. Recommended manager workflow", level=1)
+    doc.add_heading("8. Patient management and identification", level=1)
+    add_two_col_table(
+        doc,
+        [
+            ("Patient identity", "Record name, hospital or NHS number, room, date of birth and relevant next-of-kin contact details accurately."),
+            ("Transfer", "Choose the destination ward, record a reason and check the confirmation prompt before transferring. Transfer access is restricted to authorised roles."),
+            ("Archive", "Record a reason and confirm before archiving. Archived patients remain available to authorised managers and can be restored if they return."),
+            ("Room tag", "Create an NFC or printable QR location tag. It verifies the room, but staff must still visually observe the patient."),
+            ("Personal badge", "With consent or a recorded best-interests decision, create an optional patient NFC/QR badge and printable ID card."),
+            ("Tag privacy", "Tags contain only a random SecureObs identifier. Names, dates of birth and hospital numbers are not written into NFC or QR payloads."),
+        ],
+        header=("Area", "Manager guidance"),
+    )
+
+    doc.add_heading("9. Recommended manager workflow", level=1)
     add_bullets(
         doc,
         [
             "Start with organisation setup: add the logo, confirm NFC format, create sites and create wards.",
             "Create or update manager accounts before wider staff onboarding.",
             "Add permanent staff records, assign ward access and set active status.",
+            "Create bank and agency workers in Temporary staff setup with an exact access window.",
             "Write and test NFC tags while the staff member is present.",
             "Turn on only the modules the ward is ready to use.",
             "Set observation interval and session timeout according to local policy.",
@@ -453,12 +489,14 @@ def build() -> None:
         ]
     )
 
-    doc.add_heading("8. Safety checks before go-live", level=1)
+    doc.add_heading("10. Safety checks before go-live", level=1)
     checklist = [
         ("Sites and wards", "Every live ward exists under the correct site."),
         ("Manager access", "At least two appropriate managers or admins can access settings."),
         ("Staff access", "Permanent staff have correct roles, ward access and active status."),
         ("NFC tags", "Tags are written, tested and labelled according to local process."),
+        ("Temporary access", "Bank and agency records have individual identities, correct wards and exact start/end times."),
+        ("Patient administration", "Transfer, archive, restore and identification-tag responsibilities are assigned to authorised roles."),
         ("Session timeout", "Timeout is agreed locally. Minimum effective lock is 2 minutes grace plus the selected timeout."),
         ("Modules", "Only approved modules are enabled for the ward."),
         ("Rota", "Rota is enabled only if staff are expected to use it."),
@@ -466,7 +504,7 @@ def build() -> None:
     ]
     add_two_col_table(doc, checklist, header=("Check", "What good looks like"))
 
-    doc.add_heading("9. Troubleshooting", level=1)
+    doc.add_heading("11. Troubleshooting", level=1)
     add_two_col_table(
         doc,
         [
@@ -475,6 +513,8 @@ def build() -> None:
             ("Manager cannot edit settings", "Confirm the signed-in staff member has manager or admin access and has completed any required PIN change."),
             ("Rota save does not appear", "Check the staff member has manager/nurse/super admin access and that the tablet sync queue is clear."),
             ("Feature is missing", "Open Ward settings and confirm the module is switched on for that ward."),
+            ("Temporary worker signed out", "Check the saved allocation end time. Extend it only if the worker remains authorised and the manager has confirmed the new end time."),
+            ("Patient tag does not verify", "Confirm Verified observations is included, the correct patient or room tag is active, and the tablet has NFC or camera permission."),
             ("App locks after inactivity", "This is expected. Any touch or typing resets the countdown. The minimum effective timeout is currently 17 minutes."),
         ],
         header=("Issue", "Manager action"),

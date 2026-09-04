@@ -243,6 +243,7 @@ export default function App() {
   const inactivityCountdownStartedAtRef = useRef<number | null>(null);
   const lastActivityDeadlinePersistedAtRef = useRef(0);
   const keyboardActiveRef = useRef(false);
+  const temporaryAccessWarningKeyRef = useRef("");
   const [syncQueueState, setSyncQueueState] = useState<SyncQueueState>({
     pendingCount: 0,
     isReady: false,
@@ -686,6 +687,10 @@ export default function App() {
   };
 
   useEffect(() => {
+    temporaryAccessWarningKeyRef.current = "";
+  }, [selectedStaffId]);
+
+  useEffect(() => {
     if (selectedStaff?.employmentType !== "bank" || !selectedStaff.accessExpiresAt) {
       return;
     }
@@ -697,8 +702,26 @@ export default function App() {
 
     let active = true;
     let ending = false;
+    const warningKey = `${selectedStaff.id}:${expiresAt}`;
+    const warnBeforeMs = 5 * 60 * 1000;
     const endTemporaryAccess = async () => {
-      if (!active || ending || Date.now() < expiresAt) return;
+      if (!active || ending) return;
+
+      const now = Date.now();
+      if (
+        now >= expiresAt - warnBeforeMs &&
+        now < expiresAt &&
+        temporaryAccessWarningKeyRef.current !== warningKey
+      ) {
+        temporaryAccessWarningKeyRef.current = warningKey;
+        Alert.alert(
+          "Temporary access ending soon",
+          `You will be logged out at ${new Date(expiresAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}. Please save any notes or work now, as unsaved changes may be lost.`,
+          [{ text: "OK" }]
+        );
+      }
+
+      if (now < expiresAt) return;
       ending = true;
       await clearAuthSession();
       if (!active) return;

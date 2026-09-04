@@ -101,7 +101,7 @@ def add_cover(doc: Document) -> None:
     note.paragraph_format.space_before = Pt(18)
     note.paragraph_format.space_after = Pt(8)
     note.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    r = note.add_run("Version 1.0 • July 2026 • For HCF, support workers, security staff and ward trainers")
+    r = note.add_run("Version 1.1 • September 2026 • For HCF, support workers, security staff and ward trainers")
     set_run(r, size=9, color=MUTED, bold=True)
 
 
@@ -137,7 +137,7 @@ def build() -> None:
     add_step_blocks(
         doc,
         [
-            ("Sign in", "Use NFC staff card or STAFFCODE/PIN. If access fails, ask the nurse in charge or manager to check your record."),
+            ("Sign in", "Use NFC staff card or STAFFCODE/PIN. Temporary staff should check the allocation start and end time shown in the current session. If access fails, ask the nurse in charge or manager to check the record."),
             ("Confirm context", "Check the selected site, ward and staff name before recording anything."),
             ("Review ward overview", "Look for overdue checks, active incidents, patient tasks and sync issues."),
             ("Know your allocation", "Confirm which patients, observation levels, security checks or tasks you are responsible for."),
@@ -150,11 +150,12 @@ def build() -> None:
         doc,
         [
             ("Patient identity", "Check name, room and hospital number before saving any record."),
-            ("Location", "Record where the patient is actually seen: side room, day room, corridor, dining room, bathroom, laundry, off ward or LOA."),
+            ("Location", "Record where the patient is actually seen using the location labels configured for that ward."),
             ("Presentation", "Record awake or asleep accurately."),
             ("Notes", "Keep notes brief and factual. Escalate clinical concerns instead of writing long clinical interpretation."),
             ("Enhanced observations", "If assigned, record location/presentation and follow the plan of care and observation level exactly."),
-            ("Missed/overdue checks", "Record the real reason and inform the nurse in charge if checks are repeatedly late or unsafe."),
+            ("Late checks", "The record becomes late at the due time. During the first five minutes a reason is not mandatory; after five minutes, record the real reason and inform the nurse in charge if checks are repeatedly late or unsafe."),
+            ("NFC or QR verification", "Where enabled, scan the correct room or personal tag and confirm direct visual observation. A room tag does not prove the patient was present."),
         ],
         header=("Action", "Support staff guidance"),
     )
@@ -212,6 +213,7 @@ def build() -> None:
         [
             ("Before leaving", "Check that assigned observations, security checks and tasks are completed or handed over."),
             ("Sync badge", "If pending items remain, tell the nurse in charge and follow local sync process."),
+            ("Temporary access warning", "At the five-minute expiry warning, save unfinished work and prepare to hand over. The session ends at the allocation end time."),
             ("Handover notes", "Give factual verbal handover for anything that needs immediate awareness."),
             ("Active incidents", "Do not leave active safety concerns without clear ownership."),
         ],
@@ -225,7 +227,7 @@ def build() -> None:
             ("Cannot sign in", "Check STAFFCODE/PIN or NFC tag. Ask nurse in charge/manager to confirm active status and ward access."),
             ("Security area missing", "The ward may not have the check configured or enabled. Escalate to manager/security lead."),
             ("Patient missing", "Confirm selected ward and ask nursing staff to check patient setup."),
-            ("Sync issue appears", "Open sync status if trained to do so, otherwise tell nurse in charge before leaving the tablet."),
+            ("Sync issue appears", "If trained, open sync status, read the waiting item and retry after authorised sign-in. Otherwise tell the nurse in charge."),
             ("Unsure if clinical", "Stop and escalate. Do not record clinical interpretation beyond your role."),
         ],
         header=("Issue", "What to do"),
