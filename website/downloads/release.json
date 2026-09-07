@@ -1,14 +1,14 @@
 {
-  "version": "0.1.22",
-  "androidVersionCode": 21,
+  "version": "0.1.24",
+  "androidVersionCode": 23,
   "minimumSupportedVersion": "0.1.7",
   "publishedAt": "2026-09-07",
   "size": "91.7 MB",
-  "downloadUrl": "https://ziydoaoxastnvilu.public.blob.vercel-storage.com/android/SecureObs-0.1.22.apk",
+  "downloadUrl": "https://ziydoaoxastnvilu.public.blob.vercel-storage.com/android/SecureObs-0.1.24.apk",
   "downloadPageUrl": "https://secure-obs.com/download",
-  "sha256": "e96134327376e5a5b8f222144897956b96cd8b500ab9a1b7db2df74c17a669f2",
+  "sha256": "08f23bf0d0c5d64bb43b2279ead00ee77eac54ad080e98e9f21ad67ec1be9f4e",
   "signingCertificateSha256": "62cbdb9832aa007b14daf1b97a703ac9c153825f9fe6b560693d1853d176af09",
   "releaseNotes": [
-    "Updated package prices and connected it to stripe"
+    "Set a reset function and remove function for managers"
   ]
 }

@@ -48,6 +48,7 @@ type AdminSettingsScreenProps = {
   organisationSettings: OrganisationSettings;
   sites: Site[];
   staff: StaffMember[];
+  currentStaff?: StaffMember;
   wards: Ward[];
   onBack: () => void;
   onCreateCustomerOrganisation: (name: string) => Promise<void>;
@@ -56,6 +57,7 @@ type AdminSettingsScreenProps = {
   onOpenAuditLog: () => void;
   onCreateSite: (site: Site) => Promise<void>;
   onCreateStaff: (staff: StaffMember) => Promise<void>;
+  onResetStaffPin: (staffId: string, organisationId?: string) => Promise<void>;
   onCreateWard: (ward: Ward) => Promise<void>;
   onDeleteDemoWard: (ward: Ward) => Promise<{
     deletedWardId: string;
@@ -72,6 +74,7 @@ export function AdminSettingsScreen({
   organisationSettings,
   sites,
   staff,
+  currentStaff,
   wards,
   onBack,
   onCreateCustomerOrganisation,
@@ -80,6 +83,7 @@ export function AdminSettingsScreen({
   onOpenAuditLog,
   onCreateSite,
   onCreateStaff,
+  onResetStaffPin,
   onCreateWard,
   onDeleteDemoWard,
   onUpdateOrganisationSettings
@@ -103,6 +107,7 @@ export function AdminSettingsScreen({
   const [nfcStaffCodeFormat, setNfcStaffCodeFormat] = useState(organisationSettings.nfcStaffCodeFormat);
   const [logoDataUri, setLogoDataUri] = useState(organisationSettings.logoDataUri ?? null);
   const [isSaving, setIsSaving] = useState(false);
+  const [resettingPinId, setResettingPinId] = useState("");
   const [isWritingManagerTag, setIsWritingManagerTag] = useState(false);
   const [billingRows, setBillingRows] = useState<BillingReportRow[]>([]);
   const [billingCatalogue, setBillingCatalogue] = useState<BillingCatalogueSummary | null>(null);
@@ -128,12 +133,42 @@ export function AdminSettingsScreen({
     [selectedSiteId, wards]
   );
   const selectedWardManagers = staff.filter(
-    (member) => (member.wardRoles?.[managedWardId] ?? member.role) === "manager" && (member.wardId === managedWardId || member.allowedWardIds.includes(managedWardId))
+    (member) => member.active !== false && (member.wardRoles?.[managedWardId] ?? member.role) === "manager" && (member.wardId === managedWardId || member.allowedWardIds.includes(managedWardId))
   );
   const managedWard = wards.find((ward) => ward.id === managedWardId);
   const managedWardSite = sites.find((site) => site.id === managedWard?.siteId);
   const canAddSite = effectiveSiteLimit === null || sites.length < effectiveSiteLimit;
   const canAddWard = Boolean(selectedSiteId) && (effectiveWardLimit === null || selectedSiteWards.length < effectiveWardLimit);
+  const managers = staff
+    .filter((member) => member.active !== false && (
+      member.role === "manager" || Object.values(member.wardRoles ?? {}).includes("manager")
+    ))
+    .sort((left, right) => left.name.localeCompare(right.name));
+
+  const confirmPinReset = (staffMember: StaffMember) => {
+    Alert.alert(
+      `Reset ${staffMember.name}'s PIN?`,
+      `${staffMember.name} will sign in with temporary PIN 1111, then must choose a new PIN before using SecureObs.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Reset to 1111",
+          style: "destructive",
+          onPress: async () => {
+            setResettingPinId(staffMember.id);
+            try {
+              await onResetStaffPin(staffMember.id, staffMember.organisationId);
+              Alert.alert("PIN reset", `${staffMember.name} can now sign in with temporary PIN 1111.`);
+            } catch (error) {
+              Alert.alert("PIN not reset", error instanceof Error ? error.message : "The PIN could not be reset.");
+            } finally {
+              setResettingPinId("");
+            }
+          }
+        }
+      ]
+    );
+  };
 
   const confirmDeleteDemoWard = () => {
     if (!managedWard || !managedWard.name.toLowerCase().includes("demo")) return;
@@ -547,6 +582,89 @@ export function AdminSettingsScreen({
     finally { setIsSaving(false); }
   };
 
+  const removeManagerFromWard = (manager: StaffMember) => {
+    if (!managedWard) return;
+    const remainingWardIds = manager.allowedWardIds.filter((wardId) => wardId !== managedWard.id);
+    const leavingCompany = remainingWardIds.length === 0;
+    Alert.alert(
+      leavingCompany ? "Deactivate manager account?" : "Remove manager from this ward?",
+      leavingCompany
+        ? `${manager.name} has no other ward assignments. Their account will be made inactive, removed from active ward lists and blocked from signing in.`
+        : `${manager.name} will lose access to ${managedWard.name}. Their roles and access on other wards will stay unchanged.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: leavingCompany ? "Deactivate account" : "Remove from ward",
+          style: "destructive",
+          onPress: async () => {
+            const remainingWardRoles = { ...(manager.wardRoles ?? {}) };
+            delete remainingWardRoles[managedWard.id];
+            const remainingWards = wards.filter((ward) => remainingWardIds.includes(ward.id));
+            const updatedManager: StaffMember = leavingCompany ? {
+              ...manager,
+              active: false
+            } : {
+              ...manager,
+              wardId: remainingWardIds.includes(manager.wardId) ? manager.wardId : remainingWardIds[0]!,
+              allowedWardIds: remainingWardIds,
+              allowedSiteIds: Array.from(new Set(remainingWards.map((ward) => ward.siteId))),
+              wardRoles: remainingWardRoles
+            };
+            setIsSaving(true);
+            try {
+              await onCreateStaff(updatedManager);
+              setEditingManagerId("");
+              setManagerName("");
+              setManagerStaffCode("");
+              setManagerSaveMessage(leavingCompany
+                ? `${manager.name}'s account is inactive and they can no longer sign in.`
+                : `${manager.name} has been removed from ${managedWard.name}. Their other ward roles are unchanged.`);
+              Alert.alert(
+                leavingCompany ? "Account deactivated" : "Manager removed",
+                leavingCompany
+                  ? `${manager.name} can no longer sign in to SecureObs.`
+                  : `${manager.name} no longer has access to ${managedWard.name}.`
+              );
+            } catch (error) {
+              Alert.alert("Manager not removed", error instanceof Error ? error.message : "The manager could not be removed.");
+            } finally {
+              setIsSaving(false);
+            }
+          }
+        }
+      ]
+    );
+  };
+
+  const deactivateManagerAccount = (manager: StaffMember) => {
+    Alert.alert(
+      "Deactivate manager account?",
+      `${manager.name} will be removed from active ward lists and will no longer be able to sign in to SecureObs.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Deactivate account",
+          style: "destructive",
+          onPress: async () => {
+            setIsSaving(true);
+            try {
+              await onCreateStaff({ ...manager, active: false });
+              setEditingManagerId("");
+              setManagerName("");
+              setManagerStaffCode("");
+              setManagerSaveMessage(`${manager.name}'s account is inactive and they can no longer sign in.`);
+              Alert.alert("Account deactivated", `${manager.name} can no longer sign in to SecureObs.`);
+            } catch (error) {
+              Alert.alert("Account not deactivated", error instanceof Error ? error.message : "The manager account could not be deactivated.");
+            } finally {
+              setIsSaving(false);
+            }
+          }
+        }
+      ]
+    );
+  };
+
   const saveOrganisationSettings = async () => {
     const trimmedFormat = nfcStaffCodeFormat.trim();
     if (!trimmedFormat.includes("{STAFFCODE}")) {
@@ -590,6 +708,45 @@ export function AdminSettingsScreen({
         </View>
         <Text style={styles.auditButtonArrow}>Open</Text>
       </TouchableOpacity>
+
+      <View style={styles.panel}>
+        <Text style={styles.panelTitle}>PIN reset</Text>
+        <Text style={styles.meta}>Reset your SecureObs admin PIN or a manager PIN when NFC sign-in is unavailable. Every reset is recorded in the audit log.</Text>
+        {currentStaff?.role === "super_admin" ? (
+          <View style={styles.pinResetRow}>
+            <View style={styles.pinResetIdentity}>
+              <Text style={styles.listTitle}>{currentStaff.name} · {currentStaff.staffCode}</Text>
+              <Text style={styles.listMeta}>Your SecureObs super-admin account</Text>
+            </View>
+            <TouchableOpacity
+              accessibilityRole="button"
+              disabled={Boolean(resettingPinId)}
+              onPress={() => confirmPinReset(currentStaff)}
+              style={[styles.secondaryButton, Boolean(resettingPinId) && styles.disabledButton]}
+            >
+              <Text style={styles.secondaryButtonText}>{resettingPinId === currentStaff.id ? "Resetting…" : "Reset my PIN to 1111"}</Text>
+            </TouchableOpacity>
+          </View>
+        ) : null}
+        <Text style={styles.label}>Managers in {selectedCustomer?.name ?? "the selected company"}</Text>
+        {managers.length ? managers.map((manager) => (
+          <View key={manager.id} style={styles.pinResetRow}>
+            <View style={styles.pinResetIdentity}>
+              <Text style={styles.listTitle}>{manager.name} · {manager.staffCode}</Text>
+              <Text style={styles.listMeta}>{manager.allowedWardIds.length} ward{manager.allowedWardIds.length === 1 ? "" : "s"} assigned</Text>
+            </View>
+            <TouchableOpacity
+              accessibilityRole="button"
+              disabled={Boolean(resettingPinId)}
+              onPress={() => confirmPinReset(manager)}
+              style={[styles.secondaryButton, Boolean(resettingPinId) && styles.disabledButton]}
+            >
+              <Text style={styles.secondaryButtonText}>{resettingPinId === manager.id ? "Resetting…" : "Reset PIN to 1111"}</Text>
+            </TouchableOpacity>
+          </View>
+        )) : <Text style={styles.listMeta}>No managers are assigned in this company yet.</Text>}
+        <Text style={styles.listMeta}>1111 is temporary. The account must set a private 4–6 digit PIN at the next sign-in.</Text>
+      </View>
 
       <View style={styles.panel}>
         <View style={styles.paymentHeader}>
@@ -961,6 +1118,14 @@ export function AdminSettingsScreen({
                   <TouchableOpacity accessibilityRole="button" disabled={isSaving} onPress={() => void changeManagerToNurse(manager)} style={styles.secondaryButton}>
                     <Text style={styles.secondaryButtonText}>Change to nurse on this ward</Text>
                   </TouchableOpacity>
+                  <TouchableOpacity accessibilityRole="button" disabled={isSaving} onPress={() => removeManagerFromWard(manager)} style={styles.removeManagerButton}>
+                    <Text style={styles.removeManagerButtonText}>{manager.allowedWardIds.length <= 1 ? "Deactivate account" : "Remove from this ward"}</Text>
+                  </TouchableOpacity>
+                  {manager.allowedWardIds.length > 1 ? (
+                    <TouchableOpacity accessibilityRole="button" disabled={isSaving} onPress={() => deactivateManagerAccount(manager)} style={styles.removeManagerButton}>
+                      <Text style={styles.removeManagerButtonText}>Deactivate account</Text>
+                    </TouchableOpacity>
+                  ) : null}
                   <TouchableOpacity accessibilityRole="button" disabled={isWritingManagerTag} onPress={() => void writeManagerNfcTag(manager)} style={styles.secondaryButton}>
                     <Text style={styles.secondaryButtonText}>{isWritingManagerTag ? "Hold tag…" : "Rewrite NFC tag"}</Text>
                   </TouchableOpacity>
@@ -1179,6 +1344,10 @@ const styles = StyleSheet.create({
   demoDeleteButton: { alignItems: "center", backgroundColor: "#9f2d28", borderRadius: 6, justifyContent: "center", minHeight: 42, paddingHorizontal: 12 },
   demoDeleteButtonText: { color: "#ffffff", fontSize: 13, fontWeight: "900" },
   managerRow: { alignItems: "center", flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  removeManagerButton: { alignItems: "center", borderColor: "#9f2d28", borderRadius: 6, borderWidth: 1, minHeight: 42, justifyContent: "center", paddingHorizontal: 12 },
+  removeManagerButtonText: { color: "#9f2d28", fontSize: 13, fontWeight: "900" },
+  pinResetRow: { alignItems: "center", borderColor: "#d8e0e3", borderRadius: 7, borderWidth: 1, flexDirection: "row", flexWrap: "wrap", gap: 10, justifyContent: "space-between", padding: 10 },
+  pinResetIdentity: { flex: 1, minWidth: 220 },
   allowanceRow: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
   allowanceField: { flex: 1, minWidth: 220 },
   billingSummary: { backgroundColor: "#f4f8fa", borderColor: "#c7d2d6", borderRadius: 7, borderWidth: 1, gap: 7, padding: 11 },

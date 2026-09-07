@@ -221,10 +221,10 @@ export async function changeStaffPin(currentPin: string, newPin: string) {
   return { staff: result.staff };
 }
 
-export async function resetStaffPin(staffId: string) {
+export async function resetStaffPin(staffId: string, organisationId?: string) {
   return request<{ staff: StaffMember }>("/api/staff/reset-pin", {
     method: "POST",
-    body: JSON.stringify({ staffId })
+    body: JSON.stringify({ staffId, organisationId })
   });
 }
 

@@ -1340,8 +1340,8 @@ export default function App() {
     setStaffMembers((currentStaff) => upsertStaffByCode(currentStaff, result?.staff ?? staff));
   };
 
-  const handleResetStaffPin = async (staffId: string) => {
-    const result = await resetStaffPin(staffId);
+  const handleResetStaffPin = async (staffId: string, organisationId?: string) => {
+    const result = await resetStaffPin(staffId, organisationId);
     setStaffMembers((currentStaff) => upsertStaffByCode(currentStaff, result.staff));
   };
 
@@ -1768,6 +1768,7 @@ export default function App() {
             organisationSettings={organisationSettings}
             sites={sites}
             staff={staffMembers.filter((member) => member.organisationId === adminOrganisationId)}
+            currentStaff={selectedStaff}
             wards={wards}
             onBack={() => {
               setScreen("home");
@@ -1783,6 +1784,7 @@ export default function App() {
             }}
             onCreateSite={handleCreateSite}
             onCreateStaff={handleCreateStaffMember}
+            onResetStaffPin={handleResetStaffPin}
             onCreateWard={handleCreateWard}
             onDeleteDemoWard={handleDeleteDemoWard}
             onUpdateOrganisationSettings={handleUpdateOrganisationSettings}

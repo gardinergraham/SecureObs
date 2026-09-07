@@ -61,9 +61,9 @@ function updateTotal() {
   summary.replaceChildren();
   try {
     const quote=pricePackage(selection()); const period=quote.selection.interval==='monthly'?'month':'year';
-    for(const line of quote.lines) {const row=element('div','','summary-line'); const label=element('span',`${line.label} × ${line.quantity}`);label.append(element('small',catalogue.vatRegistered ? (line.inclusive?'VAT already included':'Excluding VAT') : 'No VAT charged'));row.append(label,element('span',money(line.unitAmount*line.quantity)));summary.append(row);}
+    for(const line of quote.lines) {const row=element('div','','summary-line'); const label=element('span',`${line.label} × ${line.quantity}`);row.append(label,element('span',money(line.unitAmount*line.quantity)));summary.append(row);}
     summary.append(element('div','','summary-divider'));
-    for(const [label,value] of [['Subtotal',quote.net],[catalogue.vatRegistered?'VAT (20%)':'VAT (not registered)',quote.vat]]) {const row=element('div','','summary-line');row.append(element('span',label),element('span',money(value)));summary.append(row);}
+    if (catalogue.vatRegistered) {const row=element('div','','summary-line');row.append(element('span','VAT (20%)'),element('span',money(quote.vat)));summary.append(row);}
     const grand=element('div',`Total per ${period}`,'summary-grand');grand.append(element('strong',money(quote.gross)));summary.append(grand);button.disabled=busy;
   } catch(error) {summary.append(element('p',error.message));button.disabled=true;}
 }

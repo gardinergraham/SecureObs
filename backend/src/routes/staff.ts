@@ -39,7 +39,8 @@ const changePinSchema = z.object({
 });
 
 const resetPinSchema = z.object({
-  staffId: z.string().uuid()
+  staffId: z.string().uuid(),
+  organisationId: z.string().uuid().optional()
 });
 
 const unlockAccessSchema = z.object({
@@ -489,7 +490,10 @@ router.post("/reset-pin", requireStaffRole(["manager", "super_admin"]), async (r
       return;
     }
 
-    const staff = await dataProvider.staff.findActiveById(parsed.data.staffId, auth.staff.organisationId);
+    const targetOrganisationId = auth.staff.role === "super_admin"
+      ? parsed.data.organisationId ?? auth.staff.organisationId
+      : auth.staff.organisationId;
+    const staff = await dataProvider.staff.findActiveById(parsed.data.staffId, targetOrganisationId);
     if (!staff) {
       response.status(404).json({ error: "Staff member not found" });
       return;
