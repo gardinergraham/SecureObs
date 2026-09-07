@@ -127,8 +127,9 @@ the repository root after changing it, and commit the generated website copy.
 - The calculator estimates UK VAT at 20%. Stripe Automatic Tax determines tax
   using the billing address, with software prices `exclusive` and tablets
   `inclusive`. The next-invoice preview refreshes the billing ledger total.
-- Annual software prices are unchanged. Modules and tablet hire are monthly-only
-  until annual pricing is agreed. Unsupported annual combinations are rejected.
+- Annual plans and modules cost 10 monthly fees for 12 months of service. Each
+  module is £450/ward/year excluding VAT. Annual tablet hire charges all 12
+  months: £455.88/tablet including VAT. Annual orders are billed upfront.
 
 Deployment order and account setup:
 
@@ -138,7 +139,7 @@ Deployment order and account setup:
    The script prints only price IDs, never credentials. Review product tax
    categories and configure the applicable Stripe Tax registration and business
    address. Complete this before enabling public checkout.
-2. Save the price IDs in the backend environment, including the six optional
+2. Save the price IDs in the backend environment, including monthly and annual prices for the six optional
    products in `.env.example`. Base prices must also use explicit exclusive VAT.
    Checkout validates amounts, GBP currency, recurrence and VAT behaviour.
 3. Apply `052_package_builder.sql`, deploy the API, then publish the website and
@@ -169,3 +170,31 @@ node scripts/test-ward-manager-assignment.cjs
 
 These are isolated tests using mocked Stripe/database services. The migration
 and real Stripe checkout still need verification in a test environment.
+
+### Live catalogue configured 7 September 2026
+
+The live SecureObs account `acct_1SMa0pFR8WuWxgGE` now contains all 18 required
+prices. `billing/stripe-live-price-ids.env` records their IDs (no credentials).
+Copy these values into the backend hosting environment; the file is not loaded
+automatically. Base prices retain their original IDs, with explicit exclusive
+tax behaviour. Module prices exclude VAT and tablet prices include VAT.
+The setup script reuses these recorded live IDs to avoid duplicate products.
+The dashboard prompted for tax registration; confirm the company's VAT status
+before configuring tax collection. No customer subscriptions were created or
+changed, and the backend environment has not yet been updated with these IDs.
+
+### VAT collection disabled until registration
+
+The company confirmed it is not yet VAT registered. The canonical catalogue
+sets `vatRegistered: false`; checkout sends `automatic_tax.enabled: false` and
+the website charges no VAT. Customer prices remain £149/£299/£1,499 for monthly
+plans, £45/module/ward/month and £37.99/tablet/month. Annual software/modules
+cost 10 months; tablets cost all 12. Example: two Essential wards, one rostering
+module and two tablets cost £418.98/month or £4,341.76/year while unregistered.
+This supersedes the earlier VAT-inclusive example totals above.
+
+After registration, configure the actual Stripe Tax registration and effective
+date, set `vatRegistered` to true, bump the catalogue version, sync the website
+catalogue, update public VAT wording, and deploy both backend and website.
+Review existing subscription tax settings separately; this checkout setting
+applies to new subscriptions and does not change existing ones.

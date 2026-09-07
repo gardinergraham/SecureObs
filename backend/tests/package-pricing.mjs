@@ -1,9 +1,10 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import { catalogue, pricePackage, wardFeatures } from '../src/billing/package-pricing.js';
+import { catalogue, pricePackage as calculatePackage, wardFeatures } from '../src/billing/package-pricing.js';
 import { checkoutLines } from '../dist/billing/checkout.js';
 import { reconcileFeatures } from '../dist/billing/reconcile.js';
 import { config } from '../dist/config.js';
+const pricePackage = selection => calculatePackage(selection, true);
 const ward = (name='Ward 1',modules=[],plan='essential') => ({name,site:'Main site',plan,modules});
 const selection = (wards=[ward()],tablets=0,interval='monthly',enterprise=false) => ({wards,tablets,interval,enterprise});
 assert.equal(pricePackage(selection([ward('A',['rostering'])],1)).gross,27079);
@@ -15,8 +16,9 @@ assert.equal(pricePackage(selection([ward('A',four,'professional')])).lines.leng
 assert.equal(pricePackage(selection([ward('A',four,'professional')])).selection.wards[0].modules.length,0);
 assert.equal(pricePackage(selection([ward('A'),ward('B')],0,'monthly',true)).lines[0].quantity,1);
 assert.equal(pricePackage(selection([ward()],0,'yearly')).gross,178800);
-assert.throws(()=>pricePackage(selection([ward('A',['rostering'])],0,'yearly')));
-assert.throws(()=>pricePackage(selection([ward()],1,'yearly')));
+assert.equal(pricePackage(selection([ward('A',['rostering'])],0,'yearly')).gross,232800);
+assert.equal(pricePackage(selection([ward()],1,'yearly')).gross,224388);
+assert.equal(pricePackage(selection([ward('A',['rostering']),ward('B')],2,'yearly')).gross,502776);
 assert.throws(()=>pricePackage(selection([ward('A',['unknown'])])));
 assert.throws(()=>pricePackage(selection([ward('A',['rostering','rostering'])])));
 assert.throws(()=>pricePackage(selection([ward(),ward()])));
@@ -52,3 +54,19 @@ assert.equal(reconciled.reviewRequired,true);assert.equal(reconciled.features[0]
 reconciled=reconcileFeatures(cart,ordered,actual.filter(item=>item.price!=='price_roster'));
 assert.equal(reconciled.features[0].rostering,false);
 console.log('PASS: purchased features remain ward-specific; tablet changes preserve software; removed modules are withdrawn');
+
+config.stripePriceIds.essential.yearly='price_essential_year';
+config.stripeExtraYearlyPriceIds.rostering='price_roster_year';
+config.stripeExtraYearlyPriceIds.tablets='price_tablet_year';
+const yearlyPrices={price_essential_year:149000,price_roster_year:45000,price_tablet_year:45588};
+const annualClient={prices:{retrieve:async id=>({active:true,currency:'gbp',unit_amount:yearlyPrices[id],tax_behavior:id==='price_tablet_year'?'inclusive':'exclusive',recurring:{interval:'year',interval_count:1,usage_type:'licensed'}})}};
+const annual=await checkoutLines(annualClient,{...cart,interval:'yearly'});
+assert.equal(annual.quote.gross,434176);
+assert.equal(annual.quote.vat,0);
+assert.deepEqual(annual.lineItems,[{price:'price_essential_year',quantity:2},{price:'price_roster_year',quantity:1},{price:'price_tablet_year',quantity:2}]);
+console.log('PASS: annual checkout uses 10-month software/module prices and 12-month tablet hire');
+
+const noVat=calculatePackage(selection([ward('A',['rostering']),ward('B')],2));
+assert.equal(noVat.gross,41898);assert.equal(noVat.vat,0);assert.equal(noVat.net,noVat.gross);
+assert.equal(calculatePackage({...selection([ward()],1),vatRegistered:true}).vat,0);
+console.log('PASS: no VAT while unregistered; client cannot enable VAT; future registered calculations remain covered');

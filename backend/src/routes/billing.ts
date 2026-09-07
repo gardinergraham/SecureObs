@@ -88,7 +88,7 @@ router.post("/checkout", async (request, response, next) => {
       mode: "subscription",
       customer: customer.id,
       line_items: lineItems,
-      automatic_tax: { enabled: true },
+      automatic_tax: { enabled: catalogue.vatRegistered },
       allow_promotion_codes: true,
       billing_address_collection: "required",
       customer_update: { address: "auto", name: "auto" },

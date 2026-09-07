@@ -1,8 +1,9 @@
 // Canonical catalogue and integer-pence calculator. The website copy is generated
 // by scripts/sync-package-pricing.cjs; never accept prices supplied by a browser.
 export const catalogue = {
-  version: '2026-09-modules-v1',
+  version: '2026-09-modules-v3-no-vat',
   currency: 'gbp', vatPercent: 20,
+  vatRegistered: false,
   plans: {
     essential: { label: 'Essential', monthly: 14900, yearly: 149000 },
     professional: { label: 'Professional', monthly: 29900, yearly: 299000 },
@@ -19,7 +20,7 @@ export const catalogue = {
   tabletMonthlyIncludingVat: 3799
 };
 
-export function pricePackage(selection) {
+export function pricePackage(selection, vatRegistered = catalogue.vatRegistered) {
   if (!selection || !['monthly', 'yearly'].includes(selection.interval)
     || !Array.isArray(selection.wards) || !selection.wards.length || selection.wards.length > 100
     || !Number.isInteger(selection.tablets) || selection.tablets < 0 || selection.tablets > 500
@@ -41,19 +42,17 @@ export function pricePackage(selection) {
     if (!['Care home','Medium secure hospital','High secure hospital'].includes(serviceType)) throw new Error('Choose a valid service type for each ward.');
     return { name, site, serviceType, plan: ward.plan, modules: selection.enterprise || ward.plan === 'professional' ? [] : [...ward.modules] };
   });
-  const extras = selection.tablets > 0 || wards.some(ward => ward.modules.length > 0);
-  if (selection.interval === 'yearly' && extras) throw new Error('Choose monthly billing for optional modules or tablet hire.');
   const lines = [];
   function add(key, label, quantity, unitAmount, inclusive = false) {
     if (!quantity) return;
     const amount = quantity * unitAmount;
-    const vat = inclusive ? amount - Math.round(amount / 1.2) : Math.round(amount * .2);
+    const vat = !vatRegistered ? 0 : inclusive ? amount - Math.round(amount / 1.2) : Math.round(amount * .2);
     lines.push({ key, label, quantity, unitAmount, inclusive, net: inclusive ? amount - vat : amount, vat, gross: inclusive ? amount : amount + vat });
   }
   if (selection.enterprise) add('enterprise', 'Enterprise — organisation', 1, catalogue.plans.enterprise[selection.interval]);
   else for (const key of ['essential','professional']) add(key, `${catalogue.plans[key].label} — wards`, wards.filter(ward => ward.plan === key).length, catalogue.plans[key][selection.interval]);
-  for (const module of catalogue.modules) add(module.id, module.label, wards.filter(ward => ward.modules.includes(module.id)).length, catalogue.moduleMonthly);
-  add('tablets', 'Tablet hire', selection.tablets, catalogue.tabletMonthlyIncludingVat, true);
+  for (const module of catalogue.modules) add(module.id, module.label, wards.filter(ward => ward.modules.includes(module.id)).length, catalogue.moduleMonthly * (selection.interval === 'yearly' ? 10 : 1));
+  add('tablets', 'Tablet hire', selection.tablets, catalogue.tabletMonthlyIncludingVat * (selection.interval === 'yearly' ? 12 : 1), true);
   const savings = wards.map((ward, index) => ({ index,
     monthly: selection.enterprise || ward.plan !== 'essential' ? 0 : Math.max(0, catalogue.plans.essential.monthly + ward.modules.length * catalogue.moduleMonthly - catalogue.plans.professional.monthly)
   })).filter(saving => saving.monthly > 0);

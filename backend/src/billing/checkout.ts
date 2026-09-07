@@ -9,7 +9,7 @@ export function configuredPriceId(key: string, interval: string): string | undef
   if (key === "essential" || key === "professional" || key === "enterprise") {
     return config.stripePriceIds[key][interval as "monthly" | "yearly"];
   }
-  return interval === "monthly" ? config.stripeExtraPriceIds[key] : undefined;
+  return interval === "monthly" ? config.stripeExtraPriceIds[key] : config.stripeExtraYearlyPriceIds[key];
 }
 
 export async function checkoutLines(client: Stripe, selection: PackageSelection) {

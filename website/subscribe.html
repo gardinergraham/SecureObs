@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Build your SecureObs package</title>
-  <meta name="description" content="Choose a SecureObs plan for each ward, optional modules and tablet hire. See an itemised total including VAT before checkout." />
+  <meta name="description" content="Choose a SecureObs plan for each ward, optional modules and tablet hire. See an itemised total before checkout." />
   <link rel="stylesheet" href="styles.css" /><link rel="stylesheet" href="packages.css" />
 </head>
 <body>
@@ -17,14 +17,14 @@
       <div class="builder-options">
         <section class="builder-panel" aria-labelledby="wards-heading">
           <div class="panel-heading"><h2 id="wards-heading">1. Plans and wards</h2><button type="button" id="add-ward" class="outline-button">+ Add a ward</button></div>
-          <label class="enterprise-option"><input type="checkbox" id="enterprise" /> Enterprise — £1,499 per organisation/month, excluding VAT</label>
-          <p class="muted">Essential £149 or Professional £299 per ward/month, excluding VAT. Professional includes all five optional modules.</p>
+          <label class="enterprise-option"><input type="checkbox" id="enterprise" /> Enterprise — £1,499 per organisation/month</label>
+          <p class="muted">Essential £149 or Professional £299 per ward/month. Professional includes all five optional modules.</p>
           <div id="ward-list"></div>
         </section>
         <section class="builder-panel" aria-labelledby="tablets-heading">
           <h2 id="tablets-heading">2. Tablets and billing</h2>
-          <div class="tablet-choice"><div><label for="tablets">Tablets to hire</label><p>£37.99 per tablet/month <strong>including VAT</strong>. Choose 0 to use your own compatible devices.</p></div><input id="tablets" type="number" min="0" max="500" step="1" value="0" required /></div>
-          <fieldset class="billing-frequency"><legend>Billing frequency</legend><label><input type="radio" name="interval" value="monthly" checked /> Monthly</label><label><input type="radio" name="interval" id="yearly" value="yearly" /> Annual software — two months free</label></fieldset>
+          <div class="tablet-choice"><div><label for="tablets">Tablets to hire</label><p>£37.99 per tablet/month <strong>no VAT charged</strong>. Choose 0 to use your own compatible devices.</p></div><input id="tablets" type="number" min="0" max="500" step="1" value="0" required /></div>
+          <fieldset class="billing-frequency"><legend>Billing frequency</legend><label><input type="radio" name="interval" value="monthly" checked /> Monthly</label><label><input type="radio" name="interval" id="yearly" value="yearly" /> Annual — two months free on plans and modules</label></fieldset>
           <p class="muted" id="interval-note">Annual billing is available for software plans without optional modules or tablet hire.</p>
         </section>
         <section class="builder-panel" aria-labelledby="billing-heading">
@@ -41,7 +41,7 @@
       <aside class="builder-summary" aria-labelledby="summary-heading">
         <p class="eyebrow">Your package</p><h2 id="summary-heading">Payment summary</h2>
         <div id="checkout-total" aria-live="polite" aria-atomic="true"></div>
-        <p class="muted">Estimated UK total with 20% VAT. Tablet hire already includes VAT. Stripe confirms tax using your billing address.</p>
+        <p class="muted">SecureObs is not currently VAT registered. No VAT is charged.</p>
         <p id="form-message" role="alert"></p>
         <button class="checkout-button" id="checkout-button" type="submit">Continue to secure payment</button>
         <p class="secure-payment-note">Secure payment with Stripe. Your selected wards and modules are set up after payment confirmation.</p>

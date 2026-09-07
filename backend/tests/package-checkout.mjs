@@ -33,9 +33,9 @@ vm.runInNewContext(ts.transpileModule(fs.readFileSync(new URL('../src/routes/bil
 function response(){return {code:200,status(value){this.code=value;return this;},json(value){this.body=value;},send(value){this.body=value;}};}
 const res=response();
 await handler({body:{organisationName:'Test company',contactName:'Test person',billingEmail:'test@example.com',acceptedTerms:true,catalogueVersion:catalogue.version,package:selection,gross:1}},res,error=>{throw error;});
-assert.equal(res.code,201);assert.equal(customers,1);assert.equal(checkout.mode,'subscription');assert.equal(checkout.automatic_tax.enabled,true);assert.equal(checkout.line_items.length,3);
-assert.equal(queries.find(([sql])=>sql.includes('insert into billing_accounts'))[1][11],48758);
-console.log('PASS: checkout combines quantities, enables tax calculation and ignores a forged client total');
+assert.equal(res.code,201);assert.equal(customers,1);assert.equal(checkout.mode,'subscription');assert.equal(checkout.automatic_tax.enabled,false);assert.equal(checkout.line_items.length,3);
+assert.equal(queries.find(([sql])=>sql.includes('insert into billing_accounts'))[1][11],41898);
+console.log('PASS: checkout combines quantities, disables tax calculation while unregistered and ignores a forged client total');
 const incomplete=response();
 await exports.stripeWebhookHandler({headers:{'stripe-signature':'mock'},body:{id:'evt_incomplete',type:'checkout.session.completed',data:{object:{metadata:{billingAccountId:'account'},subscription:'sub_mock',customer:'cus_mock'}}}},incomplete);
 assert.equal(connects,0);

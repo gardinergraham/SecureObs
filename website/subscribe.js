@@ -29,7 +29,7 @@ function renderWards() {
     card.append(fields);
     const label=element('label',enterprise.checked ? 'Enterprise includes every module below.' : 'Plan for this ward');
     const select=element('select'); select.setAttribute('aria-label',`Plan for ward ${index+1}`);
-    for(const id of ['essential','professional']) { const option=element('option',`${catalogue.plans[id].label} — ${money(catalogue.plans[id].monthly)}/month excl. VAT`); option.value=id; select.append(option); }
+    for(const id of ['essential','professional']) { const option=element('option',`${catalogue.plans[id].label} — ${money(catalogue.plans[id].monthly)}/month`); option.value=id; select.append(option); }
     select.value=ward.plan; select.disabled=enterprise.checked;
     select.addEventListener('change',()=>{ward.plan=select.value; if(ward.plan==='professional') ward.modules=[]; renderWards(); updateTotal();});
     label.append(select); card.append(label);
@@ -39,7 +39,7 @@ function renderWards() {
       const option=element('label','','module-option'); const check=element('input'); check.type='checkbox'; check.checked=included || ward.modules.includes(module.id); check.disabled=included;
       check.addEventListener('change',()=>{ward.modules=check.checked?[...ward.modules,module.id]:ward.modules.filter(id=>id!==module.id); updateTotal(); renderSaving(card,ward,index);});
       const copy=element('span','','module-copy'); copy.append(element('strong',module.label),element('small',module.description));
-      option.append(check,copy,element('span',included?'Included':`${money(catalogue.moduleMonthly)} + VAT`,'module-price')); modules.append(option);
+      option.append(check,copy,element('span',included?'Included':`${money(catalogue.moduleMonthly)}/month` ,'module-price')); modules.append(option);
     }
     card.append(modules); const tip=element('div','','saving-placeholder'); card.append(tip); renderSaving(card,ward,index);
     if(wards.length>1) {const remove=element('button','Remove this ward','ward-remove'); remove.type='button'; remove.addEventListener('click',()=>{wards.splice(index,1);renderWards();updateTotal();});card.append(remove);}
@@ -51,23 +51,20 @@ function renderSaving(card,ward,index) {
   const slot=card.querySelector('.saving-placeholder'); slot.replaceChildren();
   const saving=catalogue.plans.essential.monthly+ward.modules.length*catalogue.moduleMonthly-catalogue.plans.professional.monthly;
   if(!enterprise.checked && ward.plan==='essential' && saving>0) {
-    const tip=element('div','','upgrade-tip'); tip.append(element('p',`Professional includes all five modules and saves ${money(saving)} + VAT per month for this ward.`));
+    const tip=element('div','','upgrade-tip'); tip.append(element('p',`Professional includes all five modules and saves ${money(saving)} per month for this ward.`));
     const upgrade=element('button','Switch this ward to Professional','outline-button');upgrade.type='button';upgrade.addEventListener('click',()=>{wards[index].plan='professional';wards[index].modules=[];renderWards();updateTotal();});tip.append(upgrade);slot.append(tip);
   }
 }
 function selection() {return { enterprise:enterprise.checked,interval:form.querySelector('[name="interval"]:checked').value,tablets:Number(tablets.value),wards };}
 function updateTotal() {
-  const extras=Number(tablets.value)>0 || (!enterprise.checked && wards.some(ward=>ward.plan==='essential' && ward.modules.length));
-  const yearly=document.querySelector('#yearly');yearly.disabled=extras;
-  if(extras) form.querySelector('[name="interval"][value="monthly"]').checked=true;
-  document.querySelector('#interval-note').textContent=extras?'This package is billed monthly, including all modules and tablet hire.':'Annual billing is available for software plans without optional modules or tablet hire.';
+  document.querySelector('#interval-note').textContent='Annual billing: pay for 10 months of plans and modules, plus all 12 months of tablet hire. The annual total is paid upfront.';
   summary.replaceChildren();
   try {
     const quote=pricePackage(selection()); const period=quote.selection.interval==='monthly'?'month':'year';
-    for(const line of quote.lines) {const row=element('div','','summary-line'); const label=element('span',`${line.label} × ${line.quantity}`);label.append(element('small',line.inclusive?'VAT already included':'Excluding VAT'));row.append(label,element('span',money(line.unitAmount*line.quantity)));summary.append(row);}
+    for(const line of quote.lines) {const row=element('div','','summary-line'); const label=element('span',`${line.label} × ${line.quantity}`);label.append(element('small',catalogue.vatRegistered ? (line.inclusive?'VAT already included':'Excluding VAT') : 'No VAT charged'));row.append(label,element('span',money(line.unitAmount*line.quantity)));summary.append(row);}
     summary.append(element('div','','summary-divider'));
-    for(const [label,value] of [['Subtotal excluding VAT',quote.net],['VAT (20%)',quote.vat]]) {const row=element('div','','summary-line');row.append(element('span',label),element('span',money(value)));summary.append(row);}
-    const grand=element('div',`Total per ${period}, including VAT`,'summary-grand');grand.append(element('strong',money(quote.gross)));summary.append(grand);button.disabled=busy;
+    for(const [label,value] of [['Subtotal',quote.net],[catalogue.vatRegistered?'VAT (20%)':'VAT (not registered)',quote.vat]]) {const row=element('div','','summary-line');row.append(element('span',label),element('span',money(value)));summary.append(row);}
+    const grand=element('div',`Total per ${period}`,'summary-grand');grand.append(element('strong',money(quote.gross)));summary.append(grand);button.disabled=busy;
   } catch(error) {summary.append(element('p',error.message));button.disabled=true;}
 }
 enterprise.addEventListener('change',()=>{renderWards();updateTotal();});

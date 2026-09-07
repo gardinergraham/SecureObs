@@ -43,6 +43,14 @@ export const config = {
     cqcReporting: process.env.STRIPE_PRICE_GOVERNANCE_MONTHLY,
     tablets: process.env.STRIPE_PRICE_TABLET_HIRE_MONTHLY
   } as Record<string, string | undefined>,
+  stripeExtraYearlyPriceIds: {
+    medication: process.env.STRIPE_PRICE_MEDICATION_YEARLY,
+    rostering: process.env.STRIPE_PRICE_ROSTERING_YEARLY,
+    securityChecks: process.env.STRIPE_PRICE_SECURITY_YEARLY,
+    dashboard: process.env.STRIPE_PRICE_ANALYTICS_YEARLY,
+    cqcReporting: process.env.STRIPE_PRICE_GOVERNANCE_YEARLY,
+    tablets: process.env.STRIPE_PRICE_TABLET_HIRE_YEARLY
+  } as Record<string, string | undefined>,
   billingGraceDays: Math.max(1, Number(process.env.BILLING_GRACE_DAYS ?? 7)),
   demoMode: process.env.DEMO_MODE === "true",
   demoRegistrationEnabled: process.env.DEMO_REGISTRATION_ENABLED === "true",
