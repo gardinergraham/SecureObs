@@ -1,53 +1,55 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Subscribe to SecureObs</title>
-  <meta name="description" content="Choose a monthly or annual SecureObs subscription for your care service." />
-  <link rel="stylesheet" href="styles.css" />
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Build your SecureObs package</title>
+  <meta name="description" content="Choose a SecureObs plan for each ward, optional modules and tablet hire. See an itemised total including VAT before checkout." />
+  <link rel="stylesheet" href="styles.css" /><link rel="stylesheet" href="packages.css" />
 </head>
 <body>
   <header class="site-header">
     <a class="brand" href="index.html"><img src="assets/secureobs-logo-new.png" alt="" /><span>SecureObs</span></a>
     <nav><a href="index.html#packages">Compare packages</a><a href="demo.html">Book a demo</a></nav>
   </header>
-  <main class="subscription-page">
-    <div class="subscription-shell">
-      <section class="subscription-summary">
-        <p class="eyebrow">Secure Stripe checkout</p>
-        <h1>Start your SecureObs subscription.</h1>
-        <p>Choose monthly flexibility or pay annually and receive twelve months for the price of ten.</p>
-        <ul>
-          <li>Recurring billing managed securely by Stripe</li>
-          <li>Invoices and payment receipts sent to your billing email</li>
-          <li>Card details never stored by SecureObs</li>
-          <li>Your organisation is created after payment confirmation</li>
-        </ul>
-      </section>
-      <form class="subscription-form" id="subscription-form">
-        <h2>Organisation and billing details</h2>
-        <div class="form-grid">
-          <div class="form-field form-field-wide"><label for="organisationName">Organisation name</label><input id="organisationName" name="organisationName" required maxlength="255" /></div>
-          <div class="form-field"><label for="contactName">Billing contact</label><input id="contactName" name="contactName" required maxlength="255" /></div>
-          <div class="form-field"><label for="billingEmail">Billing email</label><input id="billingEmail" name="billingEmail" required type="email" /></div>
-          <div class="form-field"><label for="billingPhone">Telephone (optional)</label><input id="billingPhone" name="billingPhone" type="tel" /></div>
-          <div class="form-field"><label for="plan">Package</label><select id="plan" name="plan"><option value="essential">Essential</option><option value="professional">Professional</option><option value="enterprise">Enterprise</option></select></div>
-          <div class="form-field" id="ward-field"><label for="wardQuantity">Number of wards</label><input id="wardQuantity" name="wardQuantity" type="number" value="1" min="1" max="100" required /></div>
-          <div class="form-field form-field-wide">
-            <span>Billing frequency</span>
-            <div class="billing-toggle"><label><input type="radio" name="interval" value="monthly" checked />Monthly</label><label><input type="radio" name="interval" value="yearly" />Yearly — two months free</label></div>
+  <main class="package-builder">
+    <div class="builder-heading"><p class="eyebrow">Your wards. Your package.</p><h1>Build your SecureObs package.</h1><p>Choose what each ward needs. One subscription, one itemised payment.</p></div>
+    <form id="subscription-form" class="builder-layout">
+      <div class="builder-options">
+        <section class="builder-panel" aria-labelledby="wards-heading">
+          <div class="panel-heading"><h2 id="wards-heading">1. Plans and wards</h2><button type="button" id="add-ward" class="outline-button">+ Add a ward</button></div>
+          <label class="enterprise-option"><input type="checkbox" id="enterprise" /> Enterprise — £1,499 per organisation/month, excluding VAT</label>
+          <p class="muted">Essential £149 or Professional £299 per ward/month, excluding VAT. Professional includes all five optional modules.</p>
+          <div id="ward-list"></div>
+        </section>
+        <section class="builder-panel" aria-labelledby="tablets-heading">
+          <h2 id="tablets-heading">2. Tablets and billing</h2>
+          <div class="tablet-choice"><div><label for="tablets">Tablets to hire</label><p>£37.99 per tablet/month <strong>including VAT</strong>. Choose 0 to use your own compatible devices.</p></div><input id="tablets" type="number" min="0" max="500" step="1" value="0" required /></div>
+          <fieldset class="billing-frequency"><legend>Billing frequency</legend><label><input type="radio" name="interval" value="monthly" checked /> Monthly</label><label><input type="radio" name="interval" id="yearly" value="yearly" /> Annual software — two months free</label></fieldset>
+          <p class="muted" id="interval-note">Annual billing is available for software plans without optional modules or tablet hire.</p>
+        </section>
+        <section class="builder-panel" aria-labelledby="billing-heading">
+          <h2 id="billing-heading">3. Organisation and billing details</h2>
+          <div class="form-grid">
+            <div class="form-field form-field-wide"><label for="organisationName">Organisation name</label><input id="organisationName" name="organisationName" required maxlength="255" minlength="2" /></div>
+            <div class="form-field"><label for="contactName">Billing contact</label><input id="contactName" name="contactName" required maxlength="255" minlength="2" /></div>
+            <div class="form-field"><label for="billingEmail">Billing email</label><input id="billingEmail" name="billingEmail" required type="email" /></div>
+            <div class="form-field"><label for="billingPhone">Telephone (optional)</label><input id="billingPhone" name="billingPhone" type="tel" /></div>
           </div>
-          <label class="form-field-wide"><input id="acceptedTerms" type="checkbox" required /> I agree to the SecureObs subscription terms and privacy policy.</label>
-        </div>
-        <div class="checkout-total" id="checkout-total"></div>
-        <p class="form-message" id="form-message" role="alert"></p>
+          <label class="terms-option"><input id="acceptedTerms" type="checkbox" required /> I agree to the SecureObs subscription terms and <a href="privacy.html">privacy policy</a>.</label>
+        </section>
+      </div>
+      <aside class="builder-summary" aria-labelledby="summary-heading">
+        <p class="eyebrow">Your package</p><h2 id="summary-heading">Payment summary</h2>
+        <div id="checkout-total" aria-live="polite" aria-atomic="true"></div>
+        <p class="muted">Estimated UK total with 20% VAT. Tablet hire already includes VAT. Stripe confirms tax using your billing address.</p>
+        <p id="form-message" role="alert"></p>
         <button class="checkout-button" id="checkout-button" type="submit">Continue to secure payment</button>
-        <p class="secure-payment-note">Prices exclude VAT. Payment and card details are handled securely on Stripe's website.</p>
-      </form>
-    </div>
+        <p class="secure-payment-note">Secure payment with Stripe. Your selected wards and modules are set up after payment confirmation.</p>
+      </aside>
+    </form>
+    <noscript><p>Please enable JavaScript to calculate your package, or <a href="support.html">contact SecureObs</a>.</p></noscript>
   </main>
   <footer><span>SecureObs</span><span><a href="privacy.html">Privacy</a> · <a href="support.html">Support</a></span></footer>
-  <script src="subscribe.js"></script>
+  <script type="module" src="subscribe.js"></script>
 </body>
 </html>

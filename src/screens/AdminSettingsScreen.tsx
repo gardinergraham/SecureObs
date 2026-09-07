@@ -6,6 +6,7 @@ import * as FileSystem from "expo-file-system/legacy";
 import * as Sharing from "expo-sharing";
 
 import type { BillingReportRow, CustomerOrganisation, OrganisationFeatureKey, OrganisationSettings, ServiceType, Site, StaffMember, Ward } from "../types/domain";
+import { assignStaffWardRole } from "../utils/wardStaffAssignment";
 import { buildStaffCardPayload } from "../utils/nfcStaffCard";
 import { writeNfcTextPayload } from "../utils/nfcWriter";
 import { defaultObservationLocations } from "../utils/observationLocations";
@@ -91,6 +92,12 @@ export function AdminSettingsScreen({
   const [managerName, setManagerName] = useState("");
   const [managerStaffCode, setManagerStaffCode] = useState("");
   const [editingManagerId, setEditingManagerId] = useState("");
+  const [managerSearch, setManagerSearch] = useState("");
+  const [managerSaveMessage, setManagerSaveMessage] = useState("");
+  const [newWardManagerName, setNewWardManagerName] = useState("");
+  const [newWardManagerCode, setNewWardManagerCode] = useState("");
+  const managerCandidates = staff.filter(member => member.organisationId === selectedOrganisationId && member.role !== "super_admin"
+    && managerSearch.trim() && `${member.name} ${member.staffCode}`.toLowerCase().includes(managerSearch.trim().toLowerCase())).slice(0, 20);
   const [serviceType, setServiceType] = useState<ServiceType>("Care home");
   const [observationIntervalMinutes, setObservationIntervalMinutes] = useState(15);
   const [nfcStaffCodeFormat, setNfcStaffCodeFormat] = useState(organisationSettings.nfcStaffCodeFormat);
@@ -247,6 +254,10 @@ export function AdminSettingsScreen({
     }
   }, [managedWardId, selectedSiteWards]);
 
+  useEffect(() => {
+    setEditingManagerId(""); setManagerName(""); setManagerStaffCode(""); setManagerSearch(""); setManagerSaveMessage("");
+  }, [managedWardId, selectedOrganisationId]);
+
   const saveCustomer = async () => {
     if (!customerName.trim()) {
       Alert.alert("Customer name needed", "Enter the organisation or provider name.");
@@ -392,7 +403,7 @@ export function AdminSettingsScreen({
       Alert.alert("Ward details needed", "Choose a site and enter the ward name before saving.");
       return;
     }
-    if ((managerName.trim() || managerStaffCode.trim()) && (!managerName.trim() || !managerStaffCode.trim())) {
+    if ((newWardManagerName.trim() || newWardManagerCode.trim()) && (!newWardManagerName.trim() || !newWardManagerCode.trim())) {
       Alert.alert("Manager details needed", "Enter both the ward manager name and STAFFCODE.");
       return;
     }
@@ -431,13 +442,13 @@ export function AdminSettingsScreen({
       await onCreateWard(ward);
       setManagedWardId(ward.id);
       let manager: StaffMember | undefined;
-      if (managerName.trim() && managerStaffCode.trim()) {
+      if (newWardManagerName.trim() && newWardManagerCode.trim()) {
         manager = {
-          id: `staff-${managerStaffCode.trim().toLowerCase()}`,
+          id: `staff-${newWardManagerCode.trim().toLowerCase()}`,
           organisationId: selectedOrganisationId,
           keyNumber: Date.now() % 100000,
-          staffCode: managerStaffCode.trim(),
-          name: managerName.trim(),
+          staffCode: newWardManagerCode.trim(),
+          name: newWardManagerName.trim(),
           role: "manager",
           designation: "Ward Manager",
           canPrescribe: false,
@@ -446,11 +457,13 @@ export function AdminSettingsScreen({
           allowedWardIds: [ward.id],
           active: true
         };
+        const existing = staff.find(member => member.organisationId === selectedOrganisationId && member.staffCode.toLowerCase() === manager!.staffCode.toLowerCase());
+        if (existing) manager = assignStaffWardRole(existing, ward, "manager");
         await onCreateStaff(manager);
       }
       setWardName("");
-      setManagerName("");
-      setManagerStaffCode("");
+      setNewWardManagerName("");
+      setNewWardManagerCode("");
       if (manager) {
         Alert.alert("Ward and manager added", `${manager.name} can use STAFFCODE ${manager.staffCode}.`, [
           { text: "Write later", style: "cancel" },
@@ -480,6 +493,8 @@ export function AdminSettingsScreen({
   };
 
   const editWardManager = (manager: StaffMember) => {
+    setManagerSaveMessage("");
+    setManagerSearch("");
     setEditingManagerId(manager.id);
     setManagerName(manager.name);
     setManagerStaffCode(manager.staffCode);
@@ -491,40 +506,42 @@ export function AdminSettingsScreen({
       Alert.alert("Manager details needed", "Select a ward and enter the manager name and STAFFCODE.");
       return;
     }
-    const existing = staff.find((member) => member.id === editingManagerId);
-    const manager: StaffMember = {
-      ...(existing ?? {
-        id: `staff-${managerStaffCode.trim().toLowerCase()}`,
-        keyNumber: Date.now() % 100000,
-        canPrescribe: false,
-        active: true
-      }),
-      organisationId: selectedOrganisationId,
-      staffCode: managerStaffCode.trim(),
-      name: managerName.trim(),
-      role: existing?.role ?? "manager",
-      wardRoles: {
-        ...Object.fromEntries((existing?.allowedWardIds ?? []).map(id => [id, existing?.wardRoles?.[id] ?? existing?.role ?? "nurse"])),
-        [ward.id]: "manager"
-      } as NonNullable<StaffMember["wardRoles"]>,
-      designation: "Ward Manager",
-      wardId: ward.id,
-      allowedSiteIds: Array.from(new Set([...(existing?.allowedSiteIds ?? []), ward.siteId])),
-      allowedWardIds: Array.from(new Set([...(existing?.allowedWardIds ?? []), ward.id]))
+    const existing = staff.find((member) => member.organisationId === selectedOrganisationId &&
+      (member.id === editingManagerId || member.staffCode.toLowerCase() === managerStaffCode.trim().toLowerCase()));
+    const identity: StaffMember = existing ?? {
+      id: `staff-${managerStaffCode.trim().toLowerCase()}`, organisationId: selectedOrganisationId,
+      keyNumber: Date.now() % 100000, name: managerName.trim(), staffCode: managerStaffCode.trim(),
+      role: "manager", designation: "Ward Manager", canPrescribe: false, active: true,
+      wardId: ward.id, allowedWardIds: [], allowedSiteIds: []
     };
+    let manager: StaffMember;
+    try { manager = assignStaffWardRole(identity, { ...ward, organisationId: selectedOrganisationId }, "manager"); }
+    catch (error) { setManagerSaveMessage(error instanceof Error ? error.message : "Unable to assign manager."); return; }
     setIsSaving(true);
     try {
       await onCreateStaff(manager);
       setEditingManagerId(manager.id);
+      setManagerSaveMessage(`${manager.name} is now a manager on ${ward.name}. Their other ward roles are unchanged.`);
       Alert.alert("Ward manager saved", `${manager.name} is assigned to ${ward.name}.`, [
         { text: "Done", style: "cancel" },
         { text: "Write NFC tag", onPress: () => void writeManagerNfcTag(manager) }
       ]);
     } catch (error) {
+      setManagerSaveMessage(error instanceof Error ? error.message : "The ward manager could not be saved.");
       Alert.alert("Manager not saved", error instanceof Error ? error.message : "The ward manager could not be saved.");
     } finally {
       setIsSaving(false);
     }
+  };
+
+  const changeManagerToNurse = async (manager: StaffMember) => {
+    if (!managedWard || isSaving) return;
+    setIsSaving(true);
+    try {
+      await onCreateStaff(assignStaffWardRole(manager, { ...managedWard, organisationId: selectedOrganisationId }, "nurse"));
+      setManagerSaveMessage(`${manager.name} is now a nurse on ${managedWard.name}. Their other ward roles are unchanged.`);
+    } catch (error) { setManagerSaveMessage(error instanceof Error ? error.message : "Role could not be saved."); }
+    finally { setIsSaving(false); }
   };
 
   const saveOrganisationSettings = async () => {
@@ -860,7 +877,82 @@ export function AdminSettingsScreen({
         </View>
 
         <View style={styles.panel}>
-          <Text style={styles.panelTitle}>Wards</Text>
+          <Text style={styles.panelTitle}>Manage existing ward managers</Text>
+          <Text style={styles.listMeta}>Select a site, then a ward below. You can assign existing staff even if they are currently a nurse.</Text>
+          <View style={styles.list}>
+            {selectedSiteWards.map((ward) => (
+              <TouchableOpacity
+                accessibilityRole="button"
+                key={ward.id}
+                onPress={() => {
+                  setManagedWardId(ward.id);
+                  setEditingManagerId("");
+                  setManagerName("");
+                  setManagerStaffCode("");
+                }}
+                style={[styles.listRow, managedWardId === ward.id && styles.listRowActive]}
+              >
+                <Text style={styles.listTitle}>{ward.name}</Text>
+                <Text style={styles.listMeta}>
+                  {ward.serviceType} | {ward.observationIntervalMinutes}m
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+
+          {managedWardId ? (
+            <View style={styles.managerPanel}>
+              <Text style={styles.label}>Managers for {managedWard?.name}</Text>
+              {selectedWardManagers.length > 0 ? selectedWardManagers.map((manager) => (
+                <View key={manager.id} style={styles.managerRow}>
+                  <TouchableOpacity accessibilityRole="button" onPress={() => editWardManager(manager)} style={styles.secondaryButton}>
+                    <Text style={styles.secondaryButtonText}>{manager.name} · {manager.staffCode}</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity accessibilityRole="button" disabled={isSaving} onPress={() => void changeManagerToNurse(manager)} style={styles.secondaryButton}>
+                    <Text style={styles.secondaryButtonText}>Change to nurse on this ward</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity accessibilityRole="button" disabled={isWritingManagerTag} onPress={() => void writeManagerNfcTag(manager)} style={styles.secondaryButton}>
+                    <Text style={styles.secondaryButtonText}>{isWritingManagerTag ? "Hold tag…" : "Rewrite NFC tag"}</Text>
+                  </TouchableOpacity>
+                </View>
+              )) : <Text style={styles.listMeta}>No manager is currently assigned to this ward.</Text>}
+              <Text style={styles.label}>Find existing staff in this company</Text>
+              <TextInput accessibilityLabel="Find existing staff to assign as manager" placeholderTextColor="#6f7f87" placeholder="Search Sally Jones or STAFFCODE" value={managerSearch} onChangeText={setManagerSearch} style={styles.input} />
+              {managerCandidates.map(member => <TouchableOpacity key={member.id} accessibilityRole="button" onPress={() => editWardManager(member)} style={styles.listRow}>
+                <Text style={styles.listTitle}>{member.name} · {member.staffCode}</Text>
+                <Text style={styles.listMeta}>Select to assign as manager on {managedWard?.name}</Text>
+              </TouchableOpacity>)}
+              {managerSearch.trim() && managerCandidates.length === 0 ? <Text style={styles.listMeta}>No matching staff in this company.</Text> : null}
+              <TouchableOpacity accessibilityRole="button" onPress={() => { setEditingManagerId(""); setManagerName(""); setManagerStaffCode(""); setManagerSaveMessage(""); }} style={styles.secondaryButton}>
+                <Text style={styles.secondaryButtonText}>Add a new manager instead</Text>
+              </TouchableOpacity>
+              <TextInput accessibilityLabel="Selected manager name" editable={!editingManagerId} placeholderTextColor="#6f7f87" placeholder="Manager name" value={managerName} onChangeText={setManagerName} style={styles.input} />
+              <TextInput accessibilityLabel="Selected manager staff code" editable={!editingManagerId} autoCapitalize="none" placeholderTextColor="#6f7f87" placeholder="Manager STAFFCODE" value={managerStaffCode} onChangeText={setManagerStaffCode} style={styles.input} />
+              <Text style={styles.listMeta}>This changes only the selected ward’s manager role. Other ward roles and prescribing permissions are preserved.</Text>
+              {managerSaveMessage ? <Text accessibilityLiveRegion="polite" style={styles.listMeta}>{managerSaveMessage}</Text> : null}
+              <TouchableOpacity accessibilityRole="button" disabled={isSaving || isWritingManagerTag} onPress={saveExistingWardManager} style={[styles.primaryButton, (isSaving || isWritingManagerTag) && styles.disabledButton]}>
+                <Text style={styles.primaryButtonText}>{`Save manager for ${managedWard?.name ?? "selected ward"}`}</Text>
+              </TouchableOpacity>
+              {managedWard?.name.toLowerCase().includes("demo") ? (
+                <View style={styles.demoDeletePanel}>
+                  <Text style={styles.demoDeleteTitle}>Demonstration data cleanup</Text>
+                  <Text style={styles.listMeta}>
+                    Deletes this ward from {managedWardSite?.name ?? "the selected site"}, including its demonstration patients and linked records.
+                  </Text>
+                  <TouchableOpacity
+                    accessibilityRole="button"
+                    disabled={isSaving || isWritingManagerTag}
+                    onPress={confirmDeleteDemoWard}
+                    style={[styles.demoDeleteButton, (isSaving || isWritingManagerTag) && styles.disabledButton]}
+                  >
+                    <Text style={styles.demoDeleteButtonText}>{isSaving ? "Deleting…" : "Delete this demonstration ward"}</Text>
+                  </TouchableOpacity>
+                </View>
+              ) : null}
+            </View>
+          ) : null}
+          <Text style={styles.panelTitle}>Add a new ward</Text>
+
           <Text style={styles.listMeta}>{selectedSiteWards.length} of {effectiveWardLimit ?? "unlimited"} wards used at this site</Text>
           <TextInput placeholderTextColor="#6f7f87"
             onChangeText={setWardName}
@@ -869,17 +961,17 @@ export function AdminSettingsScreen({
             value={wardName}
           />
           <TextInput placeholderTextColor="#6f7f87"
-            onChangeText={setManagerName}
-            placeholder="Ward manager name"
+            onChangeText={setNewWardManagerName}
+            placeholder="New ward manager name (optional)"
             style={styles.input}
-            value={managerName}
+            value={newWardManagerName}
           />
           <TextInput placeholderTextColor="#6f7f87"
             autoCapitalize="none"
-            onChangeText={setManagerStaffCode}
-            placeholder="Manager STAFFCODE for NFC card"
+            onChangeText={setNewWardManagerCode}
+            placeholder="New ward manager STAFFCODE (optional)"
             style={styles.input}
-            value={managerStaffCode}
+            value={newWardManagerCode}
           />
 
           <Text style={styles.label}>Service type</Text>
@@ -921,62 +1013,7 @@ export function AdminSettingsScreen({
             <Text style={styles.primaryButtonText}>{isWritingManagerTag ? "Hold NFC tag…" : "Add ward"}</Text>
           </TouchableOpacity>
 
-          <View style={styles.list}>
-            {selectedSiteWards.map((ward) => (
-              <TouchableOpacity
-                accessibilityRole="button"
-                key={ward.id}
-                onPress={() => {
-                  setManagedWardId(ward.id);
-                  setEditingManagerId("");
-                  setManagerName("");
-                  setManagerStaffCode("");
-                }}
-                style={[styles.listRow, managedWardId === ward.id && styles.listRowActive]}
-              >
-                <Text style={styles.listTitle}>{ward.name}</Text>
-                <Text style={styles.listMeta}>
-                  {ward.serviceType} | {ward.observationIntervalMinutes}m
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
 
-          {managedWardId ? (
-            <View style={styles.managerPanel}>
-              <Text style={styles.label}>Manage selected ward manager</Text>
-              {selectedWardManagers.length > 0 ? selectedWardManagers.map((manager) => (
-                <View key={manager.id} style={styles.managerRow}>
-                  <TouchableOpacity accessibilityRole="button" onPress={() => editWardManager(manager)} style={styles.secondaryButton}>
-                    <Text style={styles.secondaryButtonText}>{manager.name} · {manager.staffCode}</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity accessibilityRole="button" disabled={isWritingManagerTag} onPress={() => void writeManagerNfcTag(manager)} style={styles.secondaryButton}>
-                    <Text style={styles.secondaryButtonText}>{isWritingManagerTag ? "Hold tag…" : "Rewrite NFC tag"}</Text>
-                  </TouchableOpacity>
-                </View>
-              )) : <Text style={styles.listMeta}>No manager is currently assigned to this ward.</Text>}
-              <Text style={styles.listMeta}>Select a manager above to edit them, or enter a new name and STAFFCODE in the manager fields.</Text>
-              <TouchableOpacity accessibilityRole="button" disabled={isSaving || isWritingManagerTag} onPress={saveExistingWardManager} style={[styles.primaryButton, (isSaving || isWritingManagerTag) && styles.disabledButton]}>
-                <Text style={styles.primaryButtonText}>{editingManagerId ? "Update ward manager" : "Assign new ward manager"}</Text>
-              </TouchableOpacity>
-              {managedWard?.name.toLowerCase().includes("demo") ? (
-                <View style={styles.demoDeletePanel}>
-                  <Text style={styles.demoDeleteTitle}>Demonstration data cleanup</Text>
-                  <Text style={styles.listMeta}>
-                    Deletes this ward from {managedWardSite?.name ?? "the selected site"}, including its demonstration patients and linked records.
-                  </Text>
-                  <TouchableOpacity
-                    accessibilityRole="button"
-                    disabled={isSaving || isWritingManagerTag}
-                    onPress={confirmDeleteDemoWard}
-                    style={[styles.demoDeleteButton, (isSaving || isWritingManagerTag) && styles.disabledButton]}
-                  >
-                    <Text style={styles.demoDeleteButtonText}>{isSaving ? "Deleting…" : "Delete this demonstration ward"}</Text>
-                  </TouchableOpacity>
-                </View>
-              ) : null}
-            </View>
-          ) : null}
         </View>
       </View>
     </View>

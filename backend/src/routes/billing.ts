@@ -5,6 +5,9 @@ import { z } from "zod";
 
 import { requireAuthenticated, requireStaffRole, type AuthenticatedRequest } from "../auth.js";
 import { config } from "../config.js";
+import { reconcileFeatures, type OrderedItem } from "../billing/reconcile.js";
+import { checkoutLines, type PackageSelection } from "../billing/checkout.js";
+import { catalogue, pricePackage, wardFeatures } from "../billing/package-pricing.js";
 import { pool } from "../db/pool.js";
 
 const router = Router();
@@ -15,9 +18,11 @@ const checkoutSchema = z.object({
   contactName: z.string().trim().min(2).max(255),
   billingEmail: z.string().trim().email().max(320),
   billingPhone: z.string().trim().max(50).optional().default(""),
-  plan: z.enum(["essential", "professional", "enterprise"]),
-  interval: z.enum(["monthly", "yearly"]),
+  plan: z.enum(["essential", "professional", "enterprise"]).optional(),
+  interval: z.enum(["monthly", "yearly"]).optional(),
   wardQuantity: z.number().int().min(1).max(100).default(1),
+  package: z.unknown().optional(),
+  catalogueVersion: z.string().optional(),
   acceptedTerms: z.literal(true)
 });
 
@@ -44,13 +49,25 @@ router.post("/checkout", async (request, response, next) => {
       response.status(400).json({ error: "Please complete all required subscription details", details: parsed.error.flatten() });
       return;
     }
-    const { plan, interval } = parsed.data;
-    const priceId = config.stripePriceIds[plan][interval];
-    if (!priceId) {
-      response.status(503).json({ error: `The ${plan} ${interval} Stripe price has not been configured` });
-      return;
+    let selection: PackageSelection;
+    try {
+      if (parsed.data.package && parsed.data.catalogueVersion !== catalogue.version) throw new Error("Pricing has changed. Refresh the page and review your package.");
+      if (!parsed.data.package && (!parsed.data.plan || !parsed.data.interval)) throw new Error("Choose your package and billing frequency.");
+      selection = pricePackage(parsed.data.package ?? {
+        interval: parsed.data.interval, enterprise: parsed.data.plan === "enterprise", tablets: 0,
+        wards: Array.from({length: parsed.data.wardQuantity}, (_, i) => ({ name: `Ward ${i + 1}`, site: "Main site", plan: parsed.data.plan === "professional" ? "professional" : "essential", modules: [] }))
+      }).selection as PackageSelection;
+    } catch (error) {
+      response.status(400).json({error: error instanceof Error ? error.message : "Invalid package"}); return;
     }
-    const quantity = plan === "enterprise" ? 1 : parsed.data.wardQuantity;
+    let checkout;
+    try { checkout = await checkoutLines(client, selection); }
+    catch (error) { response.status(503).json({error: error instanceof Error ? error.message : "Payment prices are unavailable"}); return; }
+    const { quote, lineItems } = checkout;
+    const interval = selection.interval;
+    const plan = selection.enterprise ? "enterprise" : selection.wards.every(ward => ward.plan === "professional") ? "professional" : "essential";
+    const priceId = lineItems[0]!.price;
+    const quantity = selection.wards.length;
     const billingAccountId = crypto.randomUUID();
     const customer = await client.customers.create({
       name: parsed.data.organisationName,
@@ -61,16 +78,17 @@ router.post("/checkout", async (request, response, next) => {
     await pool.query(
       `insert into billing_accounts (
          id, organisation_name, billing_contact_name, billing_email, billing_phone,
-         stripe_customer_id, stripe_price_id, subscription_plan, billing_interval, licensed_ward_quantity
-       ) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+         stripe_customer_id, stripe_price_id, subscription_plan, billing_interval, licensed_ward_quantity, package_selection, expected_amount, tablet_quantity, ordered_items
+       ) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11::jsonb,$12,$13,$14::jsonb)`,
       [billingAccountId, parsed.data.organisationName, parsed.data.contactName, parsed.data.billingEmail,
-       parsed.data.billingPhone || null, customer.id, priceId, plan, interval, quantity]
+       parsed.data.billingPhone || null, customer.id, priceId, plan, interval, quantity, JSON.stringify(selection), quote.gross, selection.tablets, JSON.stringify(lineItems.map((item, index) => ({...item, key: quote.lines[index]!.key})))]
     );
     const metadata = { billingAccountId, plan, billingInterval: interval, licensedWardQuantity: String(quantity) };
     const session = await client.checkout.sessions.create({
       mode: "subscription",
       customer: customer.id,
-      line_items: [{ price: priceId, quantity }],
+      line_items: lineItems,
+      automatic_tax: { enabled: true },
       allow_promotion_codes: true,
       billing_address_collection: "required",
       customer_update: { address: "auto", name: "auto" },
@@ -180,6 +198,8 @@ router.get("/report", requireStaffRole(["super_admin"]), async (_request, respon
               billing.billing_contact_name as "billingContactName", billing.billing_email as "billingEmail",
               billing.subscription_plan as "subscriptionPlan", billing.billing_interval as "billingInterval",
               billing.licensed_ward_quantity as "licensedWardQuantity", billing.billing_status as "billingStatus",
+              billing.expected_amount as "expectedAmount", billing.tablet_quantity as "tabletQuantity",
+              billing.package_review_required as "packageReviewRequired",
               billing.last_payment_amount as "lastPaymentAmount", billing.billing_currency as "billingCurrency",
               billing.last_payment_at as "lastPaymentAt", billing.current_period_end as "nextDueAt",
               billing.payment_failed_at as "paymentFailedAt", billing.grace_period_ends_at as "gracePeriodEndsAt",
@@ -195,7 +215,7 @@ router.get("/report", requireStaffRole(["super_admin"]), async (_request, respon
       const plan = row.subscriptionPlan as keyof typeof planPrices;
       const interval = row.billingInterval as "monthly" | "yearly";
       const quantity = Number(row.licensedWardQuantity || 1);
-      const expectedAmount = planPrices[plan][interval] * quantity;
+      const expectedAmount = row.expectedAmount ?? planPrices[plan][interval] * quantity;
       const nextDueMs = row.nextDueAt ? new Date(row.nextDueAt).getTime() : null;
       const daysUntilDue = nextDueMs === null ? null : Math.ceil((nextDueMs - now) / dayMs);
       const failedMs = row.paymentFailedAt ? new Date(row.paymentFailedAt).getTime() : null;
@@ -203,7 +223,7 @@ router.get("/report", requireStaffRole(["super_admin"]), async (_request, respon
         ? Math.max(1, Math.floor((now - failedMs) / dayMs) + 1) : null;
       const graceDaysRemaining = row.gracePeriodEndsAt
         ? Math.max(0, Math.ceil((new Date(row.gracePeriodEndsAt).getTime() - now) / dayMs)) : null;
-      let reminderStatus = "No reminder needed";
+      let reminderStatus = row.packageReviewRequired ? "Subscription items changed — review ward allocations" : "No reminder needed";
       if (["unpaid", "canceled"].includes(row.billingStatus)) reminderStatus = "Access paused — contact customer";
       else if (row.billingStatus === "past_due") reminderStatus = `Urgent reminder — grace day ${Math.min(graceDay ?? 1, 7)} of 7`;
       else if (row.cancelAtPeriodEnd) reminderStatus = "Cancellation scheduled — contact customer";
@@ -230,7 +250,7 @@ async function ensureOrganisationForBillingAccount(billingAccountId: string) {
     await client.query("begin");
     const accountResult = await client.query(`select * from billing_accounts where id = $1 for update`, [billingAccountId]);
     const account = accountResult.rows[0];
-    if (!account || account.organisation_id) {
+    if (!account || account.organisation_id || account.package_review_required) {
       await client.query("commit");
       return account?.organisation_id as string | undefined;
     }
@@ -242,6 +262,29 @@ async function ensureOrganisationForBillingAccount(billingAccountId: string) {
        ) values ($1, 'passcode={STAFFCODE}', $2, '{}'::jsonb, 'active', '')`,
       [organisationId, account.subscription_plan]
     );
+    if (account.package_selection) {
+      const selection = account.package_selection as PackageSelection;
+      const siteIds = new Map<string, string>();
+      for (const [index, ward] of selection.wards.entries()) {
+        const siteKey = ward.site.toLowerCase();
+        let siteId = siteIds.get(siteKey);
+        if (!siteId) {
+          siteId = `site-${crypto.randomUUID()}`;
+          await client.query("insert into sites (id, organisation_id, name) values ($1,$2,$3)", [siteId, organisationId, ward.site]);
+          siteIds.set(siteKey, siteId);
+        }
+        const features = wardFeatures(ward, selection.enterprise);
+        await client.query(
+          `insert into wards (id, site_id, name, service_type, subscription_features, billing_account_id, billing_ward_index,
+             medication_chart_enabled, security_checks_enabled, staff_rota_enabled, verified_observations_enabled)
+           values ($1,$2,$3,$11,$4::jsonb,$5,$6,$7,$8,$9,$10)`,
+          [`ward-${crypto.randomUUID()}`, siteId, ward.name, JSON.stringify(features), account.id, index,
+            features.medication, features.securityChecks, features.rostering, features.verifiedObservations, ward.serviceType ?? "Care home"]
+        );
+      }
+      await client.query("update organisation_settings set site_limit_override=$2, wards_per_site_limit_override=$3 where organisation_id=$1",
+        [organisationId, siteIds.size, selection.wards.length]);
+    }
     await client.query(`update billing_accounts set organisation_id = $2, updated_at = now() where id = $1`, [billingAccountId, organisationId]);
     await client.query("commit");
     return organisationId;
@@ -258,14 +301,39 @@ async function syncSubscription(subscription: Stripe.Subscription, invoiceId?: s
   if (!billingAccountId) return;
   const status = (["incomplete", "trialing", "active", "past_due", "unpaid", "canceled"] as const)
     .includes(subscription.status as never) ? subscription.status : "incomplete";
+  const items = subscription.items.data.map(item => ({ price: item.price.id, quantity: item.quantity ?? 1 }));
+  const accountResult = await pool.query("select package_selection, ordered_items from billing_accounts where id=$1", [billingAccountId]);
+  const stored = accountResult.rows[0]?.package_selection as PackageSelection | undefined;
+  let reviewRequired = false;
+  if (stored) {
+    const ordered = accountResult.rows[0].ordered_items as OrderedItem[];
+    const reconciled = reconcileFeatures(stored, ordered, items);
+    reviewRequired = reconciled.reviewRequired;
+    for (const [index, features] of reconciled.features.entries()) {
+      await pool.query("update wards set subscription_features=$3::jsonb where billing_account_id=$1 and billing_ward_index=$2",
+        [billingAccountId, index, JSON.stringify(features)]);
+    }
+  }
+
   await pool.query(
     `update billing_accounts set
        stripe_subscription_id=$2, stripe_price_id=$3, billing_status=$4,
-       current_period_end=$5, cancel_at_period_end=$6, last_invoice_id=coalesce($7,last_invoice_id), updated_at=now()
+       current_period_end=$5, cancel_at_period_end=$6, last_invoice_id=coalesce($7,last_invoice_id),
+       subscription_items=$8::jsonb, package_review_required=$9, updated_at=now()
      where id=$1`,
     [billingAccountId, subscription.id, subscription.items.data[0]?.price.id ?? null, status,
-     subscriptionPeriodEnd(subscription), subscription.cancel_at_period_end, invoiceId ?? null]
+     subscriptionPeriodEnd(subscription), subscription.cancel_at_period_end, invoiceId ?? null, JSON.stringify(items), reviewRequired]
   );
+  if (stripe && (status === "active" || status === "trialing")) {
+    try {
+      const preview = await stripe.invoices.createPreview({ subscription: subscription.id });
+      await pool.query("update billing_accounts set expected_amount=$2 where id=$1", [billingAccountId, preview.total]);
+    } catch {
+      // Stripe may not be able to preview before checkout has a tax location.
+      // Keep the quote until a later webhook can refresh the invoice estimate.
+    }
+  }
+
 }
 
 export async function stripeWebhookHandler(request: Request, response: Response) {
@@ -315,11 +383,13 @@ export async function stripeWebhookHandler(request: Request, response: Response)
         const id = subscription.metadata.billingAccountId;
         if (id) {
           await pool.query(
-            `update billing_accounts set billing_status='active', last_payment_at=now(), last_payment_amount=$2,
-               billing_currency=$3, payment_failed_at=null, grace_period_ends_at=null, updated_at=now() where id=$1`,
+            `update billing_accounts set last_payment_at=now(), last_payment_amount=$2, billing_currency=$3,
+               payment_failed_at=case when billing_status in ('active','trialing') then null else payment_failed_at end,
+               grace_period_ends_at=case when billing_status in ('active','trialing') then null else grace_period_ends_at end,
+               updated_at=now() where id=$1`,
             [id, invoice.amount_paid, invoice.currency]
           );
-          await ensureOrganisationForBillingAccount(id);
+          if (subscription.status === "active" || subscription.status === "trialing") await ensureOrganisationForBillingAccount(id);
         }
       }
     } else if (event.type === "invoice.payment_failed") {
@@ -335,7 +405,7 @@ export async function stripeWebhookHandler(request: Request, response: Response)
         );
       }
     } else if (event.type === "customer.subscription.updated" || event.type === "customer.subscription.deleted") {
-      await syncSubscription(event.data.object);
+      await syncSubscription(await stripe.subscriptions.retrieve(event.data.object.id));
     }
     response.json({ received: true });
   } catch (error) {

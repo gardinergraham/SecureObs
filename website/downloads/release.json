@@ -1,17 +1,15 @@
 {
-  "version": "0.1.19",
-  "androidVersionCode": 18,
+  "version": "0.1.21",
+  "androidVersionCode": 20,
   "minimumSupportedVersion": "0.1.7",
   "publishedAt": "2026-09-07",
   "size": "91.6 MB",
-  "downloadUrl": "https://ziydoaoxastnvilu.public.blob.vercel-storage.com/android/SecureObs-0.1.19.apk",
+  "downloadUrl": "https://ziydoaoxastnvilu.public.blob.vercel-storage.com/android/SecureObs-0.1.21.apk",
   "downloadPageUrl": "https://secure-obs.com/download",
-  "sha256": "b8124ae9231119cc04386acc3df5dac24bb957385ccc9dfd737832caa59ab294",
+  "sha256": "00664ed4cb336ef6274868085f55f51ac2fcfb382a1672c42635b746e8515543",
   "signingCertificateSha256": "62cbdb9832aa007b14daf1b97a703ac9c153825f9fe6b560693d1853d176af09",
   "releaseNotes": [
-    "Added the ability for different job roles depending",
-    "on the ward they are working on",
-    "Also added nurses can prescribe medication if they",
-    "are prescribing nurses."
+    "Updated the ward setup where admin can add a manager to a existing ward",
+    "Updated the price package"
   ]
 }

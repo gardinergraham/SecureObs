@@ -245,9 +245,12 @@ export default function App() {
   const selectedWard = selectedWardRecord
     ? applyOrganisationEntitlements(selectedWardRecord, organisationSettings)
     : undefined;
-  const analyticsEnabled = isOrganisationFeatureEnabled(organisationSettings, "dashboard");
-  const rosteringEnabled = isOrganisationFeatureEnabled(organisationSettings, "rostering");
-  const cqcReportingEnabled = isOrganisationFeatureEnabled(organisationSettings, "cqcReporting");
+  const wardOrganisationSettings: OrganisationSettings = selectedWardRecord?.subscriptionFeatures
+    ? { ...organisationSettings, featureOverrides: { ...organisationSettings.featureOverrides, ...selectedWardRecord.subscriptionFeatures } }
+    : organisationSettings;
+  const analyticsEnabled = isOrganisationFeatureEnabled(wardOrganisationSettings, "dashboard");
+  const rosteringEnabled = isOrganisationFeatureEnabled(wardOrganisationSettings, "rostering");
+  const cqcReportingEnabled = isOrganisationFeatureEnabled(wardOrganisationSettings, "cqcReporting");
   const [selectedPatientId, setSelectedPatientId] = useState(seedData.patients[0]?.id ?? "");
   const lastActivityAtRef = useRef(Date.now());
   const inactivityCountdownStartedAtRef = useRef<number | null>(null);
@@ -1826,7 +1829,7 @@ export default function App() {
           <WardSettingsScreen
             selectedStaffId={selectedStaffId}
             selectedWardId={selectedWardId}
-            organisationSettings={organisationSettings}
+            organisationSettings={wardOrganisationSettings}
             staff={staffMembers}
             wards={hasAdminAccess(selectedStaff)
               ? wards
@@ -2037,7 +2040,7 @@ export default function App() {
             onMissedObservationSaved={handleCreateMissedObservation}
             onObservationSaved={handleObservationSaved}
             onSelectPatient={setSelectedPatientId}
-            verifiedObservationsEnabled={Boolean(selectedWard?.verifiedObservationsEnabled) && isOrganisationFeatureEnabled(organisationSettings, "verifiedObservations")}
+            verifiedObservationsEnabled={Boolean(selectedWard?.verifiedObservationsEnabled) && isOrganisationFeatureEnabled(wardOrganisationSettings, "verifiedObservations")}
           />
         ) : screen === "enhanced" ? (
           <EnhancedObservationScreen
@@ -2084,7 +2087,7 @@ export default function App() {
             onTransferPatient={handleTransferManagedPatient}
             onArchivePatient={handleArchiveManagedPatient}
             onRestorePatient={handleRestoreManagedPatient}
-            verifiedObservationsEnabled={isOrganisationFeatureEnabled(organisationSettings, "verifiedObservations")}
+            verifiedObservationsEnabled={isOrganisationFeatureEnabled(wardOrganisationSettings, "verifiedObservations")}
             onOpenIdentification={(patientId) => {
               setIdentificationPatientId(patientId);
               setScreen("patientIdentification");
@@ -2092,7 +2095,7 @@ export default function App() {
           />
         ) : screen === "patientIdentification" ? (
           <PatientIdentificationScreen
-            organisationSettings={organisationSettings}
+            organisationSettings={wardOrganisationSettings}
             patientId={identificationPatientId}
             patients={patients}
             selectedStaffId={selectedStaffId}
@@ -2252,7 +2255,7 @@ export default function App() {
           <BankAgencyStaffScreen
             selectedStaffId={selectedStaffId}
             selectedWardId={selectedWardId}
-            organisationSettings={organisationSettings}
+            organisationSettings={wardOrganisationSettings}
             staff={scopedStaffMembers}
             wards={siteWards}
             onBack={() => setScreen(bankAgencyBackScreen)}
@@ -2661,6 +2664,7 @@ function isOrganisationFeatureEnabled(
 }
 
 function applyOrganisationEntitlements(ward: Ward, settings: OrganisationSettings): Ward {
+  settings = ward.subscriptionFeatures ? { ...settings, featureOverrides: { ...settings.featureOverrides, ...ward.subscriptionFeatures } } : settings;
   return {
     ...ward,
     medicationChartEnabled:

@@ -282,6 +282,7 @@ export type PatientTask = {
 };
 
 export type Ward = {
+  subscriptionFeatures?: Partial<Record<OrganisationFeatureKey, boolean>> | null;
   id: string;
   organisationId?: string;
   siteId: string;

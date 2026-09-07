@@ -101,7 +101,7 @@ export function requireStaffRole(roles: StaffRole[]) {
     if (!auth) return;
 
     let role: StaffRole | undefined;
-    try { role = await applyWardRole(request); } catch (error) { next(error); return; }
+    try { role = await applyWardRole(request); if (role && !(await purchasedFeatureEnabled(request))) role = undefined; } catch (error) { next(error); return; }
     if (!role || !roles.includes(role)) {
       await recordAuditEvent({
         organisationId: auth.staff.organisationId,
@@ -127,7 +127,7 @@ export function requirePrescriber() {
     if (!auth) return;
 
     let role: StaffRole | undefined;
-    try { role = await applyWardRole(request); } catch (error) { next(error); return; }
+    try { role = await applyWardRole(request); if (role && !(await purchasedFeatureEnabled(request))) role = undefined; } catch (error) { next(error); return; }
     if (!role || (!auth.staff.canPrescribe && role !== "doctor")) {
       await recordAuditEvent({
         organisationId: auth.staff.organisationId,
@@ -238,4 +238,14 @@ async function applyWardRole(request: AuthenticatedRequest): Promise<StaffRole |
     auth.staff = { ...staff, role };
   }
   return role;
+}
+
+async function purchasedFeatureEnabled(request: AuthenticatedRequest) {
+  if (request.auth?.staff.role === "super_admin" || !request.auth?.wardId) return true;
+  const feature = request.path.startsWith("/medication-") ? "medication"
+    : request.path.startsWith("/rota-assignments") || request.path.startsWith("/staff-shift-assignments") ? "rostering"
+    : request.path.startsWith("/security-checks") ? "securityChecks" : undefined;
+  if (!feature) return true;
+  const result = await pool.query("select subscription_features from wards where id=$1", [request.auth.wardId]);
+  return result.rows[0]?.subscription_features?.[feature] !== false;
 }

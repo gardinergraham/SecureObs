@@ -179,8 +179,16 @@ function subscriptionFeatures(plan: "essential" | "professional" | "enterprise" 
 
 async function organisationFeatureEnabled(
   organisationId: string,
-  feature: keyof ReturnType<typeof subscriptionFeatures>
+  feature: keyof ReturnType<typeof subscriptionFeatures>,
+  wardId?: string
 ) {
+  if (wardId) {
+    const ward = await pool.query(`select w.subscription_features from wards w join sites s on s.id=w.site_id
+      where w.id=$1 and s.organisation_id=$2`, [wardId, organisationId]);
+    if (ward.rows[0]?.subscription_features && typeof ward.rows[0].subscription_features[feature] === "boolean") {
+      return ward.rows[0].subscription_features[feature];
+    }
+  }
   const result = await pool.query(
     `select subscription_plan as "subscriptionPlan", feature_overrides as "featureOverrides"
      from organisation_settings where organisation_id = $1`,
@@ -369,6 +377,8 @@ router.get("/wards", async (request, response, next) => {
       `
       select
         wards.id,
+        sites.organisation_id as "organisationId",
+        wards.subscription_features as "subscriptionFeatures",
         wards.site_id as "siteId",
         wards.name,
         wards.service_type as "serviceType",
@@ -427,6 +437,13 @@ router.post("/wards", requireStaffRole(["manager", "super_admin"]), async (reque
       }
     }
 
+    const licensed = await pool.query("select licensed_ward_quantity from billing_accounts where organisation_id=$1 and package_selection is not null", [organisationId]);
+    if (licensed.rows[0]) {
+      const current = await pool.query("select w.id from wards w join sites s on s.id=w.site_id where s.organisation_id=$1", [organisationId]);
+      if (!current.rows.some((ward) => ward.id === parsed.data.id) && current.rows.length >= licensed.rows[0].licensed_ward_quantity) {
+        response.status(403).json({error: "All purchased ward licences are in use. Update the subscription before adding another ward."}); return;
+      }
+    }
     const wardLimit = await organisationResourceLimit(organisationId, "wardsPerSite");
     if (wardLimit !== null) {
       const existingWards = await pool.query(
@@ -443,13 +460,13 @@ router.post("/wards", requireStaffRole(["manager", "super_admin"]), async (reque
     const ward = {
       ...parsed.data,
       securityChecksEnabled:
-        parsed.data.securityChecksEnabled && (await organisationFeatureEnabled(organisationId, "securityChecks")),
+        parsed.data.securityChecksEnabled && (await organisationFeatureEnabled(organisationId, "securityChecks", parsed.data.id)),
       medicationChartEnabled:
-        parsed.data.medicationChartEnabled && (await organisationFeatureEnabled(organisationId, "medication")),
+        parsed.data.medicationChartEnabled && (await organisationFeatureEnabled(organisationId, "medication", parsed.data.id)),
       staffRotaEnabled:
-        parsed.data.staffRotaEnabled && (await organisationFeatureEnabled(organisationId, "rostering")),
+        parsed.data.staffRotaEnabled && (await organisationFeatureEnabled(organisationId, "rostering", parsed.data.id)),
       verifiedObservationsEnabled:
-        parsed.data.verifiedObservationsEnabled && (await organisationFeatureEnabled(organisationId, "verifiedObservations")),
+        parsed.data.verifiedObservationsEnabled && (await organisationFeatureEnabled(organisationId, "verifiedObservations", parsed.data.id)),
       id: parsed.data.id ?? createId("ward", parsed.data.name)
     };
 
@@ -491,6 +508,7 @@ router.post("/wards", requireStaffRole(["manager", "super_admin"]), async (reque
           observation_locations = excluded.observation_locations
         returning
           id,
+          subscription_features as "subscriptionFeatures",
           site_id as "siteId",
           name,
           service_type as "serviceType",
@@ -548,7 +566,7 @@ router.post("/wards", requireStaffRole(["manager", "super_admin"]), async (reque
         landingPage: ward.landingPage
       }
     });
-    response.status(201).json(toAppWard(result.rows[0]));
+    response.status(201).json({ ...toAppWard(result.rows[0]), organisationId });
   } catch (error) {
     next(error);
   }

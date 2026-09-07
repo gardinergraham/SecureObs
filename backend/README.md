@@ -110,3 +110,62 @@ Run the isolated regression checks (no live database required):
 node backend/tests/staff-organisation.cjs
 node backend/tests/ward-permissions.cjs
 ```
+
+### Package builder and Stripe catalogue
+
+The existing subscription page is now a per-ward package builder. Prices live in
+`src/billing/package-pricing.js`; run `node scripts/sync-package-pricing.cjs` from
+the repository root after changing it, and commit the generated website copy.
+
+- Essential: £149 per ward/month excluding VAT; Professional: £299.
+- Enterprise: £1,499 per organisation/month excluding VAT.
+- Medication/eMAR, rostering, security checks, analytics and CQC governance:
+  £45 per module/ward/month excluding VAT. Professional and Enterprise include
+  all five, so included modules never become extra line items.
+- Tablet hire: £37.99 per tablet/month **including VAT**. Do not convert this to
+  a rounded exclusive price, which would change the amount customers pay.
+- The calculator estimates UK VAT at 20%. Stripe Automatic Tax determines tax
+  using the billing address, with software prices `exclusive` and tablets
+  `inclusive`. The next-invoice preview refreshes the billing ledger total.
+- Annual software prices are unchanged. Modules and tablet hire are monthly-only
+  until annual pricing is agreed. Unsupported annual combinations are rejected.
+
+Deployment order and account setup:
+
+1. Run `node scripts/setup-stripe-catalog.mjs` for a read-only catalogue plan.
+   With `STRIPE_SECRET_KEY` set to a **test** key, `--apply` creates/reuses test
+   products and prices. Live creation requires `--apply --live` and a live key.
+   The script prints only price IDs, never credentials. Review product tax
+   categories and configure the applicable Stripe Tax registration and business
+   address. Complete this before enabling public checkout.
+2. Save the price IDs in the backend environment, including the six optional
+   products in `.env.example`. Base prices must also use explicit exclusive VAT.
+   Checkout validates amounts, GBP currency, recurrence and VAT behaviour.
+3. Apply `052_package_builder.sql`, deploy the API, then publish the website and
+   app updates. Keep test/live prices and webhook secrets separate.
+4. In Stripe test mode, complete a two-ward order with rostering on one ward and
+   two tablets. The UK estimate is £487.58/month. Verify the paid webhook creates
+   the named sites/wards and enables rostering only on the paid ward. Set up
+   staff and review each ward's clinical settings before use.
+
+Orders store their selection and exact Stripe item mapping. Legacy subscriptions
+retain their organisation-level behaviour. The builder creates new subscriptions;
+it is not an amendment page for existing customers. Keep Stripe Customer Portal
+subscription-item editing disabled until an amendment flow can allocate changed
+purchases to named wards. Direct Stripe changes to builder subscriptions are
+flagged in the billing report: removed items lose associated features, while
+extra items require review. Tablet quantity changes preserve software access.
+Existing-customer migrations require linking their current wards and agreed
+selection; do not send them through new checkout and create a second subscription.
+
+Checks from the repository root:
+
+```sh
+npm --prefix backend run build
+node backend/tests/package-pricing.mjs
+node backend/tests/package-checkout.mjs
+node scripts/test-ward-manager-assignment.cjs
+```
+
+These are isolated tests using mocked Stripe/database services. The migration
+and real Stripe checkout still need verification in a test environment.

@@ -1,0 +1,26 @@
+.package-builder { max-width: 1220px; margin: auto; padding: 36px 24px 64px; color: #183541; }
+.builder-heading { margin-bottom: 28px; } .builder-heading h1 { font-size: clamp(1.8rem, 3.5vw, 2.8rem); margin: 8px 0; } .builder-heading p { margin: 8px 0; }
+.builder-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(300px, 360px); gap: 24px; align-items: start; }
+.builder-options { display: grid; gap: 22px; min-width: 0; }
+.builder-panel, .builder-summary { background: #fff; border: 1px solid #cadce3; border-radius: 12px; padding: 24px; }
+.builder-panel h2, .builder-summary h2 { font-size: 1.25rem; margin: 0 0 18px; }
+.panel-heading { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 12px; align-items: start; }
+.outline-button, .ward-remove { color: #215465; border: 1px solid #8aaab7; border-radius: 6px; background: #fff; padding: 9px 12px; font: inherit; cursor: pointer; }
+.ward-remove { font-size: .875rem; } .ward-card { border-top: 1px solid #dbe6eb; margin-top: 22px; padding-top: 22px; }
+.ward-card legend { font-weight: 800; font-size: 1.05rem; } .ward-card { border-left: 0; border-right: 0; border-bottom: 0; padding-left: 0; padding-right: 0; min-width: 0; }
+.ward-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 12px 0; }
+.package-builder label { font-size: .95rem; } .package-builder input:not([type="radio"]):not([type="checkbox"]), .package-builder select { width: 100%; box-sizing: border-box; min-height: 44px; border: 1px solid #aac1cb; border-radius: 6px; padding: 9px 10px; font: inherit; background: #fff; color: #183541; }
+.package-builder input[type="checkbox"], .package-builder input[type="radio"] { width: 18px; height: 18px; accent-color: #205c70; flex-shrink: 0; }
+.enterprise-option, .terms-option { display: flex; align-items: start; gap: 9px; line-height: 1.6; }
+.terms-option { margin-top: 20px; display: block; } .module-grid { display: grid; gap: 8px; margin-top: 14px; }
+.module-option { display: flex; align-items: start; gap: 10px; border: 1px solid #dce6eb; border-radius: 8px; padding: 12px; cursor: pointer; }
+.module-option:has(input:checked) { background: #edf6f9; border-color: #75a4b4; } .module-copy { flex: 1; min-width: 0; } .module-copy strong { display: block; } .module-copy small { display: block; font-size: .875rem; line-height: 1.5; margin-top: 2px; color: #486571; }
+.module-price { font-weight: 700; white-space: nowrap; font-size: .875rem; } .muted, .tablet-choice p { color: #526b75; font-size: .9rem; line-height: 1.6; }
+.upgrade-tip { margin-top: 12px; border: 1px solid #91b5a7; background: #f0f8f4; padding: 14px; border-radius: 8px; } .upgrade-tip p { margin: 0 0 10px; }
+.tablet-choice { display: grid; grid-template-columns: 1fr 90px; gap: 20px; align-items: start; } .tablet-choice p { margin: 6px 0 18px; }
+.billing-frequency { border: 0; padding: 0; margin: 12px 0; display: grid; gap: 12px; } .billing-frequency legend { font-weight: 700; margin-bottom: 10px; }
+.builder-summary { position: sticky; top: 24px; border-top: 5px solid #215d70; } .summary-line { display: flex; justify-content: space-between; gap: 16px; font-size: .95rem; margin: 14px 0; } .summary-line span:last-child { white-space: nowrap; font-weight: 700; } .summary-line small { display: block; font-size: .85rem; color: #536e78; }
+.summary-divider { border-top: 1px solid #d4e1e7; margin: 20px 0 12px; } .summary-grand { display: block; margin-top: 20px; } .summary-grand strong { display: block; font-size: 2rem; color: #174d60; } .builder-summary .checkout-button { width: 100%; min-height: 48px; } #form-message { color: #a32d27; font-size: .95rem; }
+.package-builder :focus-visible { outline: 3px solid #208aaf; outline-offset: 3px; }
+@media(max-width: 850px) { .builder-layout { grid-template-columns: 1fr; } .builder-summary { position: static; } .package-builder { padding: 24px 16px; } }
+@media(max-width: 480px) { .ward-fields { grid-template-columns: 1fr; } .builder-panel, .builder-summary { padding: 18px; } .module-option { flex-wrap: wrap; } .module-price { margin-left: 28px; } }

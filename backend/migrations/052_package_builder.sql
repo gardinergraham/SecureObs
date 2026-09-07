@@ -1,0 +1,10 @@
+alter table billing_accounts add column if not exists package_selection jsonb;
+alter table billing_accounts add column if not exists expected_amount integer;
+alter table billing_accounts add column if not exists tablet_quantity integer not null default 0;
+alter table billing_accounts add column if not exists subscription_items jsonb not null default '[]'::jsonb;
+alter table billing_accounts add column if not exists package_review_required boolean not null default false;
+alter table wards add column if not exists subscription_features jsonb;
+alter table wards add column if not exists billing_account_id uuid references billing_accounts(id);
+alter table wards add column if not exists billing_ward_index integer;
+create unique index if not exists wards_billing_allocation_idx on wards(billing_account_id, billing_ward_index) where billing_account_id is not null;
+alter table billing_accounts add column if not exists ordered_items jsonb not null default '[]'::jsonb;
