@@ -6,6 +6,7 @@ import { auditActorFromBody, recordAuditEvent } from "../audit.js";
 import { createStaffSession, requireAuthenticated, requireStaffRole, type AuthenticatedRequest } from "../auth.js";
 import { dataProvider } from "../data/provider.js";
 import { DuplicateStaffCodeError, StaffLookupAmbiguousError, type StaffMemberRecord } from "../data/types.js";
+import { roleInWard } from "../wardAccess.js";
 import { pool } from "../db/pool.js";
 import { optionalOrganisationIdSchema, requireOrganisationId } from "./organisation.js";
 
@@ -57,6 +58,7 @@ const staffMemberSchema = z.object({
     (value) => (typeof value === "string" ? value.toLowerCase() : value),
     z.enum(["nurse", "hcf", "ot", "security", "manager", "doctor", "super_admin"])
   ),
+  wardRoles: z.record(z.enum(["nurse", "hcf", "ot", "security", "manager", "doctor"])).optional(),
   designation: z.string().optional(),
   canPrescribe: z.boolean().default(false),
   employmentType: z.enum(["permanent", "bank"]).default("permanent"),
@@ -111,6 +113,77 @@ router.post("/", requireStaffRole(["manager", "nurse", "super_admin"]), async (r
       return;
     }
 
+    // Validate every submitted allocation against the target company, including
+    // requests from platform admins and records containing stale access arrays.
+    const wardIds = [...new Set([parsed.data.wardId, ...parsed.data.allowedWardIds])];
+    const [wardResult, siteResult, ownerResult] = await Promise.all([
+      pool.query(
+        `select w.id from wards w join sites s on s.id = w.site_id
+         where w.id::text = any($1::text[]) and s.organisation_id = $2`,
+        [wardIds, organisationId]
+      ),
+      pool.query(
+        "select id from sites where id::text = any($1::text[]) and organisation_id = $2",
+        [parsed.data.allowedSiteIds, organisationId]
+      ),
+      parsed.data.id
+        ? pool.query("select organisation_id from staff_members where id::text = $1", [parsed.data.id])
+        : Promise.resolve({ rows: [] })
+    ]);
+    if (
+      wardResult.rows.length !== wardIds.length ||
+      siteResult.rows.length !== new Set(parsed.data.allowedSiteIds).size ||
+      (ownerResult.rows[0] && ownerResult.rows[0].organisation_id !== organisationId)
+    ) {
+      response.status(403).json({ error: "Staff and all assigned sites and wards must belong to the same organisation" });
+      return;
+    }
+
+    const companyStaff = await dataProvider.staff.list(organisationId);
+    const existingStaffMember = companyStaff.find((member) =>
+      member.staffCode.toLowerCase() === parsed.data.staffCode.toLowerCase()
+    );
+    if (existingStaffMember?.role === "super_admin" && auth?.staff.role !== "super_admin") {
+      response.status(403).json({ error: "Only SecureObs admin can update SecureObs admin users" });
+      return;
+    }
+    const nextWardRoles = Object.fromEntries(parsed.data.allowedWardIds.map((wardId) => [wardId,
+      parsed.data.wardRoles?.[wardId] ?? existingStaffMember?.wardRoles?.[wardId]
+        ?? (existingStaffMember?.allowedWardIds.includes(wardId) ? existingStaffMember.role : parsed.data.role)
+    ]));
+    if (Object.keys(parsed.data.wardRoles ?? {}).some((wardId) => !parsed.data.allowedWardIds.includes(wardId))) {
+      response.status(400).json({ error: "Ward roles must refer to assigned wards" });
+      return;
+    }
+    const actor = auth?.baseStaff ?? auth?.staff;
+    if (actor && actor.role !== "super_admin") {
+      const isBankAssignment = parsed.data.employmentType === "bank" && (!existingStaffMember || existingStaffMember.employmentType === "bank");
+      const contextRole = roleInWard(actor, auth?.wardId);
+      if (contextRole !== "manager" && !(contextRole === "nurse" && isBankAssignment)) {
+        response.status(403).json({ error: "Manager permission in this ward is required to edit permanent staff" });
+        return;
+      }
+      const changedWards = new Set([...parsed.data.allowedWardIds, ...(existingStaffMember?.allowedWardIds ?? [])]);
+      for (const wardId of changedWards) {
+        const previousRole = existingStaffMember?.allowedWardIds.includes(wardId)
+          ? existingStaffMember.wardRoles?.[wardId] ?? existingStaffMember.role : undefined;
+        const nextRole = nextWardRoles[wardId];
+        if (previousRole === nextRole) continue;
+        const actorRole = roleInWard(actor, wardId);
+        if (actorRole !== "manager" && !(isBankAssignment && actorRole === "nurse" && nextRole !== "manager" && nextRole !== "doctor" && previousRole !== "manager" && previousRole !== "doctor")) {
+          response.status(403).json({ error: "You cannot change staff roles or access for a ward you do not manage" });
+          return;
+        }
+      }
+      if (contextRole !== "manager" && parsed.data.canPrescribe !== Boolean(existingStaffMember?.canPrescribe)) {
+        response.status(403).json({ error: "Manager permission is required to change prescribing permission" });
+        return;
+      }
+    }
+    // A ward edit must never overwrite the legacy identity role. Existing roles
+    // remain explicit in the map, including wards not visible in this editor.
+    const identityRole = existingStaffMember?.role ?? parsed.data.role;
+
     if (parsed.data.employmentType === "bank") {
       if (!parsed.data.accessStartsAt || !parsed.data.accessExpiresAt) {
         response.status(400).json({ error: "Bank/agency staff need a start and end access time" });
@@ -153,25 +226,27 @@ router.post("/", requireStaffRole(["manager", "nurse", "super_admin"]), async (r
     const staff = await dataProvider.staff.upsert({
       ...parsed.data,
       organisationId,
+      role: identityRole,
+      wardRoles: identityRole === "super_admin" ? {} : nextWardRoles as StaffMemberRecord["wardRoles"],
       loginPin: null,
       loginPinHash,
       loginPinMustChange: loginPinHash ? Boolean(parsed.data.loginPinMustChange) || isDefaultFirstLoginPinHash(loginPinHash) : undefined
     });
-    const actor = auditActorFromBody(request.body);
+    const auditActor = auditActorFromBody(request.body);
     await recordAuditEvent({
       organisationId,
-      actorStaffId: actor.actorStaffId ?? staff.id,
-      actorStaffCode: actor.actorStaffCode ?? staff.staffCode,
+      actorStaffId: auditActor.actorStaffId ?? staff.id,
+      actorStaffCode: auditActor.actorStaffCode ?? staff.staffCode,
       eventType: "staff.upsert",
       entityType: "staff_member",
       entityId: staff.id,
-      details: { staffCode: staff.staffCode, role: staff.role, employmentType: staff.employmentType }
+      details: { staffCode: staff.staffCode, role: staff.role, wardRoles: staff.wardRoles, previousWardRoles: existingStaffMember?.wardRoles, canPrescribe: staff.canPrescribe, employmentType: staff.employmentType }
     });
     if (staff.employmentType === "bank") {
       await recordAuditEvent({
         organisationId,
-        actorStaffId: actor.actorStaffId ?? staff.id,
-        actorStaffCode: actor.actorStaffCode ?? staff.staffCode,
+        actorStaffId: auditActor.actorStaffId ?? staff.id,
+        actorStaffCode: auditActor.actorStaffCode ?? staff.staffCode,
         eventType: "staff.bank_card_assignment",
         entityType: "staff_member",
         entityId: staff.id,
@@ -422,6 +497,11 @@ router.post("/reset-pin", requireStaffRole(["manager", "super_admin"]), async (r
 
     if (staff.role === "super_admin" && auth.staff.role !== "super_admin") {
       response.status(403).json({ error: "Only SecureObs admin can reset a SecureObs admin PIN" });
+      return;
+    }
+
+    if (auth.staff.role !== "super_admin" && (!auth.wardId || !staff.allowedWardIds.includes(auth.wardId))) {
+      response.status(403).json({ error: "The staff member must be assigned to the ward you manage" });
       return;
     }
 

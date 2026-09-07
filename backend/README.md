@@ -86,3 +86,27 @@ they are the migration source for the future `DATA_PROVIDER=sqlserver` adapter.
 - `GET /api/staff`
 - `GET /api/staff/by-code/:staffCode`
 - `POST /api/staff/lookup`
+
+### Ward-specific staff roles
+
+Migration `051_staff_ward_roles.sql` adds `staff_members.ward_roles` and copies each
+existing staff role to their assigned wards. Apply migrations before running the
+updated API; deploy the API before the updated app. The migration preserves the
+roles currently stored, so any role already overwritten before this change (for
+example Sally's manager role) must be corrected explicitly in ward staff setup.
+
+Staff records now include `wardRoles`, a ward ID to role mapping. Ward staff setup
+changes the selected ward's role while preserving the other assignments. Platform
+admin remains an organisation-independent identity role. The API resolves a
+resource's ward for authorisation; `X-Ward-Id` supplies context for actions such as
+staff setup and PIN resets. Queued requests retain their original ward context.
+Managers may change assignments only in wards they manage. Prescribing permission
+is independent of the ward role and can be granted to nurses by a manager.
+Existing doctor prescribing access is retained.
+
+Run the isolated regression checks (no live database required):
+
+```sh
+node backend/tests/staff-organisation.cjs
+node backend/tests/ward-permissions.cjs
+```

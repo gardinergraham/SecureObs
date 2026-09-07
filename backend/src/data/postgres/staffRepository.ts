@@ -21,8 +21,8 @@ export const postgresStaffRepository: StaffRepository = {
           insert into staff_members (
             organisation_id, key_number, staff_code, display_name, role, designation, can_prescribe,
             employment_type, access_starts_at, access_expires_at, login_pin, login_pin_hash, login_pin_must_change,
-            ward_id, allowed_site_ids, allowed_ward_ids, active
-          ) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)
+            ward_id, allowed_site_ids, allowed_ward_ids, active, ward_roles
+          ) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18::jsonb)
           on conflict (organisation_id, staff_code) do update set
             key_number = excluded.key_number,
             display_name = excluded.display_name,
@@ -42,6 +42,7 @@ export const postgresStaffRepository: StaffRepository = {
             allowed_site_ids = excluded.allowed_site_ids,
             allowed_ward_ids = excluded.allowed_ward_ids,
             active = excluded.active,
+            ward_roles = excluded.ward_roles,
             updated_at = now()
           ${staffReturningSql}
         `,
@@ -62,7 +63,8 @@ export const postgresStaffRepository: StaffRepository = {
           staff.wardId,
           staff.allowedSiteIds,
           staff.allowedWardIds,
-          staff.active
+          staff.active,
+          JSON.stringify(staff.wardRoles ?? {})
         ]
       );
 
@@ -122,6 +124,7 @@ function staffSelectSql(suffix: string) {
       staff_code as "staffCode",
       display_name as "name",
       lower(role) as role,
+      ward_roles as "wardRoles",
       designation,
       can_prescribe as "canPrescribe",
       employment_type as "employmentType",
@@ -147,6 +150,7 @@ const staffReturningSql = `
     staff_code as "staffCode",
     display_name as "name",
     lower(role) as role,
+      ward_roles as "wardRoles",
     designation,
     can_prescribe as "canPrescribe",
     employment_type as "employmentType",

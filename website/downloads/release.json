@@ -1,14 +1,17 @@
 {
-  "version": "0.1.18",
-  "androidVersionCode": 17,
+  "version": "0.1.19",
+  "androidVersionCode": 18,
   "minimumSupportedVersion": "0.1.7",
-  "publishedAt": "2026-09-03",
+  "publishedAt": "2026-09-07",
   "size": "91.6 MB",
-  "downloadUrl": "https://ziydoaoxastnvilu.public.blob.vercel-storage.com/android/SecureObs-0.1.18.apk",
+  "downloadUrl": "https://ziydoaoxastnvilu.public.blob.vercel-storage.com/android/SecureObs-0.1.19.apk",
   "downloadPageUrl": "https://secure-obs.com/download",
-  "sha256": "c09031cd8127073bdd33d3890458bd3fbca166e5b7115364da80037b934f2e47",
+  "sha256": "b8124ae9231119cc04386acc3df5dac24bb957385ccc9dfd737832caa59ab294",
   "signingCertificateSha256": "62cbdb9832aa007b14daf1b97a703ac9c153825f9fe6b560693d1853d176af09",
   "releaseNotes": [
-    "Updated the log out route for Agency staff so locks out"
+    "Added the ability for different job roles depending",
+    "on the ward they are working on",
+    "Also added nurses can prescribe medication if they",
+    "are prescribing nurses."
   ]
 }

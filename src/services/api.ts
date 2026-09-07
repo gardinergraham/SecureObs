@@ -28,6 +28,14 @@ import type {
   Ward
 } from "../types/domain";
 
+let activeWardId = "";
+export function setApiWardContext(wardId: string) { activeWardId = wardId; }
+function withWardContext(init?: RequestInit): RequestInit {
+  const headers = new Headers(init?.headers);
+  if (activeWardId && !headers.has("X-Ward-Id")) headers.set("X-Ward-Id", activeWardId);
+  return { ...init, headers };
+}
+
 const defaultApiUrl = "https://adequate-energy-production.up.railway.app";
 const apiUrl = process.env.EXPO_PUBLIC_API_URL ?? defaultApiUrl;
 
@@ -55,8 +63,8 @@ async function request<T>(
     throw new Error("EXPO_PUBLIC_API_URL is not configured");
   }
 
+  const headers = new Headers(withWardContext(init).headers);
   const session = await getAuthSession();
-  const headers = new Headers(init?.headers);
   headers.set("Content-Type", "application/json");
   if (session?.token) {
     headers.set("Authorization", `Bearer ${session.token}`);
@@ -132,10 +140,10 @@ export async function createObservation(observation: OrganisationScoped<Omit<Obs
     id: `local-${Date.now()}`
   };
   const path = "/api/observations";
-  const init = {
+  const init = withWardContext({
     method: "POST",
     body: JSON.stringify(localObservation)
-  };
+  });
 
   try {
     const savedObservation = await request<Observation>(path, init);
@@ -151,6 +159,7 @@ export async function createObservation(observation: OrganisationScoped<Omit<Obs
 }
 
 export async function saveQueuedRequest<T>(label: string, path: string, init?: RequestInit) {
+  init = withWardContext(init);
   try {
     const result = await request<T>(path, init);
     await flushSyncQueue();

@@ -119,7 +119,7 @@ export function AdminSettingsScreen({
     [selectedSiteId, wards]
   );
   const selectedWardManagers = staff.filter(
-    (member) => member.role === "manager" && (member.wardId === managedWardId || member.allowedWardIds.includes(managedWardId))
+    (member) => (member.wardRoles?.[managedWardId] ?? member.role) === "manager" && (member.wardId === managedWardId || member.allowedWardIds.includes(managedWardId))
   );
   const managedWard = wards.find((ward) => ward.id === managedWardId);
   const managedWardSite = sites.find((site) => site.id === managedWard?.siteId);
@@ -502,7 +502,11 @@ export function AdminSettingsScreen({
       organisationId: selectedOrganisationId,
       staffCode: managerStaffCode.trim(),
       name: managerName.trim(),
-      role: "manager",
+      role: existing?.role ?? "manager",
+      wardRoles: {
+        ...Object.fromEntries((existing?.allowedWardIds ?? []).map(id => [id, existing?.wardRoles?.[id] ?? existing?.role ?? "nurse"])),
+        [ward.id]: "manager"
+      } as NonNullable<StaffMember["wardRoles"]>,
       designation: "Ward Manager",
       wardId: ward.id,
       allowedSiteIds: Array.from(new Set([...(existing?.allowedSiteIds ?? []), ward.siteId])),

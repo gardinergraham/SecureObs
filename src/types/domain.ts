@@ -339,6 +339,7 @@ export type StaffMember = {
   staffCode: string;
   name: string;
   role: "nurse" | "hcf" | "ot" | "security" | "manager" | "doctor" | "super_admin";
+  wardRoles?: Record<string, Exclude<StaffMember["role"], "super_admin">>;
   designation?: string;
   canPrescribe?: boolean;
   employmentType?: "permanent" | "bank";

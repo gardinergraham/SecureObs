@@ -8,6 +8,7 @@ export type StaffMemberRecord = {
   staffCode: string;
   name: string;
   role: StaffRole;
+  wardRoles?: Record<string, Exclude<StaffRole, "super_admin">>;
   designation?: string | null;
   canPrescribe: boolean;
   employmentType: EmploymentType;

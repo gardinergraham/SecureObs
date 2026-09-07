@@ -1,6 +1,8 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Linking, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 
+import type { StaffDefaults } from "../services/staffDefaults";
+
 import appConfig from "../../app.json";
 import type { Site, StaffMember, Ward } from "../types/domain";
 import { hasAdminAccess, hasStaffRole } from "../utils/staffRole";
@@ -16,6 +18,11 @@ const releaseManifestUrl = process.env.EXPO_PUBLIC_RELEASE_MANIFEST_URL
 const isDemoBuild = process.env.EXPO_PUBLIC_APP_VARIANT === "demo";
 
 type HomeScreenProps = {
+  staffDefaults: StaffDefaults | null;
+  defaultsMessage: string;
+  defaultsBusy: boolean;
+  onSaveDefaults: () => Promise<void>;
+  onClearDefaults: () => Promise<void>;
   sites: Site[];
   wards: Ward[];
   staff: StaffMember[];
@@ -38,6 +45,11 @@ type HomeScreenProps = {
 };
 
 export function HomeScreen({
+  staffDefaults,
+  defaultsMessage,
+  defaultsBusy,
+  onSaveDefaults,
+  onClearDefaults,
   sites,
   wards,
   staff,
@@ -84,7 +96,7 @@ export function HomeScreen({
   const selectedSite = sites.find((site) => site.id === selectedSiteId);
   const hasStaffSession = Boolean(selectedStaff);
   const pinChangeRequired = Boolean(selectedStaff?.loginPinMustChange);
-  const canStart = Boolean(selectedStaff && selectedSite && selectedWard && !pinChangeRequired);
+  const canStart = Boolean(selectedStaff && selectedSite && selectedWard && selectedWard.siteId === selectedSiteId && !pinChangeRequired && !defaultsBusy);
   const canOpenAdminSettings = !pinChangeRequired && hasAdminAccess(selectedStaff);
   const canEditWardSettings = !pinChangeRequired && (hasStaffRole(selectedStaff, "manager") || hasAdminAccess(selectedStaff));
   const canOpenCompliance = !pinChangeRequired && Boolean(selectedWard) && canEditWardSettings && complianceGovernanceEnabled;
@@ -230,6 +242,23 @@ export function HomeScreen({
           <Text style={styles.sessionBadgeText}>{selectedWard?.observationIntervalMinutes ?? 0}m</Text>
         </View>
       </View>
+
+      {selectedStaff ? (
+        <View style={styles.signedInPanel}>
+          <Text style={styles.signedInName}>My login defaults</Text>
+          <Text style={styles.noticeText}>Choose your site and ward below, then save them for your future sign-ins on this device. You can still choose another authorised ward for a shift.</Text>
+          <View style={styles.selectorOptions}>
+            <TouchableOpacity accessibilityRole="button" disabled={!canStart} onPress={() => void onSaveDefaults()} style={[styles.scanButton, !canStart && styles.disabledButton]}>
+              <Text style={styles.scanButtonText}>{defaultsBusy ? "Loading / saving…" : "Save current site and ward as defaults"}</Text>
+            </TouchableOpacity>
+            {staffDefaults ? <TouchableOpacity accessibilityRole="button" disabled={defaultsBusy || pinChangeRequired} onPress={() => void onClearDefaults()} style={[styles.secondaryButton, (defaultsBusy || pinChangeRequired) && styles.disabledOutline]}>
+              <Text style={styles.secondaryButtonText}>Clear saved defaults</Text>
+            </TouchableOpacity> : null}
+          </View>
+          {defaultsMessage ? <Text accessibilityLiveRegion="polite" style={styles.cardMessage}>{defaultsMessage}</Text> : null}
+          {staffDefaults && selectedWard && (staffDefaults.wardId !== selectedWardId || staffDefaults.siteId !== selectedSiteId) ? <Text style={styles.pinRequiredText}>You have selected a different ward for this session. Your saved default has not changed.</Text> : null}
+        </View>
+      ) : null}
 
       <View style={styles.sessionStrip}>
         <Text style={styles.sessionLabel}>Current session</Text>
@@ -485,10 +514,10 @@ export function HomeScreen({
             pinChangeRequired
               ? "Update your temporary PIN first"
               : canStart
-                ? "General, enhanced, NEWS2, medication and ward workflows"
+                ? `Confirm location: ${selectedSite?.name} — ${selectedWard?.name}`
                 : "Select staff, site and ward"
           }
-          title={selectedWard?.landingPage === "observations" ? "Open patient checks" : "Open ward overview"}
+          title={selectedWard ? `Continue to ${selectedWard.name}` : "Select a ward to continue"}
           tone="primary"
           onPress={onStart}
         />
@@ -539,6 +568,7 @@ function SelectorRow({ label, options, selectedId, onSelect }: SelectorRowProps)
         {options.map((option) => (
           <TouchableOpacity
             accessibilityRole="button"
+            accessibilityState={{ selected: option.id === selectedId }}
             key={option.id}
             onPress={() => onSelect(option.id)}
             style={[styles.selectorButton, option.id === selectedId && styles.selectorButtonActive]}

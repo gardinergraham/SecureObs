@@ -31,6 +31,13 @@ export function SecureDateTimeField({
   const [androidPickerMode, setAndroidPickerMode] = useState<"date" | "time">("date");
   const [pendingDate, setPendingDate] = useState<Date | null>(null);
   const pickerValue = parsePickerValue(value, mode, dateFormat) ?? new Date();
+  // Android's bounded date-change listener treats an omitted minimum as epoch
+  // zero, even though its calendar defaults to 1900. Supply that calendar
+  // minimum explicitly so a maximum (such as today for DOB) cannot impose 1970.
+  const nativeMinimumDate = minimumDate ?? (Platform.OS === "android" && mode !== "time"
+    ? new Date(1900, 0, 1) : undefined);
+  const formatLimit = (date: Date) => mode === "datetime" ? formatLocalDateTime(date)
+    : mode === "time" ? formatTime(date) : formatIsoDate(date);
   const displayValue = value
     ? mode === "date"
       ? formatUkDate(pickerValue)
@@ -87,8 +94,8 @@ export function SecureDateTimeField({
         {React.createElement("input", {
           "aria-label": label,
           disabled,
-          max: maximumDate ? formatIsoDate(maximumDate) : undefined,
-          min: minimumDate ? formatIsoDate(minimumDate) : undefined,
+          max: maximumDate ? formatLimit(maximumDate) : undefined,
+          min: minimumDate ? formatLimit(minimumDate) : undefined,
           onChange: (event: { target: { value: string } }) => {
             const next = event.target.value;
             if (!next) {
@@ -144,13 +151,14 @@ export function SecureDateTimeField({
       {showPicker ? (
         <View style={styles.pickerPanel}>
           <DateTimePicker
+            key={mode === "datetime" && Platform.OS === "android" ? androidPickerMode : mode}
             display={Platform.OS === "ios" ? "spinner" : "default"}
             is24Hour
             maximumDate={maximumDate}
-            minimumDate={minimumDate}
+            minimumDate={nativeMinimumDate}
             mode={mode === "datetime" ? Platform.OS === "ios" ? "datetime" : androidPickerMode : mode}
             onChange={selectValue}
-            value={pickerValue}
+            value={pendingDate ?? pickerValue}
           />
           {Platform.OS === "ios" ? (
             <TouchableOpacity accessibilityRole="button" onPress={() => setShowPicker(false)} style={styles.doneButton}>
@@ -170,7 +178,7 @@ function parsePickerValue(value: string, mode: "date" | "time" | "datetime", dat
   }
   if (mode === "time") {
     const match = /^(\d{1,2}):(\d{2})$/.exec(value);
-    if (!match) return undefined;
+    if (!match || Number(match[1]) > 23 || Number(match[2]) > 59) return undefined;
     const date = new Date();
     date.setHours(Number(match[1]), Number(match[2]), 0, 0);
     return Number.isNaN(date.getTime()) ? undefined : date;
@@ -183,16 +191,18 @@ function parsePickerValue(value: string, mode: "date" | "time" | "datetime", dat
   const year = Number(dateFormat === "uk" ? match[3] : match[1]);
   const month = Number(match[2]);
   const day = Number(dateFormat === "uk" ? match[1] : match[3]);
-  const date = new Date(year, month - 1, day, 12);
+  const date = new Date(0);
+  date.setFullYear(year, month - 1, day);
+  date.setHours(12, 0, 0, 0);
   return date.getFullYear() === year && date.getMonth() === month - 1 && date.getDate() === day ? date : undefined;
 }
 
 function formatIsoDate(date: Date) {
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+  return `${String(date.getFullYear()).padStart(4, "0")}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
 }
 
 function formatUkDate(date: Date) {
-  return `${pad(date.getDate())}/${pad(date.getMonth() + 1)}/${date.getFullYear()}`;
+  return `${pad(date.getDate())}/${pad(date.getMonth() + 1)}/${String(date.getFullYear()).padStart(4, "0")}`;
 }
 
 function formatTime(date: Date) {

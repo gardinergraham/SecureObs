@@ -4,7 +4,7 @@ import { ActivityIndicator, Alert, StyleSheet, Text, TextInput, TouchableOpacity
 import type { OrganisationFeatureKey, OrganisationSettings, StaffMember, Ward } from "../types/domain";
 import { buildStaffCardPayload } from "../utils/nfcStaffCard";
 import { writeNfcTextPayload } from "../utils/nfcWriter";
-import { hasAdminAccess, hasStaffRole, normaliseStaffRole } from "../utils/staffRole";
+import { hasAdminAccess, hasStaffRole, normaliseStaffRole, staffForWard } from "../utils/staffRole";
 import { defaultObservationLocations, wardObservationLocations } from "../utils/observationLocations";
 
 const shiftCountOptions = [1, 2, 3, 4];
@@ -50,7 +50,8 @@ export function WardSettingsScreen({
   onResetStaffPin
 }: WardSettingsScreenProps) {
   const selectedWard = wards.find((ward) => ward.id === selectedWardId);
-  const selectedStaff = staff.find((member) => member.id === selectedStaffId);
+  const selectedStaffRecord = staff.find((member) => member.id === selectedStaffId);
+  const selectedStaff = selectedStaffRecord ? staffForWard(selectedStaffRecord, selectedWardId) : undefined;
   const canEditWardSettings = hasStaffRole(selectedStaff, "manager") || hasAdminAccess(selectedStaff);
   const medicationEntitled = isPackageFeatureEnabled(organisationSettings, "medication");
   const securityChecksEntitled = isPackageFeatureEnabled(organisationSettings, "securityChecks");
@@ -77,9 +78,10 @@ export function WardSettingsScreen({
   const [isWritingStaffTag, setIsWritingStaffTag] = useState(false);
   const [lastSavedStaff, setLastSavedStaff] = useState<StaffMember | null>(null);
   const selectedSiteId = selectedWard?.siteId;
-  const siteWardIds = wards.filter((ward) => ward.siteId === selectedSiteId).map((ward) => ward.id);
+  const organisationId = selectedWard?.organisationId;
+  const siteWardIds = wards.filter((ward) => ward.siteId === selectedSiteId && ward.organisationId === organisationId).map((ward) => ward.id);
   const siteStaff = staff
-    .filter((member) => isStaffAssignedToSite(member, selectedSiteId, siteWardIds))
+    .filter((member) => member.role !== "super_admin" && Boolean(organisationId) && member.organisationId === organisationId && isStaffAssignedToSite(member, selectedSiteId, siteWardIds))
     .sort((left, right) => left.name.localeCompare(right.name));
   const staffSearchResults = siteStaff
     .filter((member) => {
@@ -88,7 +90,7 @@ export function WardSettingsScreen({
       return (
         member.name.toLowerCase().includes(query) ||
         member.staffCode.toLowerCase().includes(query) ||
-        member.role.toLowerCase().includes(query)
+        staffForWard(member, selectedWardId).role.toLowerCase().includes(query)
       );
     })
     .slice(0, 20);
@@ -199,11 +201,12 @@ export function WardSettingsScreen({
   };
 
   const selectStaffForEditing = (member: StaffMember) => {
+    if (!organisationId || member.organisationId !== organisationId) return;
     const wardIds = member.allowedWardIds.length > 0 ? member.allowedWardIds : [member.wardId];
     setEditingStaffId(member.id);
     setNewStaffName(member.name);
     setNewStaffCode(member.staffCode);
-    setNewStaffRole(normaliseStaffRole(member.role));
+    setNewStaffRole(member.allowedWardIds.includes(selectedWardId) ? normaliseStaffRole(staffForWard(member, selectedWardId).role) : "nurse");
     setNewStaffDesignation(member.designation ?? "");
     setNewStaffCanPrescribe(Boolean(member.canPrescribe));
     setNewStaffLoginPin("");
@@ -304,7 +307,7 @@ export function WardSettingsScreen({
   };
 
   const saveWardStaff = async () => {
-    if (!selectedWard || !selectedStaff || !canEditWardSettings) return;
+    if (!selectedWard || !selectedStaff || !canEditWardSettings || !organisationId) return;
     if (!newStaffName.trim() || !newStaffCode.trim()) {
       Alert.alert("Staff details needed", "Enter the staff name and STAFFCODE before saving.");
       return;
@@ -327,20 +330,26 @@ export function WardSettingsScreen({
       )
     );
 
+    const existingStaff = staff.find((member) => member.id === editingStaffId);
+    const wardRoles = Object.fromEntries(newStaffWardIds.map((wardId) => [wardId,
+      wardId === selectedWardId ? newStaffRole : existingStaff?.wardRoles?.[wardId]
+        ?? (existingStaff?.allowedWardIds.includes(wardId) ? existingStaff.role : "nurse")
+    ])) as NonNullable<StaffMember["wardRoles"]>;
     const staffMember: StaffMember = {
       id: editingStaffId || `staff-${newStaffCode.trim().toLowerCase()}`,
-      organisationId: selectedStaff.organisationId,
-      keyNumber: Date.now() % 100000,
+      organisationId,
+      keyNumber: existingStaff?.keyNumber ?? Date.now() % 100000,
       staffCode: newStaffCode.trim(),
       name: newStaffName.trim(),
-      role: normaliseStaffRole(newStaffRole),
+      role: existingStaff?.role ?? normaliseStaffRole(newStaffRole),
+      wardRoles,
       designation: newStaffDesignation.trim() || defaultDesignation(newStaffRole),
-      canPrescribe: newStaffRole === "doctor" && newStaffCanPrescribe,
+      canPrescribe: newStaffCanPrescribe,
       employmentType: "permanent",
       accessStartsAt: undefined,
       accessExpiresAt: undefined,
       loginPin: newStaffLoginPin.trim() || undefined,
-      wardId: primaryWard.id,
+      wardId: existingStaff && newStaffWardIds.includes(existingStaff.wardId) ? existingStaff.wardId : primaryWard.id,
       allowedSiteIds,
       allowedWardIds: newStaffWardIds,
       active: newStaffActive
@@ -411,7 +420,7 @@ export function WardSettingsScreen({
             <View style={styles.staffSetupCopy}>
               <Text style={styles.settingLabel}>Ward staff setup</Text>
               <Text style={styles.meta}>
-                Search staff assigned to this site, then add or update ward access for {selectedWard?.name ?? "this ward"}.
+                Search staff from this company assigned to this site, then add or update ward access for {selectedWard?.name ?? "this ward"}.
               </Text>
             </View>
             <TouchableOpacity
@@ -456,7 +465,7 @@ export function WardSettingsScreen({
                 <View style={styles.staffRowText}>
                   <Text style={styles.staffName}>{member.name}</Text>
                   <Text style={styles.staffMeta}>
-                    {member.staffCode} | {member.role} | {member.active === false ? "inactive" : "active"}
+                    {member.staffCode} | {member.allowedWardIds.includes(selectedWardId) ? staffForWard(member, selectedWardId).role : "not assigned to this ward"} | {member.active === false ? "inactive" : "active"}
                   </Text>
                 </View>
                 {member.canPrescribe ? <Text style={styles.prescriberBadge}>Rx</Text> : null}
@@ -518,17 +527,17 @@ export function WardSettingsScreen({
               </TouchableOpacity>
             </View>
           )}
+          <Text style={styles.subLabel}>Role on {selectedWard?.name ?? "this ward"}</Text>
+          <Text style={styles.meta}>Changing this role leaves their roles on other wards unchanged. Set each ward’s role from that ward’s staff setup.</Text>
           <View style={styles.optionRow}>
-            {(["nurse", "hcf", "ot", "security", "doctor"] as StaffMember["role"][]).map((role) => (
+            {(["nurse", "hcf", "ot", "security", "doctor", "manager"] as StaffMember["role"][]).map((role) => (
               <TouchableOpacity
                 accessibilityRole="button"
                 disabled={!canEditWardSettings}
                 key={role}
                 onPress={() => {
                   setNewStaffRole(role);
-                  if (role !== "doctor") {
-                    setNewStaffCanPrescribe(false);
-                  }
+
                 }}
                 style={[
                   styles.optionButton,
@@ -557,6 +566,7 @@ export function WardSettingsScreen({
               );
             })}
           </View>
+          <Text style={styles.meta}>Prescribing permission belongs to the staff member and applies across their authorised wards. Nurses, managers and doctors can be authorised.</Text>
           <View style={styles.optionRow}>
             <TouchableOpacity
               accessibilityRole="button"
@@ -570,12 +580,12 @@ export function WardSettingsScreen({
             </TouchableOpacity>
             <TouchableOpacity
               accessibilityRole="button"
-              disabled={!canEditWardSettings || newStaffRole !== "doctor"}
+              disabled={!canEditWardSettings || !["nurse", "doctor", "manager"].includes(newStaffRole)}
               onPress={() => setNewStaffCanPrescribe((canPrescribe) => !canPrescribe)}
               style={[
                 styles.statusButton,
                 newStaffCanPrescribe && styles.statusButtonActive,
-                (!canEditWardSettings || newStaffRole !== "doctor") && styles.disabledControl
+                (!canEditWardSettings || !["nurse", "doctor", "manager"].includes(newStaffRole)) && styles.disabledControl
               ]}
             >
               <Text style={[styles.statusButtonText, newStaffCanPrescribe && styles.optionTextActive]}>

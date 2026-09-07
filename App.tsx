@@ -3,6 +3,9 @@ import { Alert, AppState, Image, Keyboard, Modal, Platform, ScrollView, StyleShe
 import { StatusBar } from "expo-status-bar";
 import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 
+import { setApiWardContext } from "./src/services/api";
+import { loadStaffDefaults, saveStaffDefaults, type StaffDefaults } from "./src/services/staffDefaults";
+
 import { AdminSettingsScreen } from "./src/screens/AdminSettingsScreen";
 import { AnalyticsDashboardScreen } from "./src/screens/AnalyticsDashboardScreen";
 import { AuditLogScreen } from "./src/screens/AuditLogScreen";
@@ -115,7 +118,7 @@ import {
 import { parseStaffCardData } from "./src/utils/nfcStaffCard";
 import { readNfcTextPayload } from "./src/utils/nfcReader";
 import { calculateNews2Score } from "./src/utils/news2";
-import { hasAdminAccess, hasStaffRole } from "./src/utils/staffRole";
+import { hasAdminAccess, hasStaffRole, staffForWard } from "./src/utils/staffRole";
 import type {
   CustomerOrganisation,
   FoodFluidEntry,
@@ -226,11 +229,18 @@ export default function App() {
   const [adminOrganisationId, setAdminOrganisationId] = useState(defaultOrganisationId);
   const [staffMembers, setStaffMembers] = useState<StaffMember[]>(seedData.staff);
   const [selectedStaffId, setSelectedStaffId] = useState("");
-  const selectedStaff = staffMembers.find((staff) => staff.id === selectedStaffId);
-  const activeStaff = selectedStaff;
-  const selectedStaffCanPrescribe = Boolean(activeStaff?.canPrescribe || hasStaffRole(activeStaff, "doctor"));
   const [selectedSiteId, setSelectedSiteId] = useState("");
   const [selectedWardId, setSelectedWardId] = useState("");
+  const scopedStaffMembers = useMemo(() => staffMembers.map((staff) => staffForWard(staff, selectedWardId)), [staffMembers, selectedWardId]);
+  const selectedStaff = scopedStaffMembers.find((staff) => staff.id === selectedStaffId);
+  const activeStaff = selectedStaff;
+  const selectedStaffCanPrescribe = Boolean(activeStaff?.canPrescribe || hasStaffRole(activeStaff, "doctor"));
+  useEffect(() => { setApiWardContext(selectedWardId); }, [selectedWardId]);
+  const [staffDefaults, setStaffDefaults] = useState<StaffDefaults | null>(null);
+  const [defaultsMessage, setDefaultsMessage] = useState("");
+  const [defaultsBusy, setDefaultsBusy] = useState(false);
+  const defaultsGeneration = useRef(0);
+  const pendingDefault = useRef(false);
   const selectedWardRecord = wards.find((ward) => ward.id === selectedWardId);
   const selectedWard = selectedWardRecord
     ? applyOrganisationEntitlements(selectedWardRecord, organisationSettings)
@@ -400,6 +410,8 @@ export default function App() {
   useEffect(
     () =>
       subscribeToAuthSessionExpiry(() => {
+        ++defaultsGeneration.current;
+        pendingDefault.current = false;
         setSelectedStaffId("");
         setSelectedSiteId("");
         setSelectedWardId("");
@@ -520,7 +532,7 @@ export default function App() {
   }, [adminOrganisationId, screen, selectedStaff?.organisationId, selectedWardId]);
 
   useEffect(() => {
-    if (screen === "adminSettings" || !selectedStaff || wards.length === 0) return;
+    if (screen === "home" || screen === "adminSettings" || !selectedStaff || wards.length === 0) return;
     const currentWard = wards.find((ward) => ward.id === selectedWardId);
     const currentWardAllowed = currentWard && (
       hasAdminAccess(selectedStaff) ||
@@ -660,30 +672,79 @@ export default function App() {
   };
 
   const selectStaffSession = (staff: StaffMember | undefined) => {
+    const generation = ++defaultsGeneration.current;
+    pendingDefault.current = false;
+    setStaffDefaults(null);
+    setDefaultsMessage("");
     setSelectedStaffId(staff?.id ?? "");
-    if (!staff) {
-      setSelectedSiteId("");
-      setSelectedWardId("");
-      setSelectedPatientId("");
-      return;
-    }
-
-    const staffCanSeeAll = hasAdminAccess(staff);
-    if (staffCanSeeAll && staff.organisationId) {
+    setSelectedSiteId("");
+    setSelectedWardId("");
+    setSelectedPatientId("");
+    setDefaultsBusy(Boolean(staff));
+    if (!staff) return;
+    if (hasAdminAccess(staff) && staff.organisationId) {
       setAdminOrganisationId(staff.organisationId);
     }
-    const firstWard = wards.find((ward) =>
-      staffCanSeeAll
-        ? true
-        : staff.allowedWardIds.includes(ward.id) ||
-          staff.allowedSiteIds.includes(ward.siteId)
-    );
-    const firstSiteId = firstWard?.siteId ?? staff.allowedSiteIds[0] ?? "";
+    void loadStaffDefaults(staff).then((defaults) => {
+      if (generation !== defaultsGeneration.current) return;
+      pendingDefault.current = Boolean(defaults);
+      setStaffDefaults(defaults);
+      setDefaultsMessage(defaults ? "" : "Choose your site and ward, then save them as your defaults on this device.");
+    }).catch(() => {
+      if (generation === defaultsGeneration.current) {
+        setDefaultsMessage("Unable to load defaults. Choose your site and ward before continuing.");
+      }
+    }).finally(() => {
+      if (generation === defaultsGeneration.current) setDefaultsBusy(false);
+    });
+  };
 
-    setSelectedSiteId(firstSiteId);
-    setSelectedWardId(firstWard?.id ?? "");
-    const firstPatient = patients.find((patient) => patient.wardId === firstWard?.id);
-    setSelectedPatientId(firstPatient?.id ?? "");
+  useEffect(() => {
+    if (!pendingDefault.current || !staffDefaults || !selectedStaff) return;
+    const ward = accessibleWards.find((item) => item.id === staffDefaults.wardId && item.siteId === staffDefaults.siteId);
+    if (!ward || !accessibleSites.some((site) => site.id === ward.siteId)) {
+      setDefaultsMessage("Your saved ward is unavailable. Choose an authorised site and ward before continuing.");
+      return;
+    }
+    pendingDefault.current = false;
+    const generation = defaultsGeneration.current;
+    const applyDefault = async () => {
+      setDefaultsBusy(true);
+      try {
+        if (hasAdminAccess(selectedStaff) && ward.organisationId && ward.organisationId !== adminOrganisationId) {
+          await selectAdminOrganisation(ward.organisationId);
+        }
+        if (generation !== defaultsGeneration.current) return;
+        setSelectedSiteId(ward.siteId);
+        setSelectedWardId(ward.id);
+        setSelectedPatientId("");
+        setDefaultsMessage("Saved default selected. Check the site and ward before continuing.");
+      } catch {
+        if (generation === defaultsGeneration.current) setDefaultsMessage("Unable to open your saved location. Choose a site and ward.");
+      } finally {
+        if (generation === defaultsGeneration.current) setDefaultsBusy(false);
+      }
+    };
+    void applyDefault();
+  }, [staffDefaults, selectedStaff, accessibleWards, accessibleSites, adminOrganisationId, selectAdminOrganisation]);
+
+  const handleSaveDefaults = async (clear = false) => {
+    if (!selectedStaff || defaultsBusy || selectedStaff.loginPinMustChange) return;
+    const ward = accessibleWards.find((item) => item.id === selectedWardId && item.siteId === selectedSiteId);
+    if (!clear && !ward) return;
+    const generation = defaultsGeneration.current;
+    const defaults = clear ? null : { siteId: selectedSiteId, wardId: selectedWardId };
+    setDefaultsBusy(true);
+    try {
+      await saveStaffDefaults(selectedStaff, defaults);
+      if (generation !== defaultsGeneration.current) return;
+      setStaffDefaults(defaults);
+      setDefaultsMessage(clear ? "Saved defaults removed from this device." : "Default site and ward saved for your sign-ins on this device.");
+    } catch {
+      if (generation === defaultsGeneration.current) setDefaultsMessage("Unable to save defaults. Please try again.");
+    } finally {
+      if (generation === defaultsGeneration.current) setDefaultsBusy(false);
+    }
   };
 
   useEffect(() => {
@@ -847,6 +908,8 @@ export default function App() {
       const expired = await expireAuthSession(session.token);
       if (!expired) return;
     } else {
+      ++defaultsGeneration.current;
+      pendingDefault.current = false;
       setSelectedStaffId("");
       setSelectedSiteId("");
       setSelectedWardId("");
@@ -1030,29 +1093,26 @@ export default function App() {
   };
 
   const handleSelectSite = async (siteId: string) => {
+    if (defaultsBusy || !accessibleSites.some((site) => site.id === siteId)) return;
+    pendingDefault.current = false;
     if (hasAdminAccess(selectedStaff)) {
       const site = platformSites.find((item) => item.id === siteId);
       if (site?.organisationId && site.organisationId !== adminOrganisationId) {
         await selectAdminOrganisation(site.organisationId);
       }
-      const firstPlatformWard = platformWards.find((ward) => ward.siteId === siteId);
       setSelectedSiteId(siteId);
-      setSelectedWardId(firstPlatformWard?.id ?? "");
+      setSelectedWardId("");
       setSelectedPatientId("");
       return;
     }
     setSelectedSiteId(siteId);
-    const firstWard = wards.find(
-      (ward) => ward.siteId === siteId && selectedStaff?.allowedWardIds.includes(ward.id)
-    );
-    if (firstWard) {
-      setSelectedWardId(firstWard.id);
-      const firstPatient = patients.find((patient) => patient.wardId === firstWard.id);
-      setSelectedPatientId(firstPatient?.id ?? "");
-    }
+    setSelectedWardId("");
+    setSelectedPatientId("");
   };
 
   const handleSelectWard = async (wardId: string) => {
+    if (defaultsBusy || !accessibleWards.some((ward) => ward.id === wardId && ward.siteId === selectedSiteId)) return;
+    pendingDefault.current = false;
     if (hasAdminAccess(selectedStaff)) {
       const platformWard = platformWards.find((ward) => ward.id === wardId);
       if (platformWard?.organisationId && platformWard.organisationId !== adminOrganisationId) {
@@ -1271,7 +1331,8 @@ export default function App() {
         organisationId: staff.organisationId ?? selectedStaff?.organisationId,
         actorStaffId: selectedStaff?.id,
         actorStaffCode: selectedStaff?.staffCode
-      })
+      }),
+      true
     );
     setStaffMembers((currentStaff) => upsertStaffByCode(currentStaff, result?.staff ?? staff));
   };
@@ -1669,11 +1730,16 @@ export default function App() {
       >
         {screen === "home" ? (
           <HomeScreen
+            staffDefaults={staffDefaults}
+            defaultsMessage={defaultsMessage}
+            defaultsBusy={defaultsBusy}
+            onSaveDefaults={() => handleSaveDefaults()}
+            onClearDefaults={() => handleSaveDefaults(true)}
             selectedStaffId={selectedStaffId}
             selectedSiteId={selectedSiteId}
             selectedWardId={selectedWardId}
             sites={accessibleSites}
-            staff={staffMembers}
+            staff={scopedStaffMembers}
             wards={siteWards}
             onSelectStaff={handleSelectStaff}
             onSelectSite={handleSelectSite}
@@ -1687,7 +1753,10 @@ export default function App() {
             onOpenWardSettings={() => setScreen("wardSettings")}
             complianceGovernanceEnabled={cqcReportingEnabled}
             onOpenComplianceGovernance={() => setScreen("complianceGovernance")}
-            onStart={() => setScreen(selectedWard?.landingPage === "observations" ? "observations" : "wardOverview")}
+            onStart={() => {
+              if (defaultsBusy || !selectedStaff || selectedStaff.loginPinMustChange || !siteWards.some((ward) => ward.id === selectedWardId)) return;
+              setScreen(selectedWard?.landingPage === "observations" ? "observations" : "wardOverview");
+            }}
           />
         ) : screen === "adminSettings" ? (
           <AdminSettingsScreen
@@ -1781,7 +1850,7 @@ export default function App() {
             areas={securityAreas}
             selectedStaffId={selectedStaffId}
             selectedWardId={selectedWardId}
-            staff={staffMembers}
+            staff={scopedStaffMembers}
             wards={siteWards}
             onBack={() => setScreen("wardSettings")}
             onDeleteArea={handleDeleteSecurityArea}
@@ -1798,7 +1867,7 @@ export default function App() {
             securityAreas={securityAreas}
             securityChecks={securityChecks}
             selectedStaffId={selectedStaffId}
-            staff={staffMembers}
+            staff={scopedStaffMembers}
             staffShiftAssignments={staffShiftAssignments}
             syncPendingCount={syncQueueState.pendingCount}
             ward={selectedWard}
@@ -1889,7 +1958,7 @@ export default function App() {
             selectedStaffId={selectedStaffId}
             selectedWardId={selectedWardId}
             staffShiftAssignments={staffShiftAssignments}
-            staff={staffMembers}
+            staff={scopedStaffMembers}
             wards={siteWards}
             onBackToHome={() => setScreen("home")}
             onOpenOverview={() => setScreen("wardOverview")}
@@ -1977,7 +2046,7 @@ export default function App() {
             patients={wardPatients}
             rotaAssignments={rotaAssignments}
             selectedStaffId={selectedStaffId}
-            staff={staffMembers}
+            staff={scopedStaffMembers}
             ward={selectedWard}
             onBack={() => setScreen(workspaceBackScreen)}
             onMissedObservationSaved={handleCreateMissedObservation}
@@ -1998,7 +2067,7 @@ export default function App() {
             patients={wardPatients}
             securityAreas={securityAreas}
             securityChecks={securityChecks}
-            staff={staffMembers}
+            staff={scopedStaffMembers}
             staffShiftAssignments={staffShiftAssignments}
             ward={selectedWard}
             onBack={() => setScreen(workspaceBackScreen)}
@@ -2008,7 +2077,7 @@ export default function App() {
             patients={patients.filter((patient) => hasAdminAccess(selectedStaff) || selectedStaff?.allowedWardIds.includes(patient.wardId))}
             selectedStaffId={selectedStaffId}
             selectedWardId={selectedWardId}
-            staff={staffMembers}
+            staff={scopedStaffMembers}
             wards={accessibleWards}
             onBack={() => setScreen(workspaceBackScreen)}
             onSavePatient={handleSaveManagedPatient}
@@ -2027,7 +2096,7 @@ export default function App() {
             patientId={identificationPatientId}
             patients={patients}
             selectedStaffId={selectedStaffId}
-            staff={staffMembers}
+            staff={scopedStaffMembers}
             wards={accessibleWards}
             onBack={() => setScreen("patientManagement")}
             onSavePatient={handleSaveManagedPatient}
@@ -2036,7 +2105,7 @@ export default function App() {
           <PatientAssessmentFormsScreen
             patients={wardPatients}
             selectedStaffId={selectedStaffId}
-            staff={staffMembers}
+            staff={scopedStaffMembers}
             onBack={() => setScreen("patientSettings")}
             onUpdatePatient={handleUpdatePatient}
           />
@@ -2057,7 +2126,7 @@ export default function App() {
             patients={wardPatients}
             selectedPatientId={selectedPatientId}
             selectedStaffId={selectedStaffId}
-            staff={staffMembers}
+            staff={scopedStaffMembers}
             ward={selectedWard}
             onBack={() => setScreen(workspaceBackScreen)}
             onCreateCarePlan={handleCreatePatientCarePlan}
@@ -2087,7 +2156,7 @@ export default function App() {
             patients={wardPatients}
             selectedPatientId={selectedPatientId}
             selectedStaffId={selectedStaffId}
-            staff={staffMembers}
+            staff={scopedStaffMembers}
             ward={selectedWard}
             onBack={() => setScreen("patientDashboard")}
             onOpenFamilyPortal={() => setScreen("familyPortal")}
@@ -2111,7 +2180,7 @@ export default function App() {
             patients={wardPatients}
             selectedPatientId={selectedPatientId}
             selectedStaffId={selectedStaffId}
-            staff={staffMembers}
+            staff={scopedStaffMembers}
             ward={selectedWard}
             onBack={() => setScreen(workspaceBackScreen)}
             onCreateNote={handleCreatePatientNote}
@@ -2122,7 +2191,7 @@ export default function App() {
             patients={wardPatients}
             selectedPatientId={selectedPatientId}
             selectedStaffId={selectedStaffId}
-            staff={staffMembers}
+            staff={scopedStaffMembers}
             tasks={patientTasks}
             ward={selectedWard}
             onBack={() => setScreen(workspaceBackScreen)}
@@ -2136,7 +2205,7 @@ export default function App() {
             patientTasks={patientTasks}
             selectedPatientId={selectedPatientId}
             selectedStaffId={selectedStaffId}
-            staff={staffMembers}
+            staff={scopedStaffMembers}
             ward={selectedWard}
             onBack={() => setScreen(workspaceBackScreen)}
             onSaveIncident={handleSaveSafetyIncident}
@@ -2156,7 +2225,7 @@ export default function App() {
             patients={wardPatients}
             patientTasks={patientTasks}
             selectedStaffId={selectedStaffId}
-            staff={staffMembers}
+            staff={scopedStaffMembers}
             ward={selectedWard}
             onBack={() => setScreen(workspaceBackScreen)}
             onCreateHandover={handleCreateShiftHandover}
@@ -2167,7 +2236,7 @@ export default function App() {
             patients={wardPatients}
             selectedWardId={selectedWardId}
             staffShiftAssignments={staffShiftAssignments}
-            staff={staffMembers}
+            staff={scopedStaffMembers}
             wards={siteWards}
             onBack={() => setScreen(workspaceBackScreen)}
             onCreateAssignment={handleCreateRotaAssignment}
@@ -2184,7 +2253,7 @@ export default function App() {
             selectedStaffId={selectedStaffId}
             selectedWardId={selectedWardId}
             organisationSettings={organisationSettings}
-            staff={staffMembers}
+            staff={scopedStaffMembers}
             wards={siteWards}
             onBack={() => setScreen(bankAgencyBackScreen)}
             onCreateStaff={handleCreateStaffMember}
@@ -2194,7 +2263,7 @@ export default function App() {
             assignments={staffShiftAssignments}
             selectedStaffId={selectedStaffId}
             selectedWardId={selectedWardId}
-            staff={staffMembers}
+            staff={scopedStaffMembers}
             wards={siteWards}
             onAssignStaff={handleAssignStaffShift}
             onBack={() => setScreen("staffRota")}
@@ -2207,7 +2276,7 @@ export default function App() {
             readings={news2Readings}
             selectedPatientId={selectedPatientId}
             selectedStaffId={selectedStaffId}
-            staff={staffMembers}
+            staff={scopedStaffMembers}
             onBack={() => setScreen(workspaceBackScreen)}
             onCreateReading={handleCreateNews2Reading}
             onSelectPatient={setSelectedPatientId}
@@ -2218,7 +2287,7 @@ export default function App() {
             patients={wardPatients}
             selectedPatientId={selectedPatientId}
             selectedStaffId={selectedStaffId}
-            staff={staffMembers}
+            staff={scopedStaffMembers}
             onBack={() => setScreen(workspaceBackScreen)}
             onCreateEntry={handleCreateFoodFluidEntry}
             onSelectPatient={setSelectedPatientId}
@@ -2231,7 +2300,7 @@ export default function App() {
             prescriptions={medicationPrescriptions}
             selectedPatientId={selectedPatientId}
             selectedStaffId={selectedStaffId}
-            staff={staffMembers}
+            staff={scopedStaffMembers}
             onBack={() => setScreen(workspaceBackScreen)}
             onCreateAdministration={handleCreateMedicationAdministration}
             onCreatePrescription={handleCreateMedicationPrescription}
@@ -2245,7 +2314,7 @@ export default function App() {
             checks={securityChecks}
             patients={wardPatients}
             selectedStaffId={selectedStaffId}
-            staff={staffMembers}
+            staff={scopedStaffMembers}
             wardName={wards.find((ward) => ward.id === selectedWardId)?.name ?? "Ward"}
             onBack={() => setScreen(workspaceBackScreen)}
             onCreateCheck={handleCreateSecurityCheck}
@@ -2254,7 +2323,7 @@ export default function App() {
           <PatientSettingsScreen
             patients={wardPatients}
             selectedStaffId={selectedStaffId}
-            staff={staffMembers}
+            staff={scopedStaffMembers}
             assessmentFormsEnabled={Boolean(selectedWard?.assessmentFormsEnabled)}
             onBack={() => setScreen(workspaceBackScreen)}
             onOpenAssessmentForms={() => setScreen("patientAssessmentForms")}
@@ -2460,7 +2529,7 @@ function createDemoStaffShiftAssignments() {
 
 function upsertStaffByCode(currentStaff: StaffMember[], staff: StaffMember) {
   const existingIndex = currentStaff.findIndex(
-    (member) => member.staffCode.toLowerCase() === staff.staffCode.toLowerCase()
+    (member) => member.organisationId === staff.organisationId && member.staffCode.toLowerCase() === staff.staffCode.toLowerCase()
   );
 
   if (existingIndex === -1) {

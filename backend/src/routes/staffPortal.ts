@@ -1,21 +1,26 @@
 import { Router } from "express";
 
 import { recordAuditEvent } from "../audit.js";
-import { requireStaffRole, type AuthenticatedRequest } from "../auth.js";
+import { requireAuthenticated, type AuthenticatedRequest } from "../auth.js";
+import { roleInWard } from "../wardAccess.js";
 import { pool } from "../db/pool.js";
 
 const router = Router();
 const portalRoles = ["nurse", "manager", "doctor", "super_admin"] as const;
 
-router.get("/bootstrap", requireStaffRole([...portalRoles]), async (request: AuthenticatedRequest, response, next) => {
+router.get("/bootstrap", async (request: AuthenticatedRequest, response, next) => {
   try {
-    const staff = request.auth?.staff;
+    const staff = requireAuthenticated(request, response)?.staff;
     if (!staff) {
       response.status(401).json({ error: "Authenticated staff session required" });
       return;
     }
 
-    const wardIds = staff.allowedWardIds;
+    const wardIds = staff.allowedWardIds.filter(id => (portalRoles as readonly string[]).includes(roleInWard(staff, id) ?? ""));
+    if (wardIds.length === 0 && staff.role !== "super_admin") {
+      response.status(403).json({ error: "No wards with staff portal access" });
+      return;
+    }
     const [wardsResult, patientsResult, notesResult, carePlansResult] = await Promise.all([
       pool.query(
         `select wards.id, wards.name, wards.site_id as "siteId"

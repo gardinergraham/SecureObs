@@ -5,7 +5,7 @@ import { SecureDateTimeField } from "../components/SecureDateTimeField";
 import type { OrganisationSettings, StaffMember, Ward } from "../types/domain";
 import { buildStaffCardPayload } from "../utils/nfcStaffCard";
 import { writeNfcTextPayload } from "../utils/nfcWriter";
-import { hasStaffRole, normaliseStaffRole } from "../utils/staffRole";
+import { hasAdminAccess, hasStaffRole, normaliseStaffRole } from "../utils/staffRole";
 
 type BankAgencyStaffScreenProps = {
   selectedStaffId: string;
@@ -31,7 +31,9 @@ export function BankAgencyStaffScreen({
 }: BankAgencyStaffScreenProps) {
   const selectedWard = wards.find((ward) => ward.id === selectedWardId);
   const selectedStaff = staff.find((member) => member.id === selectedStaffId);
-  const canEdit = hasStaffRole(selectedStaff, "manager") || hasStaffRole(selectedStaff, "nurse");
+  const canManage = hasAdminAccess(selectedStaff) || hasStaffRole(selectedStaff, "manager");
+  const canEdit = canManage || hasStaffRole(selectedStaff, "nurse");
+  const [canPrescribe, setCanPrescribe] = useState(false);
   const [editingStaffId, setEditingStaffId] = useState("");
   const [name, setName] = useState("");
   const [virtualNfcCode, setVirtualNfcCode] = useState("");
@@ -80,6 +82,7 @@ export function BankAgencyStaffScreen({
     setName("");
     setVirtualNfcCode("");
     setRole("nurse");
+    setCanPrescribe(false);
     setDesignation("");
     setLoginPin("1111");
     setStartDate(formatInputDate(new Date()));
@@ -94,6 +97,7 @@ export function BankAgencyStaffScreen({
     setName(member.name);
     setVirtualNfcCode(member.staffCode);
     setRole(member.role);
+    setCanPrescribe(Boolean(member.canPrescribe));
     setDesignation(member.designation ?? "");
     setLoginPin("");
     setStartDate(formatInputDate(member.accessStartsAt ? new Date(member.accessStartsAt) : new Date()));
@@ -232,7 +236,10 @@ export function BankAgencyStaffScreen({
       name: name.trim(),
       role: normaliseStaffRole(role),
       designation: designation.trim() || defaultDesignation(role),
-      canPrescribe: role === "doctor",
+      canPrescribe,
+      wardRoles: Object.fromEntries(allowedWardIds.map(wardId => [wardId,
+        wardId === selectedWardId ? role : staff.find(member => member.id === editingStaffId)?.wardRoles?.[wardId] ?? "nurse"
+      ])) as NonNullable<StaffMember["wardRoles"]>,
       employmentType: "bank",
       accessStartsAt,
       accessExpiresAt,
@@ -353,7 +360,7 @@ export function BankAgencyStaffScreen({
             style={styles.input}
             value={designation}
           />
-          <Text style={styles.label}>Role</Text>
+          <Text style={styles.label}>Role on {selectedWard?.name ?? "this ward"}</Text>
           <View style={styles.optionRow}>
             {roleOptions.map((option) => (
               <TouchableOpacity
@@ -367,6 +374,10 @@ export function BankAgencyStaffScreen({
               </TouchableOpacity>
             ))}
           </View>
+          <TouchableOpacity accessibilityRole="checkbox" accessibilityState={{ checked: canPrescribe, disabled: !canManage }} disabled={!canManage}
+            onPress={() => setCanPrescribe(value => !value)} style={[styles.optionButton, canPrescribe && styles.optionButtonActive, !canManage && styles.disabledControl]}>
+            <Text style={[styles.optionText, canPrescribe && styles.optionTextActive]}>{canPrescribe ? "Can prescribe" : "No prescribing"} (manager authorisation)</Text>
+          </TouchableOpacity>
           <Text style={styles.label}>Ward access</Text>
           <View style={styles.optionRow}>
             {wards.map((ward) => {

@@ -2,6 +2,9 @@ import crypto from "node:crypto";
 import type { NextFunction, Request, Response } from "express";
 
 import { recordAuditEvent } from "./audit.js";
+import { pool } from "./db/pool.js";
+import { roleInWard } from "./wardAccess.js";
+
 import { config } from "./config.js";
 import { dataProvider } from "./data/provider.js";
 import type { StaffMemberRecord, StaffRole } from "./data/types.js";
@@ -28,6 +31,8 @@ export type AuthSession = {
 export type AuthenticatedRequest = Request & {
   auth?: {
     staff: StaffMemberRecord;
+    baseStaff?: StaffMemberRecord;
+    wardId?: string;
     session: SessionPayload;
   };
 };
@@ -95,7 +100,9 @@ export function requireStaffRole(roles: StaffRole[]) {
     const auth = requireAuthenticated(request, response);
     if (!auth) return;
 
-    if (!roles.includes(auth.staff.role)) {
+    let role: StaffRole | undefined;
+    try { role = await applyWardRole(request); } catch (error) { next(error); return; }
+    if (!role || !roles.includes(role)) {
       await recordAuditEvent({
         organisationId: auth.staff.organisationId,
         actorStaffId: auth.staff.id,
@@ -119,7 +126,9 @@ export function requirePrescriber() {
     const auth = requireAuthenticated(request, response);
     if (!auth) return;
 
-    if (!auth.staff.canPrescribe && auth.staff.role !== "doctor") {
+    let role: StaffRole | undefined;
+    try { role = await applyWardRole(request); } catch (error) { next(error); return; }
+    if (!role || (!auth.staff.canPrescribe && role !== "doctor")) {
       await recordAuditEvent({
         organisationId: auth.staff.organisationId,
         actorStaffId: auth.staff.id,
@@ -187,4 +196,46 @@ function verifyToken(token: string): SessionPayload {
   }
 
   return payload;
+}
+
+// Resolve the resource's ward before checking a role. The UI header is only a
+// fallback for actions such as staff setup that have no single resource ward.
+async function applyWardRole(request: AuthenticatedRequest): Promise<StaffRole | undefined> {
+  const auth = request.auth!;
+  const staff = auth.baseStaff ?? auth.staff;
+  if (staff.role === "super_admin") return "super_admin";
+  const body = request.body ?? {};
+  const isPatientRoute = request.baseUrl === "/api/patients";
+  const patientId = isPatientRoute ? request.params.id ?? body.id : body.patientId;
+  let wardId: string | undefined;
+  if (patientId) {
+    const result = await pool.query("select ward_id from patients where id::text = $1 and organisation_id = $2", [patientId, staff.organisationId]);
+    wardId = result.rows[0]?.ward_id;
+    if (!wardId && !(isPatientRoute && request.path === "/" && request.method === "POST")) return undefined;
+  }
+  if (!wardId && request.baseUrl === "/api/config" && request.path === "/wards") {
+    // A ward manager may update an existing ward, but cannot create one using
+    // the role of an unrelated ward selected in their client.
+    wardId = typeof body.id === "string" ? body.id : undefined;
+    if (!wardId) return undefined;
+  }
+  if (!wardId && request.method === "DELETE" && request.params.id) {
+    const table = request.path.startsWith("/rota-assignments/") ? "rota_assignments"
+      : request.path.startsWith("/staff-shift-assignments/") ? "staff_shift_assignments" : undefined;
+    if (table) {
+      const result = await pool.query(`select ward_id from ${table} where id::text = $1 and organisation_id = $2`, [request.params.id, staff.organisationId]);
+      wardId = result.rows[0]?.ward_id;
+      if (!wardId) return undefined;
+    }
+  }
+  // Staff's primary ward may differ from the ward whose assignment is edited.
+  if (!wardId && request.baseUrl !== "/api/staff") wardId = body.wardId ?? request.params.wardId;
+  wardId ??= typeof request.query.wardId === "string" ? request.query.wardId : request.header("x-ward-id");
+  const role = roleInWard(staff, wardId);
+  if (role) {
+    auth.baseStaff = staff;
+    auth.wardId = wardId;
+    auth.staff = { ...staff, role };
+  }
+  return role;
 }
