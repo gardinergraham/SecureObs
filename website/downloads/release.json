@@ -1,15 +1,14 @@
 {
-  "version": "0.1.21",
-  "androidVersionCode": 20,
+  "version": "0.1.22",
+  "androidVersionCode": 21,
   "minimumSupportedVersion": "0.1.7",
   "publishedAt": "2026-09-07",
-  "size": "91.6 MB",
-  "downloadUrl": "https://ziydoaoxastnvilu.public.blob.vercel-storage.com/android/SecureObs-0.1.21.apk",
+  "size": "91.7 MB",
+  "downloadUrl": "https://ziydoaoxastnvilu.public.blob.vercel-storage.com/android/SecureObs-0.1.22.apk",
   "downloadPageUrl": "https://secure-obs.com/download",
-  "sha256": "00664ed4cb336ef6274868085f55f51ac2fcfb382a1672c42635b746e8515543",
+  "sha256": "e96134327376e5a5b8f222144897956b96cd8b500ab9a1b7db2df74c17a669f2",
   "signingCertificateSha256": "62cbdb9832aa007b14daf1b97a703ac9c153825f9fe6b560693d1853d176af09",
   "releaseNotes": [
-    "Updated the ward setup where admin can add a manager to a existing ward",
-    "Updated the price package"
+    "Updated package prices and connected it to stripe"
   ]
 }

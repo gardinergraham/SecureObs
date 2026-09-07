@@ -194,12 +194,13 @@ router.post("/sync-customer", requireStaffRole(["super_admin"]), async (request:
 router.get("/report", requireStaffRole(["super_admin"]), async (_request, response, next) => {
   try {
     const result = await pool.query(
-      `select billing.id, organisations.name as "organisationName",
+      `select billing.id, organisations.id as "organisationId", organisations.name as "organisationName",
               billing.billing_contact_name as "billingContactName", billing.billing_email as "billingEmail",
               billing.subscription_plan as "subscriptionPlan", billing.billing_interval as "billingInterval",
               billing.licensed_ward_quantity as "licensedWardQuantity", billing.billing_status as "billingStatus",
               billing.expected_amount as "expectedAmount", billing.tablet_quantity as "tabletQuantity",
               billing.package_review_required as "packageReviewRequired",
+              billing.package_selection as "packageSelection",
               billing.last_payment_amount as "lastPaymentAmount", billing.billing_currency as "billingCurrency",
               billing.last_payment_at as "lastPaymentAt", billing.current_period_end as "nextDueAt",
               billing.payment_failed_at as "paymentFailedAt", billing.grace_period_ends_at as "gracePeriodEndsAt",
@@ -228,8 +229,21 @@ router.get("/report", requireStaffRole(["super_admin"]), async (_request, respon
       else if (row.billingStatus === "past_due") reminderStatus = `Urgent reminder — grace day ${Math.min(graceDay ?? 1, 7)} of 7`;
       else if (row.cancelAtPeriodEnd) reminderStatus = "Cancellation scheduled — contact customer";
       else if (daysUntilDue !== null && daysUntilDue <= 7) reminderStatus = `Upcoming renewal reminder — due in ${Math.max(0, daysUntilDue)} days`;
+      let packageLines: Array<{key: string; label: string; quantity: number; unitAmount: number; gross: number}> = [];
+      if (row.packageSelection) {
+        try {
+          packageLines = pricePackage(row.packageSelection).lines.map((line: {key: string; label: string; quantity: number; unitAmount: number; gross: number}) => ({
+            key: line.key, label: line.label, quantity: line.quantity, unitAmount: line.unitAmount, gross: line.gross
+          }));
+        } catch {
+          // Keep legacy or malformed selections visible for manual review without failing the ledger.
+        }
+      }
       return {
         ...row,
+        tabletQuantity: Number(row.tabletQuantity || 0),
+        packageReviewRequired: Boolean(row.packageReviewRequired),
+        packageLines,
         expectedAmount,
         lastPaymentAmount: row.lastPaymentAmount ?? (row.lastPaymentAt ? expectedAmount : null),
         daysUntilDue,
@@ -238,7 +252,26 @@ router.get("/report", requireStaffRole(["super_admin"]), async (_request, respon
         reminderStatus
       };
     });
-    response.json({ generatedAt: new Date().toISOString(), rows });
+    response.json({
+      generatedAt: new Date().toISOString(),
+      catalogue: {
+        version: catalogue.version,
+        vatRegistered: catalogue.vatRegistered,
+        plans: catalogue.plans,
+        modules: catalogue.modules.map((module: {id: string; label: string}) => ({
+          id: module.id,
+          label: module.label,
+          monthly: catalogue.moduleMonthly,
+          yearly: catalogue.moduleMonthly * 10
+        })),
+        tablets: {
+          label: "Tablet hire",
+          monthly: catalogue.tabletMonthlyIncludingVat,
+          yearly: catalogue.tabletMonthlyIncludingVat * 12
+        }
+      },
+      rows
+    });
   } catch (error) {
     next(error);
   }

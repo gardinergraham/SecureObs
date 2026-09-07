@@ -5,7 +5,7 @@ import * as ImagePicker from "expo-image-picker";
 import * as FileSystem from "expo-file-system/legacy";
 import * as Sharing from "expo-sharing";
 
-import type { BillingReportRow, CustomerOrganisation, OrganisationFeatureKey, OrganisationSettings, ServiceType, Site, StaffMember, Ward } from "../types/domain";
+import type { BillingCatalogueSummary, BillingReportRow, CustomerOrganisation, OrganisationFeatureKey, OrganisationSettings, ServiceType, Site, StaffMember, Ward } from "../types/domain";
 import { assignStaffWardRole } from "../utils/wardStaffAssignment";
 import { buildStaffCardPayload } from "../utils/nfcStaffCard";
 import { writeNfcTextPayload } from "../utils/nfcWriter";
@@ -105,6 +105,7 @@ export function AdminSettingsScreen({
   const [isSaving, setIsSaving] = useState(false);
   const [isWritingManagerTag, setIsWritingManagerTag] = useState(false);
   const [billingRows, setBillingRows] = useState<BillingReportRow[]>([]);
+  const [billingCatalogue, setBillingCatalogue] = useState<BillingCatalogueSummary | null>(null);
   const [isLoadingBilling, setIsLoadingBilling] = useState(false);
   const [subscriptionPlan, setSubscriptionPlan] = useState(organisationSettings.subscriptionPlan);
   const [featureOverrides, setFeatureOverrides] = useState(organisationSettings.featureOverrides);
@@ -117,6 +118,7 @@ export function AdminSettingsScreen({
     organisationSettings.wardsPerSiteLimitOverride ? String(organisationSettings.wardsPerSiteLimitOverride) : ""
   );
   const selectedCustomer = customerOrganisations.find((organisation) => organisation.id === selectedOrganisationId);
+  const selectedBillingRow = billingRows.find((row) => row.organisationId === selectedOrganisationId);
   const packageSiteLimit = subscriptionPlan === "essential" ? 1 : subscriptionPlan === "professional" ? 5 : null;
   const packageWardLimit = subscriptionPlan === "essential" ? 1 : subscriptionPlan === "professional" ? 5 : null;
   const effectiveSiteLimit = siteLimitOverride ? Number(siteLimitOverride) : packageSiteLimit;
@@ -201,6 +203,7 @@ export function AdminSettingsScreen({
     try {
       const report = await loadBillingReport();
       setBillingRows(report.rows);
+      setBillingCatalogue(report.catalogue);
       return report.rows;
     } catch (error) {
       Alert.alert("Payment report unavailable", error instanceof Error ? error.message : "The payment ledger could not be loaded.");
@@ -663,7 +666,54 @@ export function AdminSettingsScreen({
 
       <View style={styles.panel}>
         <Text style={styles.panelTitle}>Subscription and service control</Text>
-        <Text style={styles.meta}>SecureObs super-admin only. Select a package, then use overrides for an agreed customer variation.</Text>
+        <Text style={styles.meta}>SecureObs super-admin only. Website purchases appear below after Stripe checkout and payment sync.</Text>
+        {billingCatalogue ? (
+          <View style={styles.billingSummary}>
+            <Text style={styles.listTitle}>Current SecureObs price catalogue</Text>
+            <Text style={styles.listMeta}>{billingCatalogue.vatRegistered ? "VAT enabled" : "No VAT charged until registration"} · Annual plans and modules provide 12 months for the price of 10</Text>
+            <View style={styles.catalogueGrid}>
+              {Object.entries(billingCatalogue.plans).map(([key, plan]) => (
+                <View key={key} style={styles.catalogueItem}>
+                  <Text style={styles.label}>{plan.label}</Text>
+                  <Text style={styles.paymentValue}>{formatBillingMoney(plan.monthly)}/month</Text>
+                  <Text style={styles.listMeta}>{formatBillingMoney(plan.yearly)}/year</Text>
+                </View>
+              ))}
+              <View style={styles.catalogueItem}>
+                <Text style={styles.label}>Each optional module / ward</Text>
+                <Text style={styles.paymentValue}>{formatBillingMoney(billingCatalogue.modules[0]?.monthly ?? 0)}/month</Text>
+                <Text style={styles.listMeta}>{formatBillingMoney(billingCatalogue.modules[0]?.yearly ?? 0)}/year</Text>
+              </View>
+              <View style={styles.catalogueItem}>
+                <Text style={styles.label}>Tablet hire / tablet</Text>
+                <Text style={styles.paymentValue}>{formatBillingMoney(billingCatalogue.tablets.monthly)}/month</Text>
+                <Text style={styles.listMeta}>{formatBillingMoney(billingCatalogue.tablets.yearly)}/year</Text>
+              </View>
+            </View>
+          </View>
+        ) : null}
+        {selectedBillingRow?.packageSelection ? (
+          <View style={styles.billingSummary}>
+            <Text style={styles.listTitle}>Purchased package for {selectedBillingRow.organisationName}</Text>
+            <Text style={styles.listMeta}>{selectedBillingRow.billingInterval} · {selectedBillingRow.tabletQuantity} tablet{selectedBillingRow.tabletQuantity === 1 ? "" : "s"} · {formatBillingMoney(selectedBillingRow.expectedAmount)} total · no VAT charged</Text>
+            {selectedBillingRow.packageSelection.wards.map((ward, index) => (
+              <View key={`${ward.site}-${ward.name}-${index}`} style={styles.packageWardRow}>
+                <Text style={styles.listTitle}>{ward.site} · {ward.name}</Text>
+                <Text style={styles.listMeta}>{selectedBillingRow.packageSelection?.enterprise ? "Enterprise" : ward.plan} · {ward.modules.length ? ward.modules.map((moduleId) => billingCatalogue?.modules.find((module) => module.id === moduleId)?.label ?? moduleId).join(", ") : ward.plan === "professional" || selectedBillingRow.packageSelection?.enterprise ? "All modules included" : "No optional modules"}</Text>
+              </View>
+            ))}
+            {selectedBillingRow.packageLines.map((line) => (
+              <View key={line.key} style={styles.packageLineRow}>
+                <Text style={styles.listMeta}>{line.label} × {line.quantity}</Text>
+                <Text style={styles.listTitle}>{formatBillingMoney(line.gross)}</Text>
+              </View>
+            ))}
+            {selectedBillingRow.packageReviewRequired ? <Text style={styles.billingWarning}>Stripe items changed. Review the ward allocations before enabling added access.</Text> : null}
+          </View>
+        ) : (
+          <Text style={styles.meta}>This organisation has no linked website package yet. The controls below manage app access but do not alter a Stripe subscription.</Text>
+        )}
+        <Text style={styles.meta}>The controls below manage access for agreed manual or legacy arrangements. They do not change the customer’s Stripe bill.</Text>
         <View style={styles.billingSummary}>
           <Text style={styles.listTitle}>Stripe billing: {(organisationSettings.billingStatus ?? "not_configured").replace("_", " ")}</Text>
           <Text style={styles.listMeta}>
@@ -1132,6 +1182,10 @@ const styles = StyleSheet.create({
   allowanceRow: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
   allowanceField: { flex: 1, minWidth: 220 },
   billingSummary: { backgroundColor: "#f4f8fa", borderColor: "#c7d2d6", borderRadius: 7, borderWidth: 1, gap: 7, padding: 11 },
+  catalogueGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  catalogueItem: { backgroundColor: "#ffffff", borderColor: "#d8e0e3", borderRadius: 6, borderWidth: 1, minWidth: 180, padding: 9 },
+  packageWardRow: { backgroundColor: "#ffffff", borderColor: "#d8e0e3", borderRadius: 6, borderWidth: 1, gap: 2, padding: 9 },
+  packageLineRow: { alignItems: "center", borderTopColor: "#d8e0e3", borderTopWidth: 1, flexDirection: "row", justifyContent: "space-between", paddingTop: 7 },
   billingContact: { borderTopColor: "#d8e0e3", borderTopWidth: 1, gap: 2, marginTop: 3, paddingTop: 8 },
   billingActions: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   billingWarning: { color: "#8a4b08", fontSize: 12, fontWeight: "900" },

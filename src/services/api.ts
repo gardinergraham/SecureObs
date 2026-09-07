@@ -3,6 +3,7 @@ import { expireAuthSession, getAuthSession, storeAuthSession } from "./authSessi
 import { configureSyncQueue, enqueueFailedRequest, flushSyncQueue, QueuedSyncError } from "./syncQueue";
 import type {
   AuditEvent,
+  BillingCatalogueSummary,
   BillingReportRow,
   CustomerOrganisation,
   AuthSession,
@@ -429,7 +430,7 @@ export async function syncBillingCustomerDetails(organisationId: string) {
 }
 
 export async function loadBillingReport() {
-  return request<{ generatedAt: string; rows: BillingReportRow[] }>("/api/billing/report");
+  return request<{ generatedAt: string; catalogue: BillingCatalogueSummary; rows: BillingReportRow[] }>("/api/billing/report");
 }
 
 export async function loadSecurityAreas(organisationId?: string, wardId?: string) {

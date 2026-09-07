@@ -140,6 +140,7 @@ export type PatientIdentificationProfile = {
 
 export type BillingReportRow = {
   id: string;
+  organisationId: string;
   organisationName: string;
   billingContactName: string;
   billingEmail: string;
@@ -159,6 +160,39 @@ export type BillingReportRow = {
   graceDaysRemaining: number | null;
   cancelAtPeriodEnd: boolean;
   reminderStatus: string;
+  tabletQuantity: number;
+  packageReviewRequired: boolean;
+  packageSelection: BillingPackageSelection | null;
+  packageLines: BillingPackageLine[];
+};
+
+export type BillingPackageSelection = {
+  interval: "monthly" | "yearly";
+  enterprise: boolean;
+  tablets: number;
+  wards: Array<{
+    name: string;
+    site: string;
+    serviceType?: string;
+    plan: "essential" | "professional";
+    modules: string[];
+  }>;
+};
+
+export type BillingPackageLine = {
+  key: string;
+  label: string;
+  quantity: number;
+  unitAmount: number;
+  gross: number;
+};
+
+export type BillingCatalogueSummary = {
+  version: string;
+  vatRegistered: boolean;
+  plans: Record<"essential" | "professional" | "enterprise", { label: string; monthly: number; yearly: number }>;
+  modules: Array<{ id: string; label: string; monthly: number; yearly: number }>;
+  tablets: { label: string; monthly: number; yearly: number };
 };
 
 export type PatientNote = {
