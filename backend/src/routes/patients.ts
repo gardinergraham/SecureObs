@@ -89,6 +89,20 @@ const familyContributionSchema = z.object({
   reviewedByName: z.string().min(1).max(255).optional()
 });
 
+const patientIdentificationProfileSchema = z.object({
+  roomTagToken: z.string().max(200).optional(),
+  personalTagToken: z.string().max(200).optional(),
+  photoDataUri: z.string().max(450_000).regex(/^data:image\/(?:jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/).optional(),
+  showPhoto: z.boolean().default(true),
+  showDateOfBirth: z.boolean().default(true),
+  showHospitalNumber: z.boolean().default(true),
+  showWardAndRoom: z.boolean().default(true),
+  showAllergies: z.boolean().default(false),
+  consentStatus: z.enum(["not_recorded", "consented", "best_interests", "declined"]).default("not_recorded"),
+  updatedAt: z.string().datetime().optional(),
+  updatedBy: z.string().max(255).optional()
+});
+
 const patientSchema = z.object({
   id: z.string().min(1).optional(),
   organisationId: optionalOrganisationIdSchema,
@@ -114,19 +128,7 @@ const patientSchema = z.object({
   allergies: z.string().default(""),
   adverseDrugReactions: z.string().default(""),
   archived: z.boolean().default(false),
-  identificationProfile: z.object({
-    roomTagToken: z.string().max(200).optional(),
-    personalTagToken: z.string().max(200).optional(),
-    photoDataUri: z.string().max(450_000).regex(/^data:image\/(?:jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/).optional(),
-    showPhoto: z.boolean().default(true),
-    showDateOfBirth: z.boolean().default(true),
-    showHospitalNumber: z.boolean().default(true),
-    showWardAndRoom: z.boolean().default(true),
-    showAllergies: z.boolean().default(false),
-    consentStatus: z.enum(["not_recorded", "consented", "best_interests", "declined"]).default("not_recorded"),
-    updatedAt: z.string().datetime().optional(),
-    updatedBy: z.string().max(255).optional()
-  }).nullable().optional().transform((value) => value ?? undefined),
+  identificationProfile: patientIdentificationProfileSchema.nullable().optional().transform((value) => value ?? undefined),
   enhancedObservation: z.record(z.string(), z.unknown()).nullable().optional().transform((value) => value ?? undefined),
   tesoHistory: z.array(z.record(z.string(), z.unknown())).default([]),
   patientForms: z.array(z.record(z.string(), z.unknown())).default([]),
@@ -395,8 +397,13 @@ router.post("/", requireStaffRole(["nurse", "manager", "doctor", "super_admin"])
         }
       | undefined;
 
-    const identificationChanged = JSON.stringify(existingPatient?.identificationProfile ?? null)
-      !== JSON.stringify(patient.identificationProfile ?? null);
+    const existingIdentificationProfile = patientIdentificationProfileSchema
+      .nullable()
+      .optional()
+      .transform((value) => value ?? undefined)
+      .safeParse(existingPatient?.identificationProfile);
+    const identificationChanged = !existingIdentificationProfile.success ||
+      JSON.stringify(existingIdentificationProfile.data ?? null) !== JSON.stringify(patient.identificationProfile ?? null);
     if (identificationChanged && !["manager", "super_admin"].includes(request.auth?.staff.role ?? "")) {
       response.status(403).json({ error: "Manager access is required to create or change patient identification tags" });
       return;

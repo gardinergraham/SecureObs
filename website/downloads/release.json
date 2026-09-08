@@ -1,17 +1,15 @@
 {
-  "version": "0.1.26",
-  "androidVersionCode": 25,
+  "version": "0.1.27",
+  "androidVersionCode": 26,
   "minimumSupportedVersion": "0.1.7",
   "publishedAt": "2026-09-08",
   "size": "91.7 MB",
-  "downloadUrl": "https://ziydoaoxastnvilu.public.blob.vercel-storage.com/android/SecureObs-0.1.26.apk",
+  "downloadUrl": "https://ziydoaoxastnvilu.public.blob.vercel-storage.com/android/SecureObs-0.1.27.apk",
   "downloadPageUrl": "https://secure-obs.com/download",
-  "sha256": "83e95ec67dc195d38f48935d2b36778acfae65bc57b573f82274d4a238a8e26e",
+  "sha256": "5aedee4dc343d12b41c2e4b15900bbf775eb4c57f4ea97c46174461b2d8cc9f4",
   "signingCertificateSha256": "62cbdb9832aa007b14daf1b97a703ac9c153825f9fe6b560693d1853d176af09",
   "releaseNotes": [
-    "Updated the missed observations section to give a",
-    "five minute grace period before",
-    "a reason needs to be given",
-    "But still recording missed observation"
+    "Added new permissions for who can",
+    "start a TESO as well as updating saved details"
   ]
 }
