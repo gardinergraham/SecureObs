@@ -14,6 +14,7 @@ import type {
 } from "../types/domain";
 import { wardObservationLocations } from "../utils/observationLocations";
 import { getObservationLateness, missedObservationReasonMinutes } from "../utils/observationGrace";
+import { getActiveTesoPlan, hasActiveTeso } from "../utils/teso";
 const presentations: PatientPresentation[] = ["Awake", "Asleep"];
 const missedObservationReasons = ["Attending another incident", "Staff shortage", "Clinical emergency", "Other"];
 
@@ -43,12 +44,13 @@ export function EnhancedObservationScreen({
   onObservationSaved
 }: EnhancedObservationScreenProps) {
   const enhancedPatients = useMemo(
-    () => patients.filter((patient) => patient.enhancedObservation || patient.observationLevel !== "Intermittent"),
+    () => patients.filter(hasActiveTeso),
     [patients]
   );
   const [selectedPatientId, setSelectedPatientId] = useState(enhancedPatients[0]?.id ?? "");
   const selectedPatient = enhancedPatients.find((patient) => patient.id === selectedPatientId) ?? enhancedPatients[0];
   const selectedStaff = staff.find((member) => member.id === selectedStaffId);
+  const selectedTesoPlan = selectedPatient ? getActiveTesoPlan(selectedPatient) : undefined;
   const locations = wardObservationLocations(ward?.serviceType, ward?.observationLocations);
   const [now, setNow] = useState(() => Date.now());
   const [location, setLocation] = useState<PatientLocation>(locations[0] ?? "Side room");
@@ -110,9 +112,9 @@ export function EnhancedObservationScreen({
     const allocatedIds =
       currentTimedAssignments.length > 0
         ? currentTimedAssignments.map((assignment) => assignment.staffId)
-        : selectedPatient?.enhancedObservation?.assignedStaffIds ?? [];
+        : selectedTesoPlan?.assignedStaffIds ?? [];
     return Array.from(new Set(allocatedIds));
-  }, [currentTimedAssignments, selectedPatient?.enhancedObservation?.assignedStaffIds]);
+  }, [currentTimedAssignments, selectedTesoPlan?.assignedStaffIds]);
   const defaultRecordingStaffKey = defaultRecordingStaffIds.join("|");
   const recordingStaff = recordingStaffIds
     .map((staffId) => staff.find((member) => member.id === staffId))
@@ -273,7 +275,7 @@ export function EnhancedObservationScreen({
       <View style={styles.header}>
         <View>
           <Text style={styles.title}>Enhanced observations</Text>
-          <Text style={styles.meta}>TESO entries for eyesight and arms-length patients</Text>
+          <Text style={styles.meta}>Enhanced entries for every active TESO plan, including patients who remain on intermittent observations</Text>
         </View>
         <TouchableOpacity accessibilityRole="button" onPress={onBack} style={styles.backButton}>
           <Text style={styles.backButtonText}>Back to observations</Text>
@@ -302,11 +304,11 @@ export function EnhancedObservationScreen({
                   Room {patient.roomNumber} | {patient.firstName} {patient.surname}
                 </Text>
                 <Text style={styles.patientMeta}>
-                  {patient.observationLevel} | {patient.enhancedObservation?.staffRatio ?? "1:1"}
+                  {patient.observationLevel}{patient.observationLevel === "Intermittent" ? " + active TESO" : ""} | {getActiveTesoPlan(patient)?.staffRatio ?? "1:1"}
                 </Text>
                 {patient.observationLevel === "General observation" ? (
                   <Text style={styles.lastObservationText}>
-                    TESO interval {patient.enhancedObservation?.reviewFrequencyMinutes ?? 60}m
+                    TESO interval {getActiveTesoPlan(patient)?.reviewFrequencyMinutes ?? 60}m
                   </Text>
                 ) : null}
                 <Text style={styles.lastObservationText}>
@@ -328,10 +330,10 @@ export function EnhancedObservationScreen({
                     {selectedPatient.firstName} {selectedPatient.surname}
                   </Text>
                   <Text style={styles.detailMeta}>
-                    {selectedPatient.enhancedObservation?.reasons.join(", ") || "No reason recorded"}
+                    {selectedTesoPlan?.reasons.join(", ") || "No reason recorded"}
                   </Text>
                 </View>
-                <Text style={styles.ratioBadge}>{selectedPatient.enhancedObservation?.staffRatio ?? "1:1"}</Text>
+                <Text style={styles.ratioBadge}>{selectedTesoPlan?.staffRatio ?? "1:1"}</Text>
               </View>
 
               {selectedPatient.observationLevel === "General observation" ? (
@@ -344,7 +346,7 @@ export function EnhancedObservationScreen({
                   <View>
                     <Text style={styles.tesoTimingTitle}>TESO general observation</Text>
                     <Text style={styles.tesoTimingMeta}>
-                      Every {selectedPatient.enhancedObservation?.reviewFrequencyMinutes ?? 60}m |{" "}
+                      Every {selectedTesoPlan?.reviewFrequencyMinutes ?? 60}m |{" "}
                       Due {selectedTesoDueAt ? formatObservationTime(selectedTesoDueAt) : "--:--"}
                     </Text>
                   </View>
@@ -359,10 +361,10 @@ export function EnhancedObservationScreen({
                 </View>
               ) : null}
 
-              {selectedPatient.enhancedObservation?.carePlan ? (
+              {selectedTesoPlan?.carePlan ? (
                 <View style={styles.carePlanPanel}>
                   <Text style={styles.carePlanTitle}>Plan of care</Text>
-                  <Text style={styles.carePlanText}>{selectedPatient.enhancedObservation.carePlan}</Text>
+                  <Text style={styles.carePlanText}>{selectedTesoPlan.carePlan}</Text>
                 </View>
               ) : null}
 
@@ -464,17 +466,6 @@ export function EnhancedObservationScreen({
                 value={comments}
               />
 
-              <TouchableOpacity
-                accessibilityRole="button"
-                disabled={tesoGeneralObservationOverdue}
-                onPress={saveEnhancedEntry}
-                style={[styles.saveButton, tesoGeneralObservationOverdue && styles.disabledSaveButton]}
-              >
-                <Text style={styles.saveButtonText}>
-                  {tesoGeneralObservationOverdue ? "Record missed TESO observation first" : "Save enhanced entry"}
-                </Text>
-              </TouchableOpacity>
-
               {selectedPatient.observationLevel === "General observation" &&
               selectedTesoLateness.recordLateCompletion &&
               !selectedTesoLateness.reasonRequired ? (
@@ -507,10 +498,20 @@ export function EnhancedObservationScreen({
                     <Text style={styles.missedValidatedText}>Reason recorded for this overdue TESO observation.</Text>
                   ) : (
                     <TouchableOpacity accessibilityRole="button" onPress={saveMissedTesoObservation} style={styles.missedButton}>
-                      <Text style={styles.missedButtonText}>Record missed TESO observation</Text>
+                      <Text style={styles.missedButtonText}>Save missed TESO reason</Text>
                     </TouchableOpacity>
                   )}
                 </View>
+              ) : null}
+
+              {!tesoGeneralObservationOverdue ? (
+                <TouchableOpacity
+                  accessibilityRole="button"
+                  onPress={saveEnhancedEntry}
+                  style={styles.saveButton}
+                >
+                  <Text style={styles.saveButtonText}>Save enhanced entry</Text>
+                </TouchableOpacity>
               ) : null}
 
               {selectedTesoMissedObservations.length > 0 ? (
@@ -610,7 +611,7 @@ function OptionRow({ options, selected, onSelect }: OptionRowProps) {
 }
 
 function getRequiredStaffCount(patient?: Patient) {
-  const ratio = patient?.enhancedObservation?.staffRatio ?? "1:1";
+  const ratio = patient ? getActiveTesoPlan(patient)?.staffRatio ?? "1:1" : "1:1";
   const count = Number.parseInt(ratio.split(":")[0] ?? "1", 10);
   return Number.isFinite(count) && count > 0 ? count : 1;
 }
@@ -669,9 +670,10 @@ function getTesoDueAt(patient: Patient, observations: Observation[]) {
     return undefined;
   }
 
-  const intervalMinutes = patient.enhancedObservation?.reviewFrequencyMinutes ?? 60;
+  const tesoPlan = getActiveTesoPlan(patient);
+  const intervalMinutes = tesoPlan?.reviewFrequencyMinutes ?? 60;
   const latestObservation = observations[0];
-  const baseline = latestObservation?.observedAt ?? patient.enhancedObservation?.startedAt;
+  const baseline = latestObservation?.observedAt ?? tesoPlan?.startedAt;
   if (!baseline) {
     return undefined;
   }
@@ -695,7 +697,7 @@ function getTesoTiming(patient: Patient, observations: Observation[], now: numbe
     return undefined;
   }
 
-  const minutes = Math.round((dueTime - now) / 60000);
+  const minutes = Math.ceil((dueTime - now) / 60000);
   if (minutes < 0) {
     return { label: `${Math.abs(minutes)}m overdue`, status: "overdue" as const };
   }

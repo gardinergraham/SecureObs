@@ -662,8 +662,12 @@ async function recordPatientAuditEvents({
     });
   }
 
-  const hadTeso = Boolean(existingPatient.enhancedObservation) || existingPatient.observationLevel !== "Intermittent";
-  const hasTeso = Boolean(patient.enhancedObservation) || patient.observationLevel !== "Intermittent";
+  const hadTeso = Boolean(existingPatient.enhancedObservation)
+    || existingPatient.observationLevel !== "Intermittent"
+    || hasUnfinishedTesoEpisode(existingPatient.tesoHistory);
+  const hasTeso = Boolean(patient.enhancedObservation)
+    || patient.observationLevel !== "Intermittent"
+    || hasUnfinishedTesoEpisode(patient.tesoHistory);
 
   if (!hadTeso && hasTeso) {
     await recordAuditEvent({
@@ -772,6 +776,12 @@ async function recordPatientAuditEvents({
       }
     });
   }
+}
+
+function hasUnfinishedTesoEpisode(history: unknown[] | undefined) {
+  return Boolean(history?.some((episode) =>
+    typeof episode === "object" && episode !== null && !Reflect.get(episode, "endedAt")
+  ));
 }
 
 async function verifiedObservationsEnabled(organisationId: string) {

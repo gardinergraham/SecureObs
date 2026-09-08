@@ -16,6 +16,7 @@ import type {
   Ward
 } from "../types/domain";
 import { normaliseStaffRole } from "../utils/staffRole";
+import { getActiveTesoPlan, hasActiveTeso } from "../utils/teso";
 
 type WardOverviewScreenProps = {
   foodFluidEntries: FoodFluidEntry[];
@@ -148,16 +149,17 @@ export function WardOverviewScreen({
   const enhancedPatients = useMemo(
     () =>
       patients
-        .filter((patient) => patient.observationLevel !== "Intermittent" || patient.enhancedObservation)
+        .filter(hasActiveTeso)
         .map((patient) => {
+          const tesoPlan = getActiveTesoPlan(patient);
           const latest = latestEnhancedByPatientId.get(patient.id);
-          const interval = patient.enhancedObservation?.reviewFrequencyMinutes;
-          const baseline = latest?.observedAt ?? patient.enhancedObservation?.startedAt;
+          const interval = tesoPlan?.reviewFrequencyMinutes;
+          const baseline = latest?.observedAt ?? tesoPlan?.startedAt;
           const timing = interval && baseline
             ? getTimingFromBaseline(baseline, interval, now)
             : undefined;
           const required = requiredStaffCount(patient);
-          const assignedStaffIds = patient.enhancedObservation?.assignedStaffIds ?? [];
+          const assignedStaffIds = tesoPlan?.assignedStaffIds ?? [];
           const assigned = ward?.staffRotaEnabled
             ? assignedStaffIds.filter((staffId) => shiftStaffIds.has(staffId)).length
             : assignedStaffIds.length;
@@ -825,7 +827,7 @@ function compareTimedPatients(left: TimedPatient, right: TimedPatient) {
 }
 
 function requiredStaffCount(patient: Patient) {
-  const ratio = patient.enhancedObservation?.staffRatio ?? "1:1";
+  const ratio = getActiveTesoPlan(patient)?.staffRatio ?? "1:1";
   const parsed = Number.parseInt(ratio.split(":")[0] ?? "1", 10);
   return Number.isNaN(parsed) ? 1 : parsed;
 }

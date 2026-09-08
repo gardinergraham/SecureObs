@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 
 import type { Patient, RotaAssignment, RotaRole, StaffMember, StaffShiftAssignment, Ward } from "../types/domain";
+import { getActiveTesoPlan, hasActiveTeso } from "../utils/teso";
 
 const defaultRoles: RotaRole[] = ["General observations", "Enhanced/TESO", "Security checks", "Break"];
 type TimeSlot = {
@@ -71,7 +72,7 @@ export function StaffRotaScreen({
     () => assignments.filter((assignment) => assignment.wardId === selectedWardId),
     [assignments, selectedWardId]
   );
-  const enhancedPatients = patients.filter((patient) => patient.observationLevel !== "Intermittent");
+  const enhancedPatients = patients.filter(hasActiveTeso);
   const [selectedStaffId, setSelectedStaffId] = useState("");
   const [selectedRole, setSelectedRole] = useState<RotaRole>("General observations");
   const [selectedPatientId, setSelectedPatientId] = useState(enhancedPatients[0]?.id ?? "");
@@ -740,7 +741,7 @@ function formatMinutesAsTime(totalMinutes: number) {
 }
 
 function getRequiredStaffCount(patient: Patient) {
-  const ratio = patient.enhancedObservation?.staffRatio ?? "1:1";
+  const ratio = getActiveTesoPlan(patient)?.staffRatio ?? "1:1";
   return Number.parseInt(ratio.split(":")[0] ?? "1", 10);
 }
 

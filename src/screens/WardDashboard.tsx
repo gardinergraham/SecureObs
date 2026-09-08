@@ -614,17 +614,6 @@ export function WardDashboard({
                   </Text>
                 ) : null}
 
-                <TouchableOpacity
-                  accessibilityRole="button"
-                  disabled={mustValidateMissedObservation}
-                  onPress={saveObservation}
-                  style={[styles.saveButton, mustValidateMissedObservation && styles.disabledSaveButton]}
-                >
-                  <Text style={styles.saveButtonText}>
-                    {mustValidateMissedObservation ? "Record missed observation first" : "Save check"}
-                  </Text>
-                </TouchableOpacity>
-
                 {selectedPatientLateness.reasonRequired ? (
                   <View style={styles.missedPanel}>
                     <Text style={styles.missedTitle}>
@@ -649,10 +638,20 @@ export function WardDashboard({
                       <Text style={styles.missedValidatedText}>Reason recorded for this overdue check.</Text>
                     ) : (
                       <TouchableOpacity accessibilityRole="button" onPress={saveMissedObservation} style={styles.missedButton}>
-                        <Text style={styles.missedButtonText}>Record missed observation</Text>
+                        <Text style={styles.missedButtonText}>Save missed reason</Text>
                       </TouchableOpacity>
                     )}
                   </View>
+                ) : null}
+
+                {!mustValidateMissedObservation ? (
+                  <TouchableOpacity
+                    accessibilityRole="button"
+                    onPress={saveObservation}
+                    style={styles.saveButton}
+                  >
+                    <Text style={styles.saveButtonText}>Save check</Text>
+                  </TouchableOpacity>
                 ) : null}
 
                 {selectedPatientMissedObservations.length > 0 ? (
@@ -932,7 +931,9 @@ function getMinutesUntilDue(patient: Patient, wardIntervalMinutes: number, now: 
   }
 
   const due = last + wardIntervalMinutes * 60 * 1000;
-  return Math.round((due - now) / 60000);
+  // Round towards zero once a check is overdue so the displayed minute count
+  // changes at the same boundary as the missed-reason safety rule.
+  return Math.ceil((due - now) / 60000);
 }
 
 function getDueAt(patient: Patient, wardIntervalMinutes: number) {
@@ -958,7 +959,7 @@ function getTesoGeneralObservationTiming(patient: Patient, latestEnhancedObserva
   }
 
   const dueAt = baselineTime + intervalMinutes * 60 * 1000;
-  const minutes = Math.round((dueAt - now) / 60000);
+  const minutes = Math.ceil((dueAt - now) / 60000);
 
   if (minutes < 0) {
     return { label: `${Math.abs(minutes)}m overdue`, status: "overdue" as const };

@@ -1,14 +1,16 @@
 {
-  "version": "0.1.24",
-  "androidVersionCode": 23,
+  "version": "0.1.25",
+  "androidVersionCode": 24,
   "minimumSupportedVersion": "0.1.7",
-  "publishedAt": "2026-09-07",
+  "publishedAt": "2026-09-08",
   "size": "91.7 MB",
-  "downloadUrl": "https://ziydoaoxastnvilu.public.blob.vercel-storage.com/android/SecureObs-0.1.24.apk",
+  "downloadUrl": "https://ziydoaoxastnvilu.public.blob.vercel-storage.com/android/SecureObs-0.1.25.apk",
   "downloadPageUrl": "https://secure-obs.com/download",
-  "sha256": "08f23bf0d0c5d64bb43b2279ead00ee77eac54ad080e98e9f21ad67ec1be9f4e",
+  "sha256": "ec982433906f81552fe3f8b1caa4bdaab4679f37688d70d97def860a3e0b7bee",
   "signingCertificateSha256": "62cbdb9832aa007b14daf1b97a703ac9c153825f9fe6b560693d1853d176af09",
   "releaseNotes": [
-    "Set a reset function and remove function for managers"
+    "Fixed TESO setting not showing intermittent",
+    "Removed observation time for eyesight",
+    "and arms length"
   ]
 }
