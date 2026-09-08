@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { Alert, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 
 import { SecureDateTimeField } from "../components/SecureDateTimeField";
 import type {
@@ -45,7 +45,7 @@ type PatientSettingsScreenProps = {
   selectedStaffId: string;
   onBack: () => void;
   onOpenAssessmentForms: () => void;
-  onUpdatePatient: (patient: Patient) => void;
+  onUpdatePatient: (patient: Patient) => Promise<void>;
 };
 
 export function PatientSettingsScreen({
@@ -71,6 +71,7 @@ export function PatientSettingsScreen({
   const [tesoDraft, setTesoDraft] = useState<TesoDraft>(() => createDefaultDraft());
   const [activeCarePlanDraft, setActiveCarePlanDraft] = useState("");
   const [endReason, setEndReason] = useState("");
+  const [isSavingTeso, setIsSavingTeso] = useState(false);
   const detailScrollRef = useRef<ScrollView>(null);
   const selectedPatient = orderedPatients.find((patient) => patient.id === selectedPatientId) ?? orderedPatients[0];
   const selectedTesoPlan = selectedPatient ? getActiveTesoPlan(selectedPatient) : undefined;
@@ -92,19 +93,19 @@ export function PatientSettingsScreen({
     setActiveCarePlanDraft(selectedPatient?.enhancedObservation?.carePlan ?? "");
   }, [selectedPatient?.enhancedObservation?.carePlan, selectedPatient?.id]);
 
-  const updatePatient = (nextPatient: Patient) => {
+  const updatePatient = async (nextPatient: Patient) => {
     if (!canEdit) {
       return;
     }
 
-    onUpdatePatient(nextPatient);
+    await onUpdatePatient(nextPatient);
   };
 
   const updateActiveTesoPlan = (patient: Patient, planUpdate: Partial<EnhancedObservationPlan>) => {
     const currentPlan = getActiveTesoPlan(patient) ?? createDefaultPlan(selectedStaff?.name ?? "");
     const nextPlan = normaliseReviewSchedule({ ...currentPlan, ...planUpdate }, patient.observationLevel);
 
-    updatePatient(
+    void updatePatient(
       syncActiveTesoEpisode({
         ...patient,
         enhancedObservation: nextPlan
@@ -112,7 +113,7 @@ export function PatientSettingsScreen({
     );
   };
 
-  const startTeso = () => {
+  const startTeso = async () => {
     if (!selectedPatient || !canEdit || hasActiveTeso || !canStartTeso || !tesoDraft.observationLevel) {
       return;
     }
@@ -120,20 +121,28 @@ export function PatientSettingsScreen({
     const observationLevel = tesoDraft.observationLevel;
     const plan = createPlanFromDraft(tesoDraft, selectedStaff?.name ?? "", observationLevel);
 
-    updatePatient({
-      ...selectedPatient,
-      observationLevel,
-      enhancedObservation: plan,
-      tesoHistory: [
-        createTesoEpisode({
-          plan,
-          observationLevel,
-          episodeId: `teso-${Date.now()}`
-        }),
-        ...(selectedPatient.tesoHistory ?? [])
-      ]
-    });
-    setTesoDraft(createDefaultDraft());
+    setIsSavingTeso(true);
+    try {
+      await updatePatient({
+        ...selectedPatient,
+        observationLevel,
+        enhancedObservation: plan,
+        tesoHistory: [
+          createTesoEpisode({
+            plan,
+            observationLevel,
+            episodeId: `teso-${Date.now()}`
+          }),
+          ...(selectedPatient.tesoHistory ?? [])
+        ]
+      });
+      setTesoDraft(createDefaultDraft());
+      Alert.alert("TESO started", `${selectedPatient.firstName} ${selectedPatient.surname}'s TESO has been saved.`);
+    } catch (error) {
+      Alert.alert("TESO not started", error instanceof Error ? error.message : "The TESO could not be saved.");
+    } finally {
+      setIsSavingTeso(false);
+    }
   };
 
   const endTeso = () => {
@@ -221,7 +230,13 @@ export function PatientSettingsScreen({
             </Text>
             {!assessmentFormsEnabled ? <Text style={styles.assessmentButtonReason}>Not enabled</Text> : null}
           </TouchableOpacity>
-          <TouchableOpacity accessibilityRole="button" onPress={onBack} style={styles.backButton}>
+          <TouchableOpacity
+            accessibilityRole="button"
+            accessibilityState={{ disabled: isSavingTeso }}
+            disabled={isSavingTeso}
+            onPress={onBack}
+            style={[styles.backButton, isSavingTeso && styles.disabledControl]}
+          >
             <Text style={styles.backButtonText}>Back to observations</Text>
           </TouchableOpacity>
         </View>
@@ -292,16 +307,16 @@ export function PatientSettingsScreen({
                 </View>
                 <TouchableOpacity
                   accessibilityRole="button"
-                  disabled={!canEdit || (!hasActiveTeso && !canStartTeso)}
-                  onPress={hasActiveTeso ? endTeso : startTeso}
+                  disabled={isSavingTeso || !canEdit || (!hasActiveTeso && !canStartTeso)}
+                  onPress={hasActiveTeso ? endTeso : () => void startTeso()}
                   style={[
                     styles.tesoActionButton,
                     hasActiveTeso && styles.endTesoButton,
-                    (!canEdit || (!hasActiveTeso && !canStartTeso)) && styles.disabledControl
+                    (isSavingTeso || !canEdit || (!hasActiveTeso && !canStartTeso)) && styles.disabledControl
                   ]}
                 >
                   <Text style={styles.tesoActionButtonText}>
-                    {hasActiveTeso ? "End TESO" : "Start TESO"}
+                    {isSavingTeso ? "Saving TESO…" : hasActiveTeso ? "End TESO" : "Start TESO"}
                   </Text>
                 </TouchableOpacity>
               </View>

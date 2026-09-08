@@ -1347,6 +1347,9 @@ export default function App() {
 
   const handleUpdatePatient = async (updatedPatient: Patient) => {
     const previousPatient = patients.find((patient) => patient.id === updatedPatient.id);
+    const previousTesoAssignments = rotaAssignments.filter(
+      (assignment) => assignment.role === "Enhanced/TESO" && assignment.patientId === updatedPatient.id
+    );
     const tesoHasEnded =
       Boolean(previousPatient?.enhancedObservation) &&
       !updatedPatient.enhancedObservation &&
@@ -1363,14 +1366,28 @@ export default function App() {
         )
       );
     }
-    await persistOrQueue("patient update", () =>
-      persistPatient({
-        ...updatedPatient,
-        organisationId: selectedStaff?.organisationId,
-        actorStaffId: selectedStaff?.id,
-        actorStaffCode: selectedStaff?.staffCode
-      })
-    );
+    try {
+      const result = await persistOrQueue("patient update", () =>
+        persistPatient({
+          ...updatedPatient,
+          organisationId: selectedStaff?.organisationId,
+          actorStaffId: selectedStaff?.id,
+          actorStaffCode: selectedStaff?.staffCode
+        }),
+        true
+      );
+      if (result?.patient) {
+        setPatients((currentPatients) => upsertById(currentPatients, result.patient));
+      }
+    } catch (error) {
+      if (previousPatient) {
+        setPatients((currentPatients) => upsertById(currentPatients, previousPatient));
+      }
+      if (previousTesoAssignments.length > 0) {
+        setRotaAssignments((currentAssignments) => mergeById(previousTesoAssignments, currentAssignments));
+      }
+      throw error;
+    }
   };
 
   const handleRefreshPatients = async () => {

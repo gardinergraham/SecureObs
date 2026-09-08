@@ -614,13 +614,9 @@ export function WardDashboard({
                   </Text>
                 ) : null}
 
-                {selectedPatientLateness.reasonRequired ? (
+                {mustValidateMissedObservation ? (
                   <View style={styles.missedPanel}>
-                    <Text style={styles.missedTitle}>
-                      {selectedPatientMissedObservationValidated
-                        ? "Missed observation validated"
-                        : "Record missed observation"}
-                    </Text>
+                    <Text style={styles.missedTitle}>Record missed observation</Text>
                     <Text style={styles.missedMeta}>
                       Due {selectedPatientDueAt ? formatObservationTime(selectedPatientDueAt) : "--:--"} | Allocated to{" "}
                       {selectedStaff?.name ?? "current staff"}
@@ -634,13 +630,9 @@ export function WardDashboard({
                       style={styles.notes}
                       value={missedDetails}
                     />
-                    {selectedPatientMissedObservationValidated ? (
-                      <Text style={styles.missedValidatedText}>Reason recorded for this overdue check.</Text>
-                    ) : (
-                      <TouchableOpacity accessibilityRole="button" onPress={saveMissedObservation} style={styles.missedButton}>
-                        <Text style={styles.missedButtonText}>Save missed reason</Text>
-                      </TouchableOpacity>
-                    )}
+                    <TouchableOpacity accessibilityRole="button" onPress={saveMissedObservation} style={styles.missedButton}>
+                      <Text style={styles.missedButtonText}>Save missed reason</Text>
+                    </TouchableOpacity>
                   </View>
                 ) : null}
 
@@ -1647,11 +1639,6 @@ const styles = StyleSheet.create({
   missedButtonText: {
     color: "#ffffff",
     fontSize: 14,
-    fontWeight: "900"
-  },
-  missedValidatedText: {
-    color: "#315748",
-    fontSize: 13,
     fontWeight: "900"
   },
   missedHistory: {
