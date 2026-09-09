@@ -350,6 +350,36 @@ h3 {
   padding: 64px clamp(18px, 5vw, 72px);
 }
 
+.platform-film {
+  background: #edf5f5;
+}
+
+.platform-film-player {
+  display: block;
+  width: 100%;
+  max-width: 1100px;
+  height: auto;
+  aspect-ratio: 16 / 9;
+  margin: 28px auto 20px;
+  background: #0b202c;
+  border-radius: 12px;
+  box-shadow: 0 12px 36px #173d4926;
+}
+
+.platform-film-links {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 16px 24px;
+  max-width: 1100px;
+  margin: auto;
+}
+
+.platform-film-player:focus-visible {
+  outline: 3px solid #16756d;
+  outline-offset: 5px;
+}
+
 section[id] {
   scroll-margin-top: 88px;
 }

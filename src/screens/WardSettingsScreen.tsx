@@ -580,16 +580,20 @@ export function WardSettingsScreen({
             </TouchableOpacity>
             <TouchableOpacity
               accessibilityRole="button"
+              accessibilityState={{ checked: newStaffCanPrescribe }}
               disabled={!canEditWardSettings || !["nurse", "doctor", "manager"].includes(newStaffRole)}
               onPress={() => setNewStaffCanPrescribe((canPrescribe) => !canPrescribe)}
               style={[
                 styles.statusButton,
-                newStaffCanPrescribe && styles.statusButtonActive,
+                newStaffCanPrescribe ? styles.prescribingAllowedButton : styles.prescribingNotAllowedButton,
                 (!canEditWardSettings || !["nurse", "doctor", "manager"].includes(newStaffRole)) && styles.disabledControl
               ]}
             >
-              <Text style={[styles.statusButtonText, newStaffCanPrescribe && styles.optionTextActive]}>
-                {newStaffCanPrescribe ? "Can prescribe" : "No prescribing"}
+              <Text style={[
+                styles.statusButtonText,
+                newStaffCanPrescribe ? styles.prescribingAllowedText : styles.prescribingNotAllowedText
+              ]}>
+                {newStaffCanPrescribe ? "Prescribing: Allowed" : "Prescribing: Not allowed"}
               </Text>
             </TouchableOpacity>
           </View>
@@ -1210,6 +1214,10 @@ const styles = StyleSheet.create({
   },
   statusButtonActive: { backgroundColor: "#1f5262", borderColor: "#1f5262" },
   statusButtonText: { color: "#30434a", fontSize: 13, fontWeight: "900" },
+  prescribingAllowedButton: { backgroundColor: "#dcead7", borderColor: "#6f9b72" },
+  prescribingAllowedText: { color: "#253e2c" },
+  prescribingNotAllowedButton: { backgroundColor: "#f9dddd", borderColor: "#c77b7b" },
+  prescribingNotAllowedText: { color: "#772d2d" },
   saveStaffButton: {
     alignItems: "center",
     backgroundColor: "#1f5262",
