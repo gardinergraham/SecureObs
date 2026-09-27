@@ -268,7 +268,7 @@ function News2Chart({ readings, scrollRef }: { readings: News2Reading[]; scrollR
   return (
     <View style={styles.chartFrame}>
       <View style={styles.fixedChartColumn}>
-        <View style={styles.sectionLabelSmall}><Text style={styles.sectionText}>DATE / TIME</Text></View>
+        <View style={[styles.sectionLabelSmall, styles.dateHeaderHeight]}><Text style={styles.sectionText}>DATE / TIME</Text></View>
         <ChartSectionLabels title="A+B Respirations" bands={respiratoryBands} />
         <ChartSectionLabels title="SpO₂ Scale 1" bands={spo2Scale1Bands} />
         <ChartSectionLabels title="SpO₂ Scale 2" bands={spo2Scale2Bands} />
@@ -277,7 +277,7 @@ function News2Chart({ readings, scrollRef }: { readings: News2Reading[]; scrollR
         <ChartSectionLabels title="C Pulse" bands={pulseBands} />
         <ChartSectionLabels title="D Consciousness" bands={consciousnessBands} />
         <ChartSectionLabels title="E Temperature" bands={temperatureBands} />
-        <View style={styles.scoreLabel}><Text style={styles.scoreLabelText}>NEWS TOTAL</Text></View>
+        <View style={[styles.scoreLabel, styles.scoreHeight]}><Text style={styles.scoreLabelText}>NEWS TOTAL</Text></View>
       </View>
       <ScrollView
         horizontal
@@ -288,7 +288,7 @@ function News2Chart({ readings, scrollRef }: { readings: News2Reading[]; scrollR
         contentContainerStyle={styles.chartDataContent}
       >
         <View>
-          <View style={styles.dateRow}>
+          <View style={[styles.dateRow, styles.dateHeaderHeight]}>
         {readings.map((reading) => (
           <View key={reading.id} style={styles.dateCell}>
             <Text style={styles.dateText}>{formatDate(reading.recordedAt)}</Text>
@@ -336,7 +336,7 @@ function ChartSectionLabels({ title, bands }: { title: string; bands: News2Band[
       <View style={styles.sectionLabel}><Text style={styles.sectionText}>{title}</Text></View>
       <View>
         {bands.map((band) => (
-          <View key={band.label} style={styles.bandRow}>
+          <View key={band.label} style={[styles.bandRow, { height: bandRowHeight(band) }]}>
             <View style={[styles.bandLabel, bandColourStyle(band.score)]}><Text style={styles.bandText}>{band.label}</Text></View>
           </View>
         ))}
@@ -349,7 +349,7 @@ function ChartSectionValues({ bands, readings, getBand, getValue }: ChartSection
   return (
     <View>
       {bands.map((band) => (
-        <View key={band.label} style={styles.bandRow}>
+        <View key={band.label} style={[styles.bandRow, { height: bandRowHeight(band) }]}>
             {readings.map((reading) => (
               <View key={`${reading.id}-${band.label}`} style={[styles.readingCell, bandColourStyle(band.score)]}>
                 {getBand(reading) === band.label ? <Text style={styles.pointText}>{getValue(reading)}</Text> : null}
@@ -363,7 +363,7 @@ function ChartSectionValues({ bands, readings, getBand, getValue }: ChartSection
 
 function ScoreValues({ readings }: { readings: News2Reading[] }) {
   return (
-    <View style={styles.scoreRow}>
+    <View style={[styles.scoreRow, styles.scoreHeight]}>
       {readings.map((reading) => (
         <View key={reading.id} style={[styles.scoreCell, scoreColourStyle(reading.totalScore)]}>
           <Text style={styles.scoreText}>{reading.totalScore}</Text>
@@ -485,6 +485,11 @@ function formatDate(value: string) {
 
 function formatTime(value: string) {
   return new Date(value).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+}
+
+// Both halves of the chart must use the same row geometry, including wrapped labels.
+function bandRowHeight(band: News2Band) {
+  return band.label === "New confusion" || band.label === "Unresponsive" ? 36 : 24;
 }
 
 function bandColourStyle(score: News2Band["score"]) {
@@ -610,18 +615,28 @@ const styles = StyleSheet.create({
   },
   emptyChart: { alignItems: "center", justifyContent: "center", minHeight: 180, width: 520 },
   emptyChartText: { color: "#607078", fontSize: 13, fontWeight: "900" },
+  dateHeaderHeight: { height: 42, flexShrink: 0 },
   dateRow: { flexDirection: "row" },
-  sectionLabelSmall: { backgroundColor: "#0e6fbd", borderColor: "#222", borderWidth: 1, width: 220, justifyContent: "center", padding: 6 },
+  sectionLabelSmall: {
+    alignItems: "flex-start",
+    backgroundColor: "#0e6fbd",
+    borderColor: "#222",
+    borderWidth: 1,
+    justifyContent: "center",
+    paddingHorizontal: 6,
+    width: 220
+  },
   sectionLabel: { backgroundColor: "#0e6fbd", borderColor: "#222", borderWidth: 1, width: 150, justifyContent: "center", padding: 6 },
   sectionText: { color: "#ffffff", fontSize: 13, fontWeight: "900" },
   dateCell: { borderColor: "#222", borderWidth: 1, minHeight: 42, width: 58, alignItems: "center", justifyContent: "center" },
   dateText: { color: "#18262c", fontSize: 10, fontWeight: "800" },
   chartSectionLabels: { flexDirection: "row" },
-  bandRow: { flexDirection: "row" },
+  bandRow: { flexDirection: "row", flexShrink: 0 },
   bandLabel: { borderColor: "#222", borderWidth: 1, width: 70, minHeight: 24, justifyContent: "center", paddingRight: 4 },
   bandText: { color: "#18262c", fontSize: 10, fontWeight: "900", textAlign: "right" },
   readingCell: { alignItems: "center", borderColor: "#222", borderWidth: 1, justifyContent: "center", minHeight: 24, width: 58 },
   pointText: { color: "#18262c", fontSize: 11, fontWeight: "900" },
+  scoreHeight: { height: 34, flexShrink: 0 },
   scoreRow: { flexDirection: "row" },
   scoreLabel: { backgroundColor: "#0b4b99", borderColor: "#222", borderWidth: 1, justifyContent: "center", padding: 6, width: 220 },
   scoreLabelText: { color: "#ffffff", fontSize: 13, fontWeight: "900" },

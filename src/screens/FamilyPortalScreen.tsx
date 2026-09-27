@@ -43,6 +43,7 @@ export function FamilyPortalScreen({
   const canRecordContribution = Boolean(
     selectedStaff &&
       (hasStaffRole(selectedStaff, "nurse") ||
+        hasStaffRole(selectedStaff, "manager") ||
         hasStaffRole(selectedStaff, "doctor") ||
         hasAdminAccess(selectedStaff))
   );

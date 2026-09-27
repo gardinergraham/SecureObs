@@ -87,6 +87,7 @@ export function PatientVoiceScreen({
   const canEdit = Boolean(
     selectedStaff &&
       (hasStaffRole(selectedStaff, "nurse") ||
+        hasStaffRole(selectedStaff, "manager") ||
         hasStaffRole(selectedStaff, "doctor") ||
         hasAdminAccess(selectedStaff))
   );
