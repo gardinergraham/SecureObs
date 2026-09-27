@@ -1,14 +1,14 @@
 {
-  "version": "0.1.28",
-  "androidVersionCode": 27,
+  "version": "0.1.29",
+  "androidVersionCode": 28,
   "minimumSupportedVersion": "0.1.7",
-  "publishedAt": "2026-09-09",
+  "publishedAt": "2026-09-27",
   "size": "91.7 MB",
-  "downloadUrl": "https://ziydoaoxastnvilu.public.blob.vercel-storage.com/android/SecureObs-0.1.28.apk",
+  "downloadUrl": "https://ziydoaoxastnvilu.public.blob.vercel-storage.com/android/SecureObs-0.1.29.apk",
   "downloadPageUrl": "https://secure-obs.com/download",
-  "sha256": "a0315ae445af16a2cc37c2d131b6a1cd8a4d2b03931902d35c053b7314b3064b",
+  "sha256": "832890903d2286901829f334d8c7753ee1220941b733563d0ba0c41359e94a3d",
   "signingCertificateSha256": "62cbdb9832aa007b14daf1b97a703ac9c153825f9fe6b560693d1853d176af09",
   "releaseNotes": [
-    "Updated the medication prescribing route"
+    "Updated the NEWS2 display and functionality"
   ]
 }

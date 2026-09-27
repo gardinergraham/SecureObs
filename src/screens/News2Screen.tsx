@@ -257,6 +257,8 @@ function ToggleRow({ label, options, selected, onSelect }: ToggleRowProps) {
 }
 
 function News2Chart({ readings, scrollRef }: { readings: News2Reading[]; scrollRef: React.RefObject<ScrollView | null> }) {
+  const [dateHeaderHeight, setDateHeaderHeight] = useState(42);
+
   if (readings.length === 0) {
     return (
       <View style={[styles.chart, styles.emptyChart]}>
@@ -268,7 +270,7 @@ function News2Chart({ readings, scrollRef }: { readings: News2Reading[]; scrollR
   return (
     <View style={styles.chartFrame}>
       <View style={styles.fixedChartColumn}>
-        <View style={[styles.sectionLabelSmall, styles.dateHeaderHeight]}><Text style={styles.sectionText}>DATE / TIME</Text></View>
+        <View style={[styles.sectionLabelSmall, { height: dateHeaderHeight }]}><Text style={styles.sectionText}>DATE / TIME</Text></View>
         <ChartSectionLabels title="A+B Respirations" bands={respiratoryBands} />
         <ChartSectionLabels title="SpO₂ Scale 1" bands={spo2Scale1Bands} />
         <ChartSectionLabels title="SpO₂ Scale 2" bands={spo2Scale2Bands} />
@@ -288,7 +290,10 @@ function News2Chart({ readings, scrollRef }: { readings: News2Reading[]; scrollR
         contentContainerStyle={styles.chartDataContent}
       >
         <View>
-          <View style={[styles.dateRow, styles.dateHeaderHeight]}>
+          <View
+            style={styles.dateRow}
+            onLayout={({ nativeEvent }) => setDateHeaderHeight(nativeEvent.layout.height)}
+          >
         {readings.map((reading) => (
           <View key={reading.id} style={styles.dateCell}>
             <Text style={styles.dateText}>{formatDate(reading.recordedAt)}</Text>
@@ -615,9 +620,9 @@ const styles = StyleSheet.create({
   },
   emptyChart: { alignItems: "center", justifyContent: "center", minHeight: 180, width: 520 },
   emptyChartText: { color: "#607078", fontSize: 13, fontWeight: "900" },
-  dateHeaderHeight: { height: 42, flexShrink: 0 },
-  dateRow: { flexDirection: "row" },
+  dateRow: { flexDirection: "row", minHeight: 42, flexShrink: 0 },
   sectionLabelSmall: {
+    flexShrink: 0,
     alignItems: "flex-start",
     backgroundColor: "#0e6fbd",
     borderColor: "#222",
