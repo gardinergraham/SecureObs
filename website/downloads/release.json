@@ -1,14 +1,14 @@
 {
-  "version": "0.1.29",
-  "androidVersionCode": 28,
+  "version": "0.1.30",
+  "androidVersionCode": 29,
   "minimumSupportedVersion": "0.1.7",
   "publishedAt": "2026-09-27",
   "size": "91.7 MB",
-  "downloadUrl": "https://ziydoaoxastnvilu.public.blob.vercel-storage.com/android/SecureObs-0.1.29.apk",
+  "downloadUrl": "https://ziydoaoxastnvilu.public.blob.vercel-storage.com/android/SecureObs-0.1.30.apk",
   "downloadPageUrl": "https://secure-obs.com/download",
-  "sha256": "832890903d2286901829f334d8c7753ee1220941b733563d0ba0c41359e94a3d",
+  "sha256": "40feb2de1886446a4a8c0c87cbb89e2b1dab92549e89aa92a9492713c1e8e371",
   "signingCertificateSha256": "62cbdb9832aa007b14daf1b97a703ac9c153825f9fe6b560693d1853d176af09",
   "releaseNotes": [
-    "Updated the NEWS2 display and functionality"
+    "Updated the NEWS2 table with new features"
   ]
 }
