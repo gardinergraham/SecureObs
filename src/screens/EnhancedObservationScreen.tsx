@@ -56,6 +56,7 @@ export function EnhancedObservationScreen({
   const [location, setLocation] = useState<PatientLocation>(locations[0] ?? "Side room");
   const [presentation, setPresentation] = useState<PatientPresentation>("Awake");
   const [comments, setComments] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
   const [recordingStaffIds, setRecordingStaffIds] = useState<string[]>([]);
   const [staffSearch, setStaffSearch] = useState("");
   const [missedReason, setMissedReason] = useState(missedObservationReasons[0] ?? "Other");
@@ -167,14 +168,16 @@ export function EnhancedObservationScreen({
   };
 
   const saveEnhancedEntry = async () => {
-    if (!selectedPatient) {
+    if (!selectedPatient || isSaving) return;
+    if (!selectedStaff) {
+      Alert.alert("Choose a staff member", "Choose the staff member before saving this enhanced observation.");
       return;
     }
 
     if (recordingStaff.length !== requiredStaffCount) {
       Alert.alert(
-        "Observation staff incomplete",
-        `Select exactly ${requiredStaffCount} staff member${requiredStaffCount === 1 ? "" : "s"} for this ${requiredStaffCount}:1 observation.`
+        "Choose observation staff",
+        `Before saving, select exactly ${requiredStaffCount} staff member${requiredStaffCount === 1 ? "" : "s"} for this ${requiredStaffCount}:1 observation.`
       );
       return;
     }
@@ -195,51 +198,62 @@ export function EnhancedObservationScreen({
     const observedAt = new Date().toISOString();
     const assignedNames = recordingStaff.map((member) => member.name).join(", ");
 
-    const observation = await createObservation({
-      patientId: selectedPatient.id,
-      observerName: assignedNames,
-      source: "Enhanced/TESO",
-      type: selectedPatient.observationLevel,
-      location,
-      presentation,
-      comments,
-      observedAt,
-      organisationId: selectedStaff?.organisationId,
-      actorStaffId: selectedStaff?.id,
-      actorStaffCode: selectedStaff?.staffCode
-    });
-
-    onObservationSaved(observation);
-    if (
-      selectedPatient.observationLevel === "General observation" &&
-      selectedStaff &&
-      selectedTesoDueAt &&
-      lateness.recordLateCompletion &&
-      !lateness.reasonRequired &&
-      !selectedTesoMissedObservationValidated
-    ) {
-      onMissedObservationSaved({
-        id: `late-teso-observation-${Date.now()}`,
+    setIsSaving(true);
+    try {
+      const observation = await createObservation({
         patientId: selectedPatient.id,
-        patientName: `${selectedPatient.firstName} ${selectedPatient.surname}`,
-        wardId: selectedPatient.wardId,
+        observerName: assignedNames,
         source: "Enhanced/TESO",
-        dueAt: selectedTesoDueAt,
-        recordedAt: observedAt,
-        allocatedStaffId: recordingStaff[0]?.id ?? selectedStaff.id,
-        allocatedStaffName: assignedNames || selectedStaff.name,
-        recordedByStaffId: selectedStaff.id,
-        recordedByName: selectedStaff.name,
-        reason: "Late completion within grace period",
-        details: `Completed ${lateness.lateMinutes} minute${lateness.lateMinutes === 1 ? "" : "s"} after the scheduled time. No staff explanation required.`
+        type: selectedPatient.observationLevel,
+        location,
+        presentation,
+        comments,
+        observedAt,
+        organisationId: selectedStaff?.organisationId,
+        actorStaffId: selectedStaff?.id,
+        actorStaffCode: selectedStaff?.staffCode
       });
+
+      onObservationSaved(observation);
+      if (
+        selectedPatient.observationLevel === "General observation" &&
+        selectedStaff &&
+        selectedTesoDueAt &&
+        lateness.recordLateCompletion &&
+        !lateness.reasonRequired &&
+        !selectedTesoMissedObservationValidated
+      ) {
+        onMissedObservationSaved({
+          id: `late-teso-observation-${Date.now()}`,
+          patientId: selectedPatient.id,
+          patientName: `${selectedPatient.firstName} ${selectedPatient.surname}`,
+          wardId: selectedPatient.wardId,
+          source: "Enhanced/TESO",
+          dueAt: selectedTesoDueAt,
+          recordedAt: observedAt,
+          allocatedStaffId: recordingStaff[0]?.id ?? selectedStaff.id,
+          allocatedStaffName: assignedNames || selectedStaff.name,
+          recordedByStaffId: selectedStaff.id,
+          recordedByName: selectedStaff.name,
+          reason: "Late completion within grace period",
+          details: `Completed ${lateness.lateMinutes} minute${lateness.lateMinutes === 1 ? "" : "s"} after the scheduled time. No staff explanation required.`
+        });
+      }
+      setComments("");
+      Alert.alert("Enhanced observation saved", `${selectedPatient.firstName} ${selectedPatient.surname} checked.`);
+    } catch (error) {
+      Alert.alert("Enhanced observation not saved", error instanceof Error ? error.message : "Please try again.");
+    } finally {
+      setIsSaving(false);
     }
-    setComments("");
-    Alert.alert("Enhanced observation saved", `${selectedPatient.firstName} ${selectedPatient.surname} checked.`);
   };
 
   const saveMissedTesoObservation = () => {
-    if (!selectedPatient || !selectedStaff || !selectedTesoDueAt) {
+    if (!selectedStaff) {
+      Alert.alert("Choose a staff member", "Choose the staff member before saving the missed observation reason.");
+      return;
+    }
+    if (!selectedPatient || !selectedTesoDueAt) {
       return;
     }
 
@@ -475,12 +489,10 @@ export function EnhancedObservationScreen({
                 </Text>
               ) : null}
 
-              {selectedPatient.observationLevel === "General observation" && selectedTesoLateness.reasonRequired ? (
+              {tesoGeneralObservationOverdue ? (
                 <View style={styles.missedPanel}>
                   <Text style={styles.missedTitle}>
-                    {selectedTesoMissedObservationValidated
-                      ? "Missed TESO observation validated"
-                      : "Record missed TESO observation"}
+                    Record missed TESO observation
                   </Text>
                   <Text style={styles.missedMeta}>
                     Due {selectedTesoDueAt ? formatObservationTime(selectedTesoDueAt) : "--:--"} | Source Enhanced/TESO
@@ -494,23 +506,20 @@ export function EnhancedObservationScreen({
                     style={styles.notes}
                     value={missedDetails}
                   />
-                  {selectedTesoMissedObservationValidated ? (
-                    <Text style={styles.missedValidatedText}>Reason recorded for this overdue TESO observation.</Text>
-                  ) : (
-                    <TouchableOpacity accessibilityRole="button" onPress={saveMissedTesoObservation} style={styles.missedButton}>
-                      <Text style={styles.missedButtonText}>Save missed TESO reason</Text>
-                    </TouchableOpacity>
-                  )}
+                  <TouchableOpacity accessibilityRole="button" onPress={saveMissedTesoObservation} style={styles.missedButton}>
+                    <Text style={styles.missedButtonText}>Save missed TESO reason</Text>
+                  </TouchableOpacity>
                 </View>
               ) : null}
 
               {!tesoGeneralObservationOverdue ? (
                 <TouchableOpacity
                   accessibilityRole="button"
-                  onPress={saveEnhancedEntry}
+                  disabled={isSaving}
+                  onPress={() => void saveEnhancedEntry()}
                   style={styles.saveButton}
                 >
-                  <Text style={styles.saveButtonText}>Save enhanced entry</Text>
+                  <Text style={styles.saveButtonText}>{isSaving ? "Saving…" : "Save enhanced entry"}</Text>
                 </TouchableOpacity>
               ) : null}
 

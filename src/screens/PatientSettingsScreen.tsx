@@ -71,6 +71,7 @@ export function PatientSettingsScreen({
   const [tesoDraft, setTesoDraft] = useState<TesoDraft>(() => createDefaultDraft());
   const [activeCarePlanDraft, setActiveCarePlanDraft] = useState("");
   const [endReason, setEndReason] = useState("");
+  const [tesoDateTime, setTesoDateTime] = useState<string | null>(null);
   const [isSavingTeso, setIsSavingTeso] = useState(false);
   const detailScrollRef = useRef<ScrollView>(null);
   const selectedPatient = orderedPatients.find((patient) => patient.id === selectedPatientId) ?? orderedPatients[0];
@@ -87,7 +88,8 @@ export function PatientSettingsScreen({
   useEffect(() => {
     setTesoDraft(createDefaultDraft());
     setEndReason("");
-  }, [selectedPatientId]);
+    setTesoDateTime(null);
+  }, [selectedPatientId, hasActiveTeso]);
 
   useEffect(() => {
     setActiveCarePlanDraft(selectedPatient?.enhancedObservation?.carePlan ?? "");
@@ -114,12 +116,14 @@ export function PatientSettingsScreen({
   };
 
   const startTeso = async () => {
-    if (!selectedPatient || !canEdit || hasActiveTeso || !canStartTeso || !tesoDraft.observationLevel) {
+    if (!selectedPatient || !canEdit || hasActiveTeso || !canStartTeso || !tesoDraft.observationLevel || isSavingTeso) {
       return;
     }
 
+    const startedAt = tesoDateTime ?? new Date().toISOString();
+    if (!validateTesoDateTime(startedAt)) return;
     const observationLevel = tesoDraft.observationLevel;
-    const plan = createPlanFromDraft(tesoDraft, selectedStaff?.name ?? "", observationLevel);
+    const plan = createPlanFromDraft(tesoDraft, selectedStaff?.name ?? "", observationLevel, startedAt);
 
     setIsSavingTeso(true);
     try {
@@ -145,62 +149,70 @@ export function PatientSettingsScreen({
     }
   };
 
-  const endTeso = () => {
-    if (!selectedPatient || !canEdit || !hasActiveTeso) {
+  const endTeso = async () => {
+    if (!selectedPatient || !canEdit || !hasActiveTeso || isSavingTeso) {
       return;
     }
 
-    const endedAt = new Date().toISOString();
+    const endedAt = tesoDateTime ?? new Date().toISOString();
     const currentPlan = selectedTesoPlan;
+    if (!validateTesoDateTime(endedAt, currentPlan?.startedAt)) return;
 
-    if (!currentPlan) {
-      updatePatient({
+    setIsSavingTeso(true);
+    try {
+      if (!currentPlan) {
+        await updatePatient({
+          ...selectedPatient,
+          observationLevel: "Intermittent",
+          enhancedObservation: undefined
+        });
+        return;
+      }
+
+      const history = selectedPatient.tesoHistory ?? [];
+      const activeEpisodeIndex = history.findIndex((episode) => !episode.endedAt);
+      const endedEpisode = createTesoEpisode({
+        plan: currentPlan,
+        observationLevel: selectedPatient.observationLevel === "Intermittent" ? "Eyesight" : selectedPatient.observationLevel,
+        episodeId: `teso-${Date.now()}`,
+        endedAt,
+        endedReason: endReason.trim() || "Ended by clinical review"
+      });
+
+      const tesoHistory =
+        activeEpisodeIndex >= 0
+          ? history.map((episode, index) =>
+              index === activeEpisodeIndex
+                ? {
+                    ...episode,
+                    endedAt,
+                    reasons: currentPlan.reasons,
+                    otherReason: currentPlan.otherReason,
+                    observationLevel:
+                      selectedPatient.observationLevel === "Intermittent" ? episode.observationLevel : selectedPatient.observationLevel,
+                    staffRatio: currentPlan.staffRatio,
+                    authorisedBy: currentPlan.authorisedBy,
+                    carePlan: currentPlan.carePlan,
+                    reviewFrequencyMinutes: currentPlan.reviewFrequencyMinutes,
+                    nextReviewAt: currentPlan.nextReviewAt,
+                    endedReason: endReason.trim() || "Ended by clinical review"
+                  }
+                : episode
+            )
+          : [endedEpisode, ...history];
+
+      await updatePatient({
         ...selectedPatient,
         observationLevel: "Intermittent",
-        enhancedObservation: undefined
+        enhancedObservation: undefined,
+        tesoHistory
       });
-      return;
+      setEndReason("");
+    } catch (error) {
+      Alert.alert("TESO not ended", error instanceof Error ? error.message : "The TESO could not be saved.");
+    } finally {
+      setIsSavingTeso(false);
     }
-
-    const history = selectedPatient.tesoHistory ?? [];
-    const activeEpisodeIndex = history.findIndex((episode) => !episode.endedAt);
-    const endedEpisode = createTesoEpisode({
-      plan: currentPlan,
-      observationLevel: selectedPatient.observationLevel === "Intermittent" ? "Eyesight" : selectedPatient.observationLevel,
-      episodeId: `teso-${Date.now()}`,
-      endedAt,
-      endedReason: endReason.trim() || "Ended by clinical review"
-    });
-
-    const tesoHistory =
-      activeEpisodeIndex >= 0
-        ? history.map((episode, index) =>
-            index === activeEpisodeIndex
-              ? {
-                  ...episode,
-                  endedAt,
-                  reasons: currentPlan.reasons,
-                  otherReason: currentPlan.otherReason,
-                  observationLevel:
-                    selectedPatient.observationLevel === "Intermittent" ? episode.observationLevel : selectedPatient.observationLevel,
-                  staffRatio: currentPlan.staffRatio,
-                  authorisedBy: currentPlan.authorisedBy,
-                  carePlan: currentPlan.carePlan,
-                  reviewFrequencyMinutes: currentPlan.reviewFrequencyMinutes,
-                  nextReviewAt: currentPlan.nextReviewAt,
-                  endedReason: endReason.trim() || "Ended by clinical review"
-                }
-              : episode
-          )
-        : [endedEpisode, ...history];
-
-    updatePatient({
-      ...selectedPatient,
-      observationLevel: "Intermittent",
-      enhancedObservation: undefined,
-      tesoHistory
-    });
-    setEndReason("");
   };
 
   return (
@@ -290,6 +302,17 @@ export function PatientSettingsScreen({
                 </View>
               ) : null}
 
+              <SecureDateTimeField
+                key={`${selectedPatient.id}-${hasActiveTeso ? "end" : "start"}`}
+                disabled={!canEdit || isSavingTeso}
+                label={hasActiveTeso ? "TESO end date and time" : "TESO start date and time"}
+                maximumDate={new Date()}
+                minimumDate={hasActiveTeso && selectedTesoPlan ? new Date(selectedTesoPlan.startedAt) : undefined}
+                mode="datetime"
+                onChange={setTesoDateTime}
+                value={tesoDateTime ?? new Date().toISOString()}
+              />
+              <Text style={styles.infoText}>Defaults to now unless you choose a different date and time.</Text>
               <View style={styles.tesoActionPanel}>
                 <View style={styles.actionTextBlock}>
                   <Text style={styles.actionTitle}>
@@ -308,7 +331,7 @@ export function PatientSettingsScreen({
                 <TouchableOpacity
                   accessibilityRole="button"
                   disabled={isSavingTeso || !canEdit || (!hasActiveTeso && !canStartTeso)}
-                  onPress={hasActiveTeso ? endTeso : () => void startTeso()}
+                  onPress={() => void (hasActiveTeso ? endTeso() : startTeso())}
                   style={[
                     styles.tesoActionButton,
                     hasActiveTeso && styles.endTesoButton,
@@ -415,13 +438,14 @@ export function PatientSettingsScreen({
                   }
                 />
 
-                <Text style={styles.label}>TESO started</Text>
-                <TextInput placeholderTextColor="#6f7f87"
-                  editable={canEdit}
-                  onChangeText={(startedAt) =>
-                    updateActiveTesoPlan(selectedPatient, { startedAt })
-                  }
-                  style={[styles.input, !canEdit && styles.disabledControl]}
+                <SecureDateTimeField
+                  disabled={!canEdit || isSavingTeso}
+                  label="TESO started"
+                  maximumDate={new Date()}
+                  mode="datetime"
+                  onChange={(startedAt) => {
+                    if (validateTesoDateTime(startedAt)) updateActiveTesoPlan(selectedPatient, { startedAt });
+                  }}
                   value={selectedTesoPlan?.startedAt ?? ""}
                 />
 
@@ -515,11 +539,11 @@ export function PatientSettingsScreen({
                 />
                 <TouchableOpacity
                   accessibilityRole="button"
-                  disabled={!canEdit}
-                  onPress={endTeso}
-                  style={[styles.endTesoWideButton, !canEdit && styles.disabledControl]}
+                  disabled={!canEdit || isSavingTeso}
+                  onPress={() => void endTeso()}
+                  style={[styles.endTesoWideButton, (!canEdit || isSavingTeso) && styles.disabledControl]}
                 >
-                  <Text style={styles.tesoActionButtonText}>End active TESO</Text>
+                  <Text style={styles.tesoActionButtonText}>{isSavingTeso ? "Saving TESO…" : "End active TESO"}</Text>
                 </TouchableOpacity>
               </View>
               ) : (
@@ -698,6 +722,19 @@ function OptionRow({ options, selected, disabled, multi, onSelect }: OptionRowPr
   );
 }
 
+function validateTesoDateTime(value: string, startedAt?: string) {
+  const timestamp = new Date(value).getTime();
+  if (!Number.isFinite(timestamp) || timestamp > Date.now()) {
+    Alert.alert("Invalid TESO date and time", "Choose a date and time that is now or in the past.");
+    return false;
+  }
+  if (startedAt && timestamp < new Date(startedAt).getTime()) {
+    Alert.alert("Invalid TESO end time", "The end date and time cannot be before the TESO started.");
+    return false;
+  }
+  return true;
+}
+
 function createDefaultPlan(authorisedBy: string): EnhancedObservationPlan {
   const reviewFrequencyMinutes = 60;
 
@@ -728,18 +765,19 @@ function createDefaultDraft(): TesoDraft {
 function createPlanFromDraft(
   draft: TesoDraft,
   authorisedBy: string,
-  observationLevel: TesoObservationLevel
+  observationLevel: TesoObservationLevel,
+  startedAt: string
 ): EnhancedObservationPlan {
   return normaliseReviewSchedule({
     staffRatio: draft.staffRatio,
     reasons: draft.reasons,
     otherReason: draft.otherReason,
-    startedAt: new Date().toISOString(),
+    startedAt,
     authorisedBy,
     assignedStaffIds: [],
     carePlan: draft.carePlan.trim(),
     reviewFrequencyMinutes: draft.reviewFrequencyMinutes,
-    nextReviewAt: buildNextReviewAt(draft.reviewFrequencyMinutes)
+    nextReviewAt: new Date(new Date(startedAt).getTime() + draft.reviewFrequencyMinutes * 60_000).toISOString()
   }, observationLevel);
 }
 

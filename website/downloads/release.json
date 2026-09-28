@@ -1,14 +1,15 @@
 {
-  "version": "0.1.30",
-  "androidVersionCode": 29,
+  "version": "0.1.31",
+  "androidVersionCode": 30,
   "minimumSupportedVersion": "0.1.7",
-  "publishedAt": "2026-09-27",
+  "publishedAt": "2026-09-28",
   "size": "91.7 MB",
-  "downloadUrl": "https://ziydoaoxastnvilu.public.blob.vercel-storage.com/android/SecureObs-0.1.30.apk",
+  "downloadUrl": "https://ziydoaoxastnvilu.public.blob.vercel-storage.com/android/SecureObs-0.1.31.apk",
   "downloadPageUrl": "https://secure-obs.com/download",
-  "sha256": "40feb2de1886446a4a8c0c87cbb89e2b1dab92549e89aa92a9492713c1e8e371",
+  "sha256": "b71757d5bde15494a5ea430db0589fdcb4cb3e77e57c1f51a62981b2a100084e",
   "signingCertificateSha256": "62cbdb9832aa007b14daf1b97a703ac9c153825f9fe6b560693d1853d176af09",
   "releaseNotes": [
-    "Updated the NEWS2 table with new features"
+    "Added a TESO start time function where",
+    "backdating start and end times can be done"
   ]
 }
