@@ -11,6 +11,13 @@
     <link rel="stylesheet" href="flyer.css" />
   </head>
   <body>
+    <aside class="print-toolbar" aria-label="Print flyer">
+      <div>
+        <strong>Your SecureObs flyer, ready to print</strong>
+        <p id="print-help">Two A4 pages. Choose portrait, 100% scale and turn off headers and footers. Select Save as PDF in the print dialog for a copy.</p>
+      </div>
+      <button type="button" onclick="window.print()" aria-describedby="print-help">Print / Save PDF</button>
+    </aside>
     <main class="flyer-page">
       <section class="hero-panel">
         <div class="hero-copy">

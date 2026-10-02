@@ -10,8 +10,8 @@
 }
 
 @page {
-  margin: 0;
-  size: A4;
+  margin: 10mm;
+  size: A4 portrait;
 }
 
 * {
@@ -28,6 +28,43 @@ body {
 
 a {
   color: inherit;
+}
+
+.print-toolbar {
+  align-items: center;
+  display: flex;
+  gap: 20px;
+  justify-content: space-between;
+  margin: 24px auto;
+  max-width: 1120px;
+  padding: 0 20px;
+}
+
+.print-toolbar p {
+  color: var(--muted);
+  font-size: 14px;
+  margin: 6px 0 0;
+  max-width: 700px;
+}
+
+.print-toolbar button {
+  background: var(--deep);
+  border: 0;
+  border-radius: 8px;
+  color: #fff;
+  cursor: pointer;
+  flex-shrink: 0;
+  font: 700 16px Arial, Helvetica, sans-serif;
+  padding: 14px 20px;
+}
+
+.print-toolbar button:hover {
+  background: var(--blue);
+}
+
+.print-toolbar button:focus-visible {
+  outline: 3px solid var(--teal);
+  outline-offset: 4px;
 }
 
 .flyer-page {
@@ -383,23 +420,7 @@ li::before {
   text-decoration: none;
 }
 
-@media print {
-  body {
-    background: #ffffff;
-  }
-
-  .flyer-page {
-    box-shadow: none;
-    margin: 0;
-    max-width: none;
-  }
-
-  a {
-    text-decoration: none;
-  }
-}
-
-@media (max-width: 900px) {
+@media screen and (max-width: 900px) {
   .hero-panel,
   .screens-section,
   .package-section {
@@ -420,7 +441,12 @@ li::before {
   }
 }
 
-@media (max-width: 560px) {
+@media screen and (max-width: 560px) {
+  .print-toolbar {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
   .flyer-page {
     margin: 0;
   }
@@ -479,4 +505,160 @@ li::before {
   .contact {
     text-align: left;
   }
+}
+
+/* A4 has 277mm of usable height inside the 10mm printer-safe margins.
+   Keep the overview on page one and the workflow/support details on page two.
+   Screen breakpoints above must not override this layout at paper widths. */
+@media print {
+  body {
+    background: #fff;
+    font-size: 10pt;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .print-toolbar {
+    display: none;
+  }
+
+  .flyer-page {
+    background: #fff;
+    box-shadow: none;
+    margin: 0;
+    max-width: none;
+    overflow: visible;
+  }
+
+  section,
+  article,
+  .screen-stack img {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  h1, h2, h3 {
+    break-after: avoid;
+  }
+
+  p, li {
+    orphans: 3;
+    widows: 3;
+  }
+
+  .hero-panel {
+    grid-template-columns: 1.15fr 0.85fr;
+    min-height: 0;
+  }
+
+  .hero-copy {
+    padding: 5mm 5mm 6mm 0;
+  }
+
+  .brand {
+    gap: 3mm;
+    grid-template-columns: 16mm auto;
+    margin-bottom: 5mm;
+  }
+
+  .brand img {
+    border-radius: 4mm;
+    box-shadow: none;
+    height: 16mm;
+    width: 16mm;
+  }
+
+  .brand span { font-size: 25pt; }
+  .eyebrow { font-size: 8pt; margin-bottom: 2.5mm; }
+  h1 { font-size: 28pt; line-height: 1.04; margin-bottom: 4mm; }
+  h2 { font-size: 18pt; line-height: 1.12; }
+  .lead { font-size: 10pt; margin-bottom: 4mm; }
+  .hero-actions { gap: 3mm; }
+  .hero-actions a { box-shadow: none; font-size: 9pt; padding: 2.5mm 4mm; }
+  .hero-actions span { font-size: 8pt; }
+  .hero-image { min-height: 0; }
+  .hero-image img { position: absolute; inset: 0; }
+
+  .benefit-row { padding: 4mm 0; }
+  .benefit-row article { padding: 1mm 3mm; }
+  .benefit-row article:first-child { padding-left: 0; }
+  .benefit-row strong { font-size: 10pt; }
+  .benefit-row span { font-size: 8.5pt; }
+
+  .platform-grid {
+    gap: 3mm;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    padding: 6mm 0 0;
+  }
+
+  .section-title {
+    background: var(--soft);
+    border: 1px solid var(--line);
+    border-radius: 2mm;
+    color: var(--deep);
+    font-size: 10pt;
+    padding: 3mm;
+  }
+
+  .platform-grid article { border-radius: 3mm; padding: 4mm; }
+  .platform-grid h2 { font-size: 12pt; margin-bottom: 3mm; }
+  li { font-size: 9.5pt; margin-bottom: 1.5mm; }
+  li:last-child { margin-bottom: 0; }
+
+  .screens-section {
+    break-before: page;
+    page-break-before: always;
+    display: block;
+    padding: 5mm 0;
+    background: #fff;
+    border-top: 0;
+  }
+
+  .screens-copy h2 { max-width: 170mm; margin-bottom: 3mm; }
+  .screens-copy p { font-size: 10pt; margin-bottom: 4mm; }
+  .screens-copy .eyebrow { font-size: 8pt; }
+  .screen-stack { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 3mm; }
+  .screen-stack img,
+  .screen-stack img:first-child {
+    border-radius: 2mm;
+    box-shadow: none;
+    grid-row: auto;
+    height: 88mm;
+    object-fit: contain;
+  }
+
+  .package-section {
+    gap: 4mm;
+    grid-template-columns: 1.3fr 0.7fr;
+    padding: 6mm 0;
+  }
+
+  .package-section h2 { font-size: 17pt; }
+  .package-list { gap: 2mm; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .package-list span { border-radius: 2mm; font-size: 9pt; padding: 3mm; }
+  .package-section aside {
+    background: var(--soft);
+    border: 1px solid var(--line);
+    border-radius: 3mm;
+    padding: 4mm;
+  }
+
+  .package-section aside h3 { color: var(--deep); font-size: 14pt; }
+  .package-section aside p { color: var(--ink); font-size: 10pt; }
+
+  .footer-cta {
+    align-items: flex-start;
+    background: var(--soft);
+    border-top: 2px solid var(--teal);
+    color: var(--deep);
+    flex-direction: column;
+    gap: 3mm;
+    padding: 5mm;
+  }
+
+  .footer-cta h2 { color: var(--deep); font-size: 19pt; }
+  .footer-cta p { color: var(--ink); font-size: 11pt; }
+  .contact { gap: 1mm; text-align: left; }
+  .contact a { color: var(--deep); font-size: 10pt; }
+  a { text-decoration: none; }
 }
