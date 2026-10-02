@@ -47,7 +47,7 @@ a {
   max-width: 700px;
 }
 
-.print-toolbar button {
+.print-download {
   background: var(--deep);
   border: 0;
   border-radius: 8px;
@@ -56,13 +56,14 @@ a {
   flex-shrink: 0;
   font: 700 16px Arial, Helvetica, sans-serif;
   padding: 14px 20px;
+  text-decoration: none;
 }
 
-.print-toolbar button:hover {
+.print-download:hover {
   background: var(--blue);
 }
 
-.print-toolbar button:focus-visible {
+.print-download:focus-visible {
   outline: 3px solid var(--teal);
   outline-offset: 4px;
 }
@@ -576,8 +577,14 @@ li::before {
   .hero-actions { gap: 3mm; }
   .hero-actions a { box-shadow: none; font-size: 9pt; padding: 2.5mm 4mm; }
   .hero-actions span { font-size: 8pt; }
-  .hero-image { min-height: 0; }
-  .hero-image img { position: absolute; inset: 0; }
+  .hero-image { min-height: 0; overflow: visible; }
+  /* Avoid a transparent gradient over the photo in browser print output. */
+  .hero-image::before { display: none; }
+  .hero-image img {
+    position: static;
+    height: 110mm;
+    object-fit: cover;
+  }
 
   .benefit-row { padding: 4mm 0; }
   .benefit-row article { padding: 1mm 3mm; }
