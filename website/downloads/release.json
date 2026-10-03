@@ -1,15 +1,15 @@
 {
-  "version": "0.1.31",
-  "androidVersionCode": 30,
+  "version": "0.1.32",
+  "androidVersionCode": 31,
   "minimumSupportedVersion": "0.1.7",
-  "publishedAt": "2026-09-28",
+  "publishedAt": "2026-10-03",
   "size": "91.7 MB",
-  "downloadUrl": "https://ziydoaoxastnvilu.public.blob.vercel-storage.com/android/SecureObs-0.1.31.apk",
+  "downloadUrl": "https://ziydoaoxastnvilu.public.blob.vercel-storage.com/android/SecureObs-0.1.32.apk",
   "downloadPageUrl": "https://secure-obs.com/download",
-  "sha256": "b71757d5bde15494a5ea430db0589fdcb4cb3e77e57c1f51a62981b2a100084e",
+  "sha256": "1ed1d5f4d8734d73ad7baceee1dcdf2bbfb1b6ee2a437a77ca2bae39b578c9e4",
   "signingCertificateSha256": "62cbdb9832aa007b14daf1b97a703ac9c153825f9fe6b560693d1853d176af09",
   "releaseNotes": [
-    "Added a TESO start time function where",
-    "backdating start and end times can be done"
+    "Update the screen so force landscape view",
+    "This whill improve fuctionality"
   ]
 }

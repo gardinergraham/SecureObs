@@ -122,6 +122,13 @@ async function main() {
   }
   const manifest = run(aapt, ['dump', 'xmltree', source, 'AndroidManifest.xml']);
   if (!/android:allowBackup[^\n]*0x0/.test(manifest)) fail('android:allowBackup is not disabled.');
+  // Check the built APK, not just app.json: a stale native build can still
+  // report the right app version while omitting its orientation restriction.
+  const activities = manifest.match(/E: activity \(line=\d+\)\r?\n(?:[ \t]+A:[^\n]*\r?\n)*/g) || [];
+  const mainActivity = activities.find((activity) => /android:name[^\n]*"[^"\n]*\.MainActivity"/.test(activity));
+  if (!mainActivity || !/android:screenOrientation[^\n]*\(type 0x10\)0x0\b/.test(mainActivity)) {
+    fail('MainActivity is not locked to landscape. Rebuild the APK with the current native configuration.');
+  }
 
   let minimum = options.minimum;
   let notes = options.notes.filter(Boolean);
