@@ -1,4 +1,5 @@
 import { catalogue, pricePackage } from './package-pricing.js';
+const showOffer = document.body.dataset.showOffer === 'true';
 const apiUrl = 'https://adequate-energy-production.up.railway.app';
 const money = value => new Intl.NumberFormat('en-GB', {style:'currency', currency:'GBP'}).format(value / 100);
 const form = document.querySelector('#subscription-form');
@@ -57,14 +58,18 @@ function renderSaving(card,ward,index) {
 }
 function selection() {return { enterprise:enterprise.checked,interval:form.querySelector('[name="interval"]:checked').value,tablets:Number(tablets.value),wards };}
 function updateTotal() {
-  document.querySelector('#interval-note').textContent='Annual billing: pay for 10 months of plans and modules, plus all 12 months of tablet hire. The annual total is paid upfront.';
+  document.querySelector('#interval-note').textContent=showOffer ? 'Software and modules are payable from your agreed activation date. Annual billing gives two months free. Tablet hire is billed monthly from month seven.' : 'Annual billing: pay for 10 months of plans and modules, plus all 12 months of tablet hire. The annual total is paid upfront.';
   summary.replaceChildren();
   try {
-    const quote=pricePackage(selection()); const period=quote.selection.interval==='monthly'?'month':'year';
+    const chosen=selection();
+    if(showOffer && chosen.tablets>wards.length*2)throw new Error('Choose up to two show tablets per ward.');
+    const quote=pricePackage(showOffer ? {...chosen,tablets:0} : chosen); const period=quote.selection.interval==='monthly'?'month':'year';
     for(const line of quote.lines) {const row=element('div','','summary-line'); const label=element('span',`${line.label} × ${line.quantity}`);row.append(label,element('span',money(line.unitAmount*line.quantity)));summary.append(row);}
     summary.append(element('div','','summary-divider'));
     if (catalogue.vatRegistered) {const row=element('div','','summary-line');row.append(element('span','VAT (20%)'),element('span',money(quote.vat)));summary.append(row);}
-    const grand=element('div',`Total per ${period}`,'summary-grand');grand.append(element('strong',money(quote.gross)));summary.append(grand);button.disabled=busy;
+    const grand=element('div',`Total per ${period}`,'summary-grand');grand.append(element('strong',money(quote.gross)));summary.append(grand);
+    if(showOffer){ summary.append(element('p', `${chosen.tablets} show tablet(s): free for six months, then ${money(chosen.tablets*3799)}/month if retained.`, 'muted')); summary.append(element('p','Desktop notes and care plans included. Initial 12-month term; automatic renewal.','muted'));summary.append(element('div','Due today: £0','summary-grand'));summary.append(element('p','The software total above is charged from day one of your agreed activation date.','muted'));}
+    button.disabled=busy;
   } catch(error) {summary.append(element('p',error.message));button.disabled=true;}
 }
 enterprise.addEventListener('change',()=>{renderWards();updateTotal();});
@@ -76,13 +81,16 @@ form.addEventListener('submit',async event=>{
   message.textContent='';busy=true;form.inert=true;button.disabled=true;button.textContent='Opening secure checkout…';
   try {
     const quote=pricePackage(selection()); const data=new FormData(form);
-    const response=await fetch(`${apiUrl}/api/billing/checkout`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
+    const response=await fetch(`${apiUrl}${showOffer ? '/api/show/register' : '/api/billing/checkout'}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
       organisationName:data.get('organisationName'),contactName:data.get('contactName'),billingEmail:data.get('billingEmail'),billingPhone:data.get('billingPhone'),
-      package:quote.selection,catalogueVersion:catalogue.version,acceptedTerms:document.querySelector('#acceptedTerms').checked
+      package:quote.selection,catalogueVersion:catalogue.version,acceptedTerms:document.querySelector('#acceptedTerms').checked,
+      ...(showOffer ? {password:data.get('password'),contactRole:data.get('contactRole'),termsVersion:'care-show-2026-10-04-v1',website:data.get('website')||''} : {})
     })});
-    const result=await response.json(); if(!response.ok || !result.checkoutUrl)throw new Error(result.error || 'Unable to open checkout. Please contact SecureObs.');
+    const result=await response.json();
+    if(showOffer && response.ok && result.token){ sessionStorage.setItem('secureobs-show-token',result.token);location.assign('show-account.html');return; }
+    if(!response.ok || !result.checkoutUrl)throw new Error(result.error || 'Unable to open checkout. Please contact SecureObs.');
     window.location.assign(result.checkoutUrl);
-  }catch(error){message.textContent=error.message || 'Unable to open checkout.';busy=false;form.inert=false;button.textContent='Continue to secure payment';updateTotal();}
+  }catch(error){message.textContent=error.message || 'Unable to open checkout.';busy=false;form.inert=false;button.textContent=showOffer ? 'Create my show account' : 'Continue to secure payment';updateTotal();}
 });
 if(new URLSearchParams(location.search).has('cancelled'))message.textContent='Checkout was cancelled. Review your package before trying again.';
 renderWards();updateTotal();

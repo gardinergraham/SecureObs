@@ -16,6 +16,8 @@ import { staffRouter } from "./routes/staff.js";
 import { staffPortalRouter } from "./routes/staffPortal.js";
 import { billingRouter, stripeWebhookHandler } from "./routes/billing.js";
 
+import { showRouter } from "./routes/show.js";
+
 const app = express();
 
 app.use(helmet());
@@ -28,6 +30,7 @@ app.use(enforceActiveSubscription);
 app.use("/health", healthRouter);
 app.use("/api/staff", staffRouter);
 if (!config.demoMode) app.use("/api/billing", billingRouter);
+if (!config.demoMode) app.use("/api/show", showRouter);
 app.use("/api/demo", demoRouter);
 app.use("/api/organisations", organisationsRouter);
 app.use("/api/staff-portal", staffPortalRouter);

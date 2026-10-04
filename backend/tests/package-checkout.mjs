@@ -21,12 +21,13 @@ const client={
  subscriptions:{retrieve:async()=>({id:'sub_mock',status,metadata:{billingAccountId:'account'},cancel_at_period_end:false,items:{data:items.map(item=>({...item,price:{id:item.price},current_period_end:1900000000}))}})},
  webhooks:{constructEvent:body=>body}
 };
-const pool={query:async(sql,params)=>{queries.push([sql,params]);if(sql.includes('select package_selection'))return {rows:[{package_selection:selection,ordered_items:items}]};return {rows:[],rowCount:1};},connect:async()=>{connects++;return {query:async(sql,params)=>{queries.push([sql,params]);if(sql.includes('select * from billing_accounts'))return {rows:[{id:'account',organisation_name:'Test company',subscription_plan:'essential',package_selection:selection}]};return {rows:[]};},release(){}};}};
+const pool={query:async(sql,params)=>{queries.push([sql,params]);if(sql.includes('select event_id'))return {rows:[],rowCount:0};if(sql.includes('select package_selection'))return {rows:[{package_selection:selection,ordered_items:items}]};return {rows:[],rowCount:1};},connect:async()=>{return {query:async(sql,params)=>{queries.push([sql,params]);if(sql.includes('select * from billing_accounts')){connects++;return {rows:[{id:'account',organisation_name:'Test company',subscription_plan:'essential',package_selection:selection}]};}return {rows:[],rowCount:1};},release(){}};}};
 let handler;
 const exports={};
 const stubs={
  'node:crypto':require('node:crypto'),express:{Router:()=>({get(){},post(path,...handlers){if(path==='/checkout')handler=handlers.at(-1);}})},
  stripe:class {constructor(){return client;}},zod:{z},'../auth.js':{requireStaffRole:()=>()=>{}},'../config.js':{config},'../db/pool.js':{pool},
+ './show.js':{handleShowSetup:async()=>{}},
  '../billing/package-pricing.js':{catalogue,pricePackage,wardFeatures},'../billing/checkout.js':{checkoutLines},'../billing/reconcile.js':{reconcileFeatures}
 };
 vm.runInNewContext(ts.transpileModule(fs.readFileSync(new URL('../src/routes/billing.ts',import.meta.url),'utf8'),{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS,esModuleInterop:true}}).outputText,{exports,require:name=>stubs[name]??require(name),console});
@@ -37,10 +38,10 @@ assert.equal(res.code,201);assert.equal(customers,1);assert.equal(checkout.mode,
 assert.equal(queries.find(([sql])=>sql.includes('insert into billing_accounts'))[1][11],41898);
 console.log('PASS: checkout combines quantities, disables tax calculation while unregistered and ignores a forged client total');
 const incomplete=response();
-await exports.stripeWebhookHandler({headers:{'stripe-signature':'mock'},body:{id:'evt_incomplete',type:'checkout.session.completed',data:{object:{metadata:{billingAccountId:'account'},subscription:'sub_mock',customer:'cus_mock'}}}},incomplete);
+await exports.stripeWebhookHandler({headers:{'stripe-signature':'mock'},body:{id:'evt_incomplete',type:'checkout.session.completed',data:{object:{metadata:{billingAccountId:'account'},subscription:'sub_mock',customer:'cus_mock',payment_status:'paid'}}}},incomplete);
 assert.equal(connects,0);
 status='active';
-await exports.stripeWebhookHandler({headers:{'stripe-signature':'mock'},body:{id:'evt_active',type:'checkout.session.completed',data:{object:{metadata:{billingAccountId:'account'},subscription:'sub_mock',customer:'cus_mock'}}}},response());
+await exports.stripeWebhookHandler({headers:{'stripe-signature':'mock'},body:{id:'evt_active',type:'checkout.session.completed',data:{object:{metadata:{billingAccountId:'account'},subscription:'sub_mock',customer:'cus_mock',payment_status:'paid'}}}},response());
 const wards=queries.filter(([sql])=>sql.includes('insert into wards'));
 assert.equal(wards.length,2);assert.equal(JSON.parse(wards[0][1][3]).rostering,true);assert.equal(JSON.parse(wards[1][1][3]).rostering,false);
 console.log('PASS: no provisioning before active subscription; paid webhook provisions two wards with separate module entitlements');

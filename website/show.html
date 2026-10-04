@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Your Care Show package</title>
+  <meta name="description" content="Choose a SecureObs plan for each ward, optional modules and tablet hire. See an itemised total before checkout." />
+  <link rel="stylesheet" href="styles.css" /><link rel="stylesheet" href="show.css" /><link rel="stylesheet" href="packages.css" />
+</head>
+<body data-show-offer="true">
+  <header class="site-header">
+    <a class="brand" href="index.html"><img src="assets/secureobs-logo-new.png" alt="" /><span>SecureObs</span></a>
+    <nav><a href="index.html#packages">Compare packages</a><a href="show-account.html">Sign in to your show account</a></nav>
+  </header>
+  <main class="package-builder">
+    <div class="builder-heading"><p class="eyebrow">CARE SHOW · EXCLUSIVE SIGNUP</p><h1>Your Care Show package.</h1><p>Choose your package today. Agree your activation date with us, then confirm it in your account. Software and extras are payable from that date.</p></div>
+    <div class="show-benefits"><div><strong>6 months of free tablets</strong><span>Up to two per ward. £37.99 each per month from month seven if retained.</span></div><div><strong>Desktop access included</strong><span>Patient notes and care plans at no extra charge while this show package remains active.</span></div><div><strong>Your start date, agreed together</strong><span>No payment today. Monthly or annual software billing starts on activation.</span></div></div>
+    <form id="subscription-form" class="builder-layout">
+      <div class="builder-options">
+        <section class="builder-panel" aria-labelledby="wards-heading">
+          <div class="panel-heading"><h2 id="wards-heading">1. Plans and wards</h2><button type="button" id="add-ward" class="outline-button">+ Add a ward</button></div>
+          <label class="enterprise-option"><input type="checkbox" id="enterprise" /> Enterprise — £1,499 per organisation/month</label>
+          <p class="muted">Essential £149 or Professional £299 per ward/month. Professional includes all five optional modules.</p>
+          <div id="ward-list"></div>
+        </section>
+        <section class="builder-panel" aria-labelledby="tablets-heading">
+          <h2 id="tablets-heading">2. Tablets and billing</h2>
+          <div class="tablet-choice"><div><label for="tablets">Show tablets required</label><p>Up to two per ward free for six months from activation, then £37.99 per tablet/month if retained. Choose 0 to use your own devices.</p></div><input id="tablets" type="number" min="0" max="200" step="1" value="0" required /></div>
+          <fieldset class="billing-frequency"><legend>Billing frequency</legend><label><input type="radio" name="interval" value="monthly" checked /> Monthly</label><label><input type="radio" name="interval" id="yearly" value="yearly" /> Annual — two months free on plans and modules</label></fieldset>
+          <p class="muted" id="interval-note">Annual billing is available for software plans without optional modules or tablet hire.</p>
+        </section>
+        <section class="builder-panel" aria-labelledby="billing-heading">
+          <h2 id="billing-heading">3. Organisation and billing details</h2>
+          <div class="form-grid">
+            <div class="form-field form-field-wide"><label for="organisationName">Organisation name</label><input id="organisationName" name="organisationName" required maxlength="255" minlength="2" /></div>
+            <div class="form-field"><label for="contactName">Billing contact</label><input id="contactName" name="contactName" required maxlength="255" minlength="2" /></div>
+            <div class="form-field"><label for="billingEmail">Billing email</label><input id="billingEmail" name="billingEmail" required type="email" /></div>
+            <div class="form-field"><label for="contactRole">Your job title</label><input id="contactRole" name="contactRole" required maxlength="120" /></div><div class="form-field"><label for="password">Create an account password</label><input type="password" id="password" name="password" autocomplete="new-password" required minlength="12" maxlength="128" /><small>At least 12 characters. Use this to sign in and confirm your start date.</small></div>
+            <div class="form-field"><label for="billingPhone">Telephone (optional)</label><input id="billingPhone" name="billingPhone" type="tel" /></div>
+          </div>
+          <label class="terms-option"><input id="acceptedTerms" type="checkbox" required /> I am authorised to order for this organisation and accept the <a href="show-terms.html" target="_blank" rel="noopener">Care Show order and payment terms</a> and <a href="privacy.html" target="_blank" rel="noopener">privacy policy</a>, including the 12-month initial term and automatic renewal. I will confirm the activation date separately before billing starts.</label>
+        <label class="show-honeypot" aria-hidden="true">Leave this empty<input name="website" tabindex="-1" autocomplete="off" /></label></section>
+      </div>
+      <aside class="builder-summary" aria-labelledby="summary-heading">
+        <p class="eyebrow">Your package</p><h2 id="summary-heading">Payment summary</h2>
+        <div id="checkout-total" aria-live="polite" aria-atomic="true"></div>
+        <p class="muted">Annual software and modules include two months free. Tablets are free for six months, then billed monthly if retained.</p>
+        <p id="form-message" role="alert"></p>
+        <button class="checkout-button" id="checkout-button" type="submit">Create my show account</button>
+        <p class="secure-payment-note">Next: save your payment method securely with Stripe. No charge until you confirm the agreed activation date.</p>
+      </aside>
+    </form>
+    <noscript><p>Please enable JavaScript to calculate your package, or <a href="support.html">contact SecureObs</a>.</p></noscript>
+  </main>
+  <footer><span>SecureObs</span><span><a href="privacy.html">Privacy</a> · <a href="support.html">Support</a></span></footer>
+  <script type="module" src="subscribe.js"></script>
+</body>
+</html>

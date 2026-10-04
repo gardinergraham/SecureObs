@@ -10,6 +10,8 @@ import { checkoutLines, type PackageSelection } from "../billing/checkout.js";
 import { catalogue, pricePackage, wardFeatures } from "../billing/package-pricing.js";
 import { pool } from "../db/pool.js";
 
+import { handleShowSetup } from "./show.js";
+
 const router = Router();
 const stripe = config.stripeSecretKey ? new Stripe(config.stripeSecretKey) : null;
 
@@ -386,16 +388,17 @@ export async function stripeWebhookHandler(request: Request, response: Response)
     response.status(400).send(`Webhook signature verification failed: ${error instanceof Error ? error.message : "invalid payload"}`);
     return;
   }
-  const inserted = await pool.query(
-    `insert into stripe_webhook_events (event_id,event_type) values ($1,$2) on conflict do nothing returning event_id`,
-    [event.id, event.type]
-  );
-  if (!inserted.rowCount) {
-    response.json({ received: true });
-    return;
-  }
+  // Record delivery only after successful processing. Handlers must tolerate
+  // retries: organisation creation locks the billing row; other updates use
+  // current Stripe state. A crash cannot poison an event's receipt forever.
   try {
-    if (event.type === "checkout.session.completed") {
+    const delivered = await pool.query("select event_id from stripe_webhook_events where event_id=$1", [event.id]);
+    if (delivered.rowCount) {
+      response.json({ received: true });
+      return;
+    }
+    await handleShowSetup(stripe, event);
+    if (event.type === "checkout.session.completed" || event.type === "checkout.session.async_payment_succeeded") {
       const session = event.data.object;
       const billingAccountId = session.metadata?.billingAccountId;
       if (billingAccountId && typeof session.customer === "string") {
@@ -404,7 +407,7 @@ export async function stripeWebhookHandler(request: Request, response: Response)
       if (billingAccountId && typeof session.subscription === "string") {
         const subscription = await stripe.subscriptions.retrieve(session.subscription);
         await syncSubscription(subscription);
-        if (subscription.status === "active" || subscription.status === "trialing") await ensureOrganisationForBillingAccount(billingAccountId);
+        if ((session.payment_status === "paid" || session.payment_status === "no_payment_required") && (subscription.status === "active" || subscription.status === "trialing")) await ensureOrganisationForBillingAccount(billingAccountId);
       }
     } else if (event.type === "invoice.paid") {
       const invoice = event.data.object;
@@ -440,9 +443,9 @@ export async function stripeWebhookHandler(request: Request, response: Response)
     } else if (event.type === "customer.subscription.updated" || event.type === "customer.subscription.deleted") {
       await syncSubscription(await stripe.subscriptions.retrieve(event.data.object.id));
     }
+    await pool.query("insert into stripe_webhook_events(event_id,event_type) values($1,$2) on conflict do nothing", [event.id,event.type]);
     response.json({ received: true });
   } catch (error) {
-    await pool.query(`delete from stripe_webhook_events where event_id=$1`, [event.id]).catch(() => undefined);
     console.error("Stripe webhook processing failed", error);
     response.status(500).send("Webhook processing failed");
   }
