@@ -18,6 +18,8 @@ import { billingRouter, stripeWebhookHandler } from "./routes/billing.js";
 
 import { showRouter } from "./routes/show.js";
 
+import { leadsRouter } from './routes/leads.js';
+
 const app = express();
 
 app.use(helmet());
@@ -27,6 +29,7 @@ app.use(express.json({ limit: "1mb" }));
 app.use(authenticateRequest);
 app.use(enforceActiveSubscription);
 
+if (!config.demoMode) app.use("/api/leads", leadsRouter);
 app.use("/health", healthRouter);
 app.use("/api/staff", staffRouter);
 if (!config.demoMode) app.use("/api/billing", billingRouter);

@@ -1,0 +1,23 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import vm from 'node:vm';
+import {createRequire} from 'node:module';
+const require=createRequire(import.meta.url),ts=require('typescript');
+const handlers={},guards=[];let queries=[],rows=[{id:'saved',created_at:'today'}];
+const exports={};
+vm.runInNewContext(ts.transpileModule(fs.readFileSync(new URL('../src/routes/leads.ts',import.meta.url),'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,{exports,require:n=>n==='express'?{Router:()=>({use:f=>guards.push(f),post:(p,f)=>handlers.post=f,get:(p,f)=>handlers.get=f})}:n==='../db/pool.js'?{pool:{query:async(sql,args)=>{queries.push({sql,args});return {rows};}}}:n==='../auth.js'?{requireStaffRole:roles=>{assert.deepEqual(roles.join(','),'super_admin');return (req,res,next)=>req.auth?.staff.role==='super_admin'?next():res.status(403).json({error:'Denied'});}}:require(n)});
+const schema=exports.leadSchema;const shape=schema._def.schema.shape;
+const data=Object.fromEntries(Object.entries(shape).map(([k,v])=>[k,v._def.typeName==='ZodDefault'?[]:k==='marketingOptIn'?false:'']));
+data.contactName='Jane';data.organisation='Test Care';data.email='jane@example.invalid';
+assert.equal(schema.safeParse(data).success,true);
+assert.equal(schema.safeParse({...data,email:'wrong'}).success,false);
+assert.equal(schema.safeParse({...data,email:'',phone:''}).success,false);
+assert.equal(schema.safeParse({...data,sites:'-1'}).success,false);
+assert.equal(schema.safeParse({...data,unexpected:'x'}).success,false);
+function res(){return {code:200,setHeader(){},status(c){this.code=c;return this;},json(v){this.body=v;}};}
+const denied=res();guards[1]({},denied,()=>assert.fail('Unauthenticated access'));assert.equal(denied.code,403);
+const req={body:{id:'4cf9f75e-5b39-4c5e-8cee-5a5cbcfce126',data},auth:{staff:{role:'super_admin',organisationId:'org',id:'staff'}},query:{search:"O'Reilly"}};
+let r=res();await handlers.post(req,r,e=>{throw e;});assert.equal(r.code,201);assert.equal(queries[0].args[1],'org');assert.match(queries[0].sql,/on conflict/);
+rows=[];r=res();await handlers.post(req,r,e=>{throw e;});assert.equal(r.code,409);
+queries=[];rows=Array.from({length:51},()=>({data}));r=res();await handlers.get(req,r,e=>{throw e;});assert.equal(r.body.leads.length,50);assert.equal(r.body.hasMore,true);assert.equal(queries[0].args[2],"O'Reilly");assert.match(queries[0].sql,/organisation_id=\$1/);
+console.log('PASS: validation, administrator guard, scoped storage/search, retry conflicts and pagination');
