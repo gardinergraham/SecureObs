@@ -97,6 +97,7 @@ export function HomeScreen({
   const selectedStaff = staff.find((member) => member.id === selectedStaffId);
   const selectedSite = sites.find((site) => site.id === selectedSiteId);
   const hasStaffSession = Boolean(selectedStaff);
+  const isHomeCareSite = wards.some(ward => ward.siteId === selectedSiteId && ward.serviceType === "Home care");
   const pinChangeRequired = Boolean(selectedStaff?.loginPinMustChange);
   const canStart = Boolean(selectedStaff && selectedSite && selectedWard && selectedWard.siteId === selectedSiteId && !pinChangeRequired && !defaultsBusy);
   const canOpenAdminSettings = !pinChangeRequired && hasAdminAccess(selectedStaff);
@@ -447,7 +448,7 @@ export function HomeScreen({
         <View style={styles.column}>
           <SectionHeader
             title="Location"
-            meta={hasStaffSession ? selectedWard?.serviceType ?? "Select site and ward" : "Sign in required"}
+            meta={hasStaffSession ? selectedWard?.serviceType ?? (isHomeCareSite ? "Select a home location" : "Select site and ward") : "Sign in required"}
           />
           {hasStaffSession ? (
             <>
@@ -458,16 +459,16 @@ export function HomeScreen({
                 onSelect={onSelectSite}
               />
               <SelectorRow
-                label="Ward"
+                label={isHomeCareSite ? "Home location" : "Ward"}
                 options={wards.map((ward) => ({
                   id: ward.id,
-                  label: `${ward.name} (${ward.observationIntervalMinutes}m)`
+                  label: ward.serviceType === "Home care" ? ward.name : `${ward.name} (${ward.observationIntervalMinutes}m)`
                 }))}
                 selectedId={selectedWardId}
                 onSelect={onSelectWard}
               />
               <View style={styles.wardSummary}>
-                <Text style={styles.summaryTitle}>{selectedWard?.name ?? "No ward selected"}</Text>
+                <Text style={styles.summaryTitle}>{selectedWard?.name ?? (isHomeCareSite ? "No home location selected" : "No ward selected")}</Text>
                 <Text style={styles.summaryMeta}>
                   NEWS2 {selectedWard?.news2Enabled ? "on" : "off"} | Enhanced{" "}
                   {selectedWard?.enhancedObservationsEnabled ? "on" : "off"} | Security{" "}
@@ -482,7 +483,7 @@ export function HomeScreen({
                   Food and fluid chart {selectedWard?.foodFluidChartEnabled ? "on" : "off"}
                 </Text>
                 <Text style={styles.summaryMeta}>
-                  Opens to {selectedWard?.landingPage === "observations" ? "patient checks" : "ward overview"}
+                  Opens to {selectedWard?.landingPage === "observations" ? "patient checks" : isHomeCareSite ? "home overview" : "ward overview"}
                 </Text>
               </View>
             </>
@@ -510,20 +511,21 @@ export function HomeScreen({
       ) : null}
 
       <View style={styles.menu}>
-        <MenuTile title="Home Care" meta="Home locations, continuous cover and wellness checks" disabled={!hasStaffSession || pinChangeRequired} onPress={onOpenHomeCare} />
+
         <MenuTile
-          disabled={!canStart}
-          meta={
+          disabled={isHomeCareSite ? !hasStaffSession || pinChangeRequired || defaultsBusy : !canStart}
+          meta={isHomeCareSite ? "Home locations, continuous cover and wellness checks" :
             pinChangeRequired
               ? "Update your temporary PIN first"
               : canStart
                 ? `Confirm location: ${selectedSite?.name} — ${selectedWard?.name}`
                 : "Select staff, site and ward"
           }
-          title={selectedWard ? `Continue to ${selectedWard.name}` : "Select a ward to continue"}
+          title={isHomeCareSite ? "Continue to Home Care" : selectedWard ? `Continue to ${selectedWard.name}` : "Select a ward to continue"}
           tone="primary"
-          onPress={onStart}
+          onPress={isHomeCareSite ? onOpenHomeCare : onStart}
         />
+        {isHomeCareSite ? <MenuTile title={selectedWard ? `Continue to ${selectedWard.name}` : "Select a home location"} meta="Open this home’s patient care records" disabled={!canStart} onPress={onStart} /> : null}
         <MenuTile
           disabled={!selectedWard || !canEditWardSettings}
           meta={canEditWardSettings ? "Intervals, modules, rota and staff setup" : "Manager access required"}

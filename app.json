@@ -2,7 +2,7 @@
   "expo": {
     "name": "Secure Obs",
     "slug": "secureobs",
-    "version": "0.1.32",
+    "version": "0.2.00",
     "icon": "./assets/SecureObs.png",
     "orientation": "landscape",
     "userInterfaceStyle": "light",

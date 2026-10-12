@@ -6,10 +6,11 @@ Home Care is an additional service setting in the Expo application, backed by Po
 
 1. Deploy the backend with migration `055_home_care.sql` (the normal start command runs migrations), then distribute a new app build. The marketing website deployment alone does not update the Expo app.
 2. In SecureObs admin settings, select the customer's organisation/site and create a location with service type **Home care** and a recognisable home name. Existing ward licence limits still apply; no pricing changes are included.
-3. Assign staff, including managers, to the home using the existing staff access settings. A manager sees only their authorised homes; a super-admin sees homes belonging to the organisation on their authenticated staff account.
-4. Set up the patient through existing patient management for that location.
-5. Open **Home Care** from the main menu, select the home and save its address, access instructions, emergency contact, care needs, required carer count and whether continuous cover is required.
-6. Schedule duties using local date/time (`YYYY-MM-DD HH:MM`). Day, waking-night, sleep-in, live-in and wellness are available. Each live-in duty period is limited to 24 hours; create separate periods for a multi-day assignment, with relief cover. Recurring rota generation is not included in this version.
+3. Managers with management access to an existing home can now use **Add home location** in Home Care to create further locations in that same site. The creator automatically receives manager access, and **Add / manage patient at this home** opens patient management with the new location selected. Existing subscription/location allowances still apply. A new site still needs its first home configured by SecureObs admin.
+4. Assign staff, including managers, to the home using the existing staff access settings. A manager sees only their authorised homes; a super-admin sees homes belonging to the organisation on their authenticated staff account.
+5. Set up the patient through existing patient management for that location.
+6. Open **Home Care** from the main menu, select the home and save its address, access instructions, emergency contact, care needs, required carer count and whether continuous cover is required.
+7. Schedule duties using local date/time (`YYYY-MM-DD HH:MM`). Day, waking-night, sleep-in, live-in and wellness are available. Each live-in duty period is limited to 24 hours; create separate periods for a multi-day assignment, with relief cover. Recurring rota generation is not included in this version.
 
 ## Using it
 
@@ -32,3 +33,5 @@ The schedule shown here is the home-care duty schedule. The legacy ward rota rem
 Passed locally: app type check, backend build, Expo web export, focused tests (`node backend/tests/home-care.mjs`) for cover counts, gaps, overdue duties, breaks, wellness exclusion, date validation, attendance transitions, authentication, organisation isolation, own-attendance restriction and replay handling. Tests use a mocked database and do not establish production persistence.
 
 Before real care use, validate on a test deployment with a manager and two carers: create two homes, assign patients/staff, save profiles, schedule relief and two-person cover, check in/out, take breaks, record handover and wellness concerns, reopen the dashboard and confirm data persists. Verify that staff without access cannot read or update the other home, and that interrupted connectivity clearly leaves attendance unconfirmed. Check tablet layouts and overnight/DST dates. No production deployment or Android release was performed during implementation.
+
+The sign-in screen shows Home Care as the primary action only when the selected site has a Home care location, with Home location wording and a secondary entry to the selected home’s clinical records. This update requires a backend deployment and a new Expo build, but no additional migration beyond 055. Manager location creation is transactional, respects organisation and site boundaries and subscription limits, and records an audit event.

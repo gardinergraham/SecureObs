@@ -177,7 +177,7 @@ function subscriptionFeatures(plan: "essential" | "professional" | "enterprise" 
   };
 }
 
-async function organisationFeatureEnabled(
+export async function organisationFeatureEnabled(
   organisationId: string,
   feature: keyof ReturnType<typeof subscriptionFeatures>,
   wardId?: string
@@ -199,7 +199,7 @@ async function organisationFeatureEnabled(
   return overrides[feature] ?? subscriptionFeatures(plan)[feature];
 }
 
-async function organisationResourceLimit(organisationId: string, resource: "sites" | "wardsPerSite") {
+export async function organisationResourceLimit(organisationId: string, resource: "sites" | "wardsPerSite") {
   const result = await pool.query(
     `select subscription_plan as "subscriptionPlan", site_limit_override as "siteLimitOverride",
             wards_per_site_limit_override as "wardsPerSiteLimitOverride"

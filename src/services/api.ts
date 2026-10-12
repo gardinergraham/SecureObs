@@ -656,3 +656,7 @@ export function saveHomeCareDuty(duty: {id:string;wardId:string;staffId:string;k
 export function saveHomeCareEvent(dutyId:string,event:{id:string;action:string;notes:string;wellnessOutcome?:string}) {
   return request(`/api/home-care/duties/${encodeURIComponent(dutyId)}/events`, {method:'POST',body:JSON.stringify(event)});
 }
+
+export function createHomeCareLocation(location:{id:string;siteId:string;name:string;address:string}) {
+  return request<{id:string}>('/api/home-care/locations',{method:'POST',body:JSON.stringify(location)});
+}

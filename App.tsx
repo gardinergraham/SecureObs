@@ -198,7 +198,7 @@ export default function App() {
   const [screen, setScreen] = useState<AppScreen>("home");
   const mainScrollRef = useRef<ScrollView>(null);
   const [identificationPatientId, setIdentificationPatientId] = useState("");
-  const [workspaceBackScreen, setWorkspaceBackScreen] = useState<"wardOverview" | "observations" | "complianceGovernance">("wardOverview");
+  const [workspaceBackScreen, setWorkspaceBackScreen] = useState<"wardOverview" | "observations" | "complianceGovernance" | "homeCare">("wardOverview");
   const [bankAgencyBackScreen, setBankAgencyBackScreen] = useState<"staffRota" | "wardSettings">("staffRota");
   const [news2Readings, setNews2Readings] = useState<News2Reading[]>(() => createDemoNews2Readings(seedData.patients[0]?.id ?? ""));
   const [foodFluidEntries, setFoodFluidEntries] = useState<FoodFluidEntry[]>([]);
@@ -1782,7 +1782,7 @@ export default function App() {
             }}
           />
         ) : screen === "homeCare" && selectedStaff ? (
-          <HomeCareScreen key={selectedStaff.id} staff={staffMembers.find(s => s.id === selectedStaff.id) ?? selectedStaff} staffMembers={staffMembers} onBack={() => setScreen("home")} onOpenCare={(wardId,siteId)=>{setSelectedWardId(wardId);setSelectedSiteId(siteId);setScreen("wardOverview");}} />
+          <HomeCareScreen key={selectedStaff.id} staff={staffMembers.find(s => s.id === selectedStaff.id) ?? selectedStaff} staffMembers={staffMembers} sites={sites} onLocationsChanged={async()=>{const organisationId=selectedStaff.organisationId??defaultOrganisationId;const [wardResult,staffResult]=await Promise.all([loadWards(organisationId),loadStaff(organisationId)]);setWards(wardResult.wards);setStaffMembers(current=>mergeById(staffResult.staff,current));}} onOpenPatients={(wardId,siteId)=>{setWorkspaceBackScreen("homeCare");setSelectedWardId(wardId);setSelectedSiteId(siteId);setScreen("patientManagement");}} onBack={() => setScreen("home")} onOpenCare={(wardId,siteId)=>{setSelectedWardId(wardId);setSelectedSiteId(siteId);setScreen("wardOverview");}} />
         ) : screen === "adminSettings" ? (
           <AdminSettingsScreen
             customerOrganisations={customerOrganisations}

@@ -1,5 +1,6 @@
 import { Router, type Response, type NextFunction } from 'express';
 import { z } from 'zod';
+import { organisationFeatureEnabled, organisationResourceLimit } from './config.js';
 import { pool } from '../db/pool.js';
 import { requireAuthenticated, type AuthenticatedRequest } from '../auth.js';
 import { roleInWard } from '../wardAccess.js';
@@ -169,4 +170,32 @@ homeCareRouter.post('/duties/:id/events', route(async (req, res) => {
     finally {
         db.release();
     }
+}));
+
+const newHomeSchema = z.object({id:z.string().uuid(),siteId:z.string().min(1).max(150),name:z.string().trim().min(1).max(200),address:z.string().trim().min(1).max(1000)}).strict();
+homeCareRouter.post('/locations',route(async(req,res)=>{
+ const parsed=newHomeSchema.safeParse(req.body);
+ if(!parsed.success){res.status(400).json({error:'Choose a home-care site and enter the location name and address.'});return;}
+ const d=parsed.data,staff=req.auth!.staff;
+ // Existing home-management access is required; a request cannot promote an ordinary carer.
+ const site=(await pool.query('select id from sites where id=$1 and organisation_id=$2',[d.siteId,staff.organisationId])).rows[0];
+ const existingHomes=(await pool.query("select id from wards where site_id=$1 and service_type='Home care'",[d.siteId])).rows;
+ if(!site || !existingHomes.length || !existingHomes.some(h=>['manager','super_admin'].includes(roleInWard(staff,h.id)??''))){res.status(403).json({error:'You must manage an existing home in this home-care site to add a location.'});return;}
+ const [limit,medication,rostering,security,verified]=await Promise.all([
+  organisationResourceLimit(staff.organisationId,'wardsPerSite'),organisationFeatureEnabled(staff.organisationId,'medication'),organisationFeatureEnabled(staff.organisationId,'rostering'),organisationFeatureEnabled(staff.organisationId,'securityChecks'),organisationFeatureEnabled(staff.organisationId,'verifiedObservations')]);
+ const db=await pool.connect();
+ try{
+  await db.query('begin');
+  await db.query('select id from organisations where id=$1 for update',[staff.organisationId]);
+  const previous=(await db.query('select w.site_id,w.name,p.address from wards w left join home_care_profiles p on p.ward_id=w.id where w.id=$1',[d.id])).rows[0];
+  if(previous){await db.query('rollback');const same=previous.site_id===d.siteId&&previous.name===d.name&&previous.address===d.address;res.status(same?200:409).json(same?{id:d.id}:{error:'This location reference is already in use.'});return;}
+  const counts=(await db.query('select w.id,w.site_id from wards w join sites s on s.id=w.site_id where s.organisation_id=$1',[staff.organisationId])).rows;
+  const licensed=(await db.query('select licensed_ward_quantity from billing_accounts where organisation_id=$1 and package_selection is not null',[staff.organisationId])).rows[0];
+  if((licensed&&counts.length>=licensed.licensed_ward_quantity)||(limit!==null&&counts.filter(w=>w.site_id===d.siteId).length>=limit)){await db.query('rollback');res.status(403).json({error:'The current location allowance is fully used. Increase the subscription allowance before adding another home.'});return;}
+  await db.query(`insert into wards(id,site_id,name,service_type,medication_chart_enabled,staff_rota_enabled,security_checks_enabled,verified_observations_enabled,assessment_forms_enabled,food_fluid_chart_enabled) values($1,$2,$3,'Home care',$4,$5,$6,$7,true,true)`,[d.id,d.siteId,d.name,medication,rostering,security,verified]);
+  await db.query('insert into home_care_profiles(ward_id,address) values($1,$2)',[d.id,d.address]);
+  await db.query(`update staff_members set allowed_ward_ids=array_append(allowed_ward_ids,$1),allowed_site_ids=case when $2=any(allowed_site_ids) then allowed_site_ids else array_append(allowed_site_ids,$2) end,ward_roles=coalesce(ward_roles,'{}'::jsonb)||jsonb_build_object($1::text,'manager'),updated_at=now() where id=$3 and organisation_id=$4`,[d.id,d.siteId,staff.id,staff.organisationId]);
+  await db.query(`insert into audit_events(id,organisation_id,actor_staff_id,actor_staff_code,event_type,entity_type,entity_id,outcome,details) values($1,$2,$3,$4,'home_care.location_created','ward',$5,'success',$6::jsonb)`,['home-created-'+d.id,staff.organisationId,staff.id,staff.staffCode,d.id,JSON.stringify({siteId:d.siteId})]);
+  await db.query('commit');res.status(201).json({id:d.id});
+ }catch(e){await db.query('rollback');throw e;}finally{db.release();}
 }));

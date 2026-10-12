@@ -468,7 +468,7 @@ export function PatientManagementScreen({
           </View>
 
           <View style={styles.currentWardBox}>
-            <Text style={styles.currentWardLabel}>Current ward</Text>
+            <Text style={styles.currentWardLabel}>{selectedWard?.serviceType === "Home care" ? "Home location" : "Current ward"}</Text>
             <Text style={styles.currentWardText}>
               {selectedPatient ? selectedPatientWard?.name ?? selectedPatient.wardId : selectedWard?.name ?? "No ward"}
             </Text>
