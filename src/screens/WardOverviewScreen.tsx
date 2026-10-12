@@ -359,7 +359,7 @@ export function WardOverviewScreen({
           tone={overdueTaskCount > 0 || redTaskCount > 0 ? "danger" : activePatientTasks.length > 0 ? "warning" : "neutral"}
           value={activePatientTasks.length}
         />
-        {ward?.staffRotaEnabled ? (
+        {ward?.serviceType !== "Home care" && ward?.staffRotaEnabled ? (
           <Metric label="Staff this shift" tone={shiftStaff.length === 0 ? "warning" : "neutral"} value={shiftStaff.length} />
         ) : null}
       </View>
@@ -557,7 +557,7 @@ export function WardOverviewScreen({
           </OverviewCard>
         ) : null}
 
-        {ward?.staffRotaEnabled ? (
+        {ward?.serviceType !== "Home care" && ward?.staffRotaEnabled ? (
           <OverviewCard
             actionLabel="Open staff rota"
             eyebrow={`${shiftStaff.length} staff assigned · ${enhancedCoverGapCount} enhanced gaps`}
@@ -625,7 +625,7 @@ export function WardOverviewScreen({
             label="Medication chart"
             onPress={onOpenMedicationChart}
           />
-          <QuickAction disabled={!ward?.staffRotaEnabled} label="Staff rota" onPress={onOpenStaffRota} />
+          <QuickAction disabled={ward?.serviceType !== "Home care" && !ward?.staffRotaEnabled} label={ward?.serviceType === "Home care" ? "Home Care schedule" : "Staff rota"} onPress={onOpenStaffRota} />
         </View>
       </View>
     </View>

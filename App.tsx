@@ -237,6 +237,9 @@ export default function App() {
   const scopedStaffMembers = useMemo(() => staffMembers.map((staff) => staffForWard(homeCareManagerAccess(staff, wards), selectedWardId)), [staffMembers, selectedWardId, wards]);
   const selectedStaff = scopedStaffMembers.find((staff) => staff.id === selectedStaffId);
   const activeStaff = selectedStaff;
+  useEffect(() => {
+    if (['staffRota','staffCover'].includes(screen) && wards.find(w=>w.id===selectedWardId)?.serviceType === "Home care") setScreen("homeCare");
+  }, [screen,wards,selectedWardId]);
   const selectedStaffCanPrescribe = Boolean(activeStaff?.canPrescribe || hasStaffRole(activeStaff, "doctor"));
   useEffect(() => { setApiWardContext(selectedWardId); }, [selectedWardId]);
   const [staffDefaults, setStaffDefaults] = useState<StaffDefaults | null>(null);
@@ -538,7 +541,7 @@ export default function App() {
   }, [adminOrganisationId, screen, selectedStaff?.organisationId, selectedWardId]);
 
   useEffect(() => {
-    if (screen === "home" || screen === "adminSettings" || !selectedStaff || wards.length === 0) return;
+    if (screen === "home" || screen === "homeCare" || screen === "adminSettings" || !selectedStaff || wards.length === 0) return;
     const currentWard = wards.find((ward) => ward.id === selectedWardId);
     const currentWardAllowed = currentWard && (
       hasAdminAccess(selectedStaff) ||
@@ -1783,7 +1786,7 @@ export default function App() {
             }}
           />
         ) : screen === "homeCare" && selectedStaff ? (
-          <HomeCareScreen key={selectedStaff.id} staff={staffMembers.find(s => s.id === selectedStaff.id) ?? selectedStaff} staffMembers={staffMembers} sites={sites} onLocationsChanged={async()=>{const organisationId=hasAdminAccess(selectedStaff)?adminOrganisationId:(selectedStaff.organisationId??defaultOrganisationId);const [wardResult,staffResult,patientResult]=await Promise.all([loadWards(organisationId),loadStaff(organisationId),loadPatients(organisationId,true)]);setWards(wardResult.wards);setStaffMembers(current=>mergeById(staffResult.staff,current));setPatients(patientResult.patients);}} onOpenPatients={(wardId,siteId)=>{setWorkspaceBackScreen("homeCare");setSelectedWardId(wardId);setSelectedSiteId(siteId);setScreen("patientManagement");}} onBack={() => setScreen("home")} onOpenCare={(wardId,siteId)=>{setSelectedWardId(wardId);setSelectedSiteId(siteId);setScreen("wardOverview");}} />
+          <HomeCareScreen key={`${selectedStaff.id}:${selectedSiteId}`} siteId={selectedSiteId} organisationId={accessibleSites.find(s=>s.id===selectedSiteId)?.organisationId ?? selectedStaff.organisationId ?? defaultOrganisationId} staff={staffMembers.find(s => s.id === selectedStaff.id) ?? selectedStaff} staffMembers={staffMembers} sites={sites} onLocationsChanged={async()=>{const organisationId=hasAdminAccess(selectedStaff)?adminOrganisationId:(selectedStaff.organisationId??defaultOrganisationId);const [wardResult,staffResult,patientResult]=await Promise.all([loadWards(organisationId),loadStaff(organisationId),loadPatients(organisationId,true)]);setWards(wardResult.wards);setStaffMembers(current=>mergeById(staffResult.staff,current));setPatients(patientResult.patients);}} onOpenPatients={(wardId,siteId)=>{setWorkspaceBackScreen("homeCare");setSelectedWardId(wardId);setSelectedSiteId(siteId);setScreen("patientManagement");}} onBack={() => setScreen("home")} onOpenCare={(wardId,siteId)=>{setSelectedWardId(wardId);setSelectedSiteId(siteId);setScreen("wardOverview");}} />
         ) : screen === "adminSettings" ? (
           <AdminSettingsScreen
             customerOrganisations={customerOrganisations}
@@ -1966,6 +1969,7 @@ export default function App() {
               setScreen("securityChecks");
             }}
             onOpenStaffRota={() => {
+              if (selectedWard?.serviceType === "Home care") {setScreen("homeCare");return;}
               if (!rosteringEnabled) {
                 showFeatureUpgrade("Staff rostering");
                 return;
@@ -2055,6 +2059,7 @@ export default function App() {
               setScreen("shiftHandover");
             }}
             onOpenStaffRota={() => {
+              if (selectedWard?.serviceType === "Home care") {setScreen("homeCare");return;}
               if (!rosteringEnabled) {
                 showFeatureUpgrade("Staff rostering");
                 return;

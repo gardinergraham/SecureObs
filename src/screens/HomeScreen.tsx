@@ -5,7 +5,7 @@ import type { StaffDefaults } from "../services/staffDefaults";
 
 import appConfig from "../../app.json";
 import type { Site, StaffMember, Ward } from "../types/domain";
-import { hasAdminAccess, hasStaffRole } from "../utils/staffRole";
+import { canOpenHomeCareDashboard, hasAdminAccess, hasStaffRole } from "../utils/staffRole";
 
 type AndroidRelease = {
   version: string;
@@ -73,6 +73,7 @@ export function HomeScreen({
   onStart
 }: HomeScreenProps) {
   const appVersion = appConfig.expo.version;
+  const [chooseIndividualHome, setChooseIndividualHome] = useState(false);
   const [staffCardMessage, setStaffCardMessage] = useState("");
   const [staffPinCode, setStaffPinCode] = useState("");
   const [staffPin, setStaffPin] = useState("");
@@ -102,7 +103,7 @@ export function HomeScreen({
   const canStart = Boolean(selectedStaff && selectedSite && selectedWard && selectedWard.siteId === selectedSiteId && !pinChangeRequired && !defaultsBusy);
   const canOpenAdminSettings = !pinChangeRequired && hasAdminAccess(selectedStaff);
   const canEditWardSettings = !pinChangeRequired && (hasStaffRole(selectedStaff, "manager") || hasAdminAccess(selectedStaff));
-  const canOpenHomeCare = isHomeCareSite && canEditWardSettings;
+  const canOpenHomeCare = canOpenHomeCareDashboard(selectedStaff, selectedSiteId, wards);
   const canOpenCompliance = !pinChangeRequired && Boolean(selectedWard) && canEditWardSettings && complianceGovernanceEnabled;
   const updateAvailable = Boolean(availableRelease && compareVersions(availableRelease.version, appVersion) > 0);
   const updateRequired = Boolean(availableRelease && compareVersions(availableRelease.minimumSupportedVersion, appVersion) > 0);
@@ -247,7 +248,7 @@ export function HomeScreen({
         </View>
       </View>
 
-      {selectedStaff ? (
+      {selectedStaff && !canOpenHomeCare ? (
         <View style={styles.signedInPanel}>
           <Text style={styles.signedInName}>My login defaults</Text>
           <Text style={styles.noticeText}>Choose your site and ward below, then save them for your future sign-ins on this device. You can still choose another authorised ward for a shift.</Text>
@@ -457,8 +458,15 @@ export function HomeScreen({
                 label="Site"
                 options={sites.map((site) => ({ id: site.id, label: site.name }))}
                 selectedId={selectedSiteId}
-                onSelect={onSelectSite}
+                onSelect={(id)=>{setChooseIndividualHome(false);onSelectSite(id);}}
               />
+              {canOpenHomeCare ? <View style={styles.wardSummary}>
+                <Text style={styles.summaryTitle}>{selectedSite?.name} · Home Care</Text>
+                <Text style={styles.summaryMeta}>Open the dashboard to see all home locations. You do not need to choose an individual home first.</Text>
+                <TouchableOpacity accessibilityRole="button" onPress={onOpenHomeCare} disabled={defaultsBusy} style={styles.scanButton}><Text style={styles.scanButtonText}>Open Home Care dashboard</Text></TouchableOpacity>
+                <TouchableOpacity accessibilityRole="button" onPress={()=>setChooseIndividualHome(v=>!v)}><Text style={styles.summaryMeta}>{chooseIndividualHome ? "Hide individual home selection" : "Choose an individual home (optional)"}</Text></TouchableOpacity>
+              </View> : null}
+              {!canOpenHomeCare || chooseIndividualHome ? <>
               <SelectorRow
                 label={isHomeCareSite ? "Home location" : "Ward"}
                 options={wards.map((ward) => ({
@@ -487,6 +495,7 @@ export function HomeScreen({
                   Opens to {selectedWard?.landingPage === "observations" ? "patient checks" : isHomeCareSite ? "home overview" : "ward overview"}
                 </Text>
               </View>
+              </> : null}
             </>
           ) : (
             <View style={styles.locationLockedPanel}>

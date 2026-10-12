@@ -20,6 +20,13 @@ for(const effective of [backend.homeCareManagerAccess(staff,homes),frontend.home
  assert.equal(effective.wardRoles.hospital,'nurse');
 }
 assert.equal(staff.allowedWardIds.length,2,'explicit assignments unchanged');
+const signedInWithoutWard=frontend.staffForWard(frontend.homeCareManagerAccess(staff,wards),'');
+assert.equal(signedInWithoutWard.role,'nurse');
+assert.equal(frontend.canOpenHomeCareDashboard(signedInWithoutWard,'site-a',wards),true,'dashboard eligibility does not depend on selecting a ward');
+assert.equal(frontend.canOpenHomeCareDashboard(signedInWithoutWard,'site-b',wards),false);
+assert.equal(frontend.canOpenHomeCareDashboard({...signedInWithoutWard,loginPinMustChange:true},'site-a',wards),false);
+assert.equal(frontend.canOpenHomeCareDashboard({...staff,role:'hcf',wardRoles:{a:'hcf'}},'site-a',wards),false);
+
 const effective=backend.homeCareManagerAccess(staff,homes);
 assert.equal(backend.explicitStaff({...effective,name:'Changed'}).allowedWardIds.length,2,'spread/save cannot persist derived grants');
 assert.equal(backend.explicitStaff({...effective,name:'Changed'}).name,'Changed');

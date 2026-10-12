@@ -886,6 +886,7 @@ export function WardSettingsScreen({
         </TouchableOpacity>
         {wardSaveMessage ? <Text style={styles.cardMessage}>{wardSaveMessage}</Text> : null}
 
+        {selectedWard?.serviceType === "Home care" ? <Text style={styles.meta}>Home Care uses its own schedule. Open the Home Care dashboard to plan cover and record attendance. Rota assignment is disabled for these locations.</Text> : <>
         <View style={styles.settingBlock}>
           <View>
             <Text style={styles.settingLabel}>Staff rota</Text>
@@ -911,7 +912,8 @@ export function WardSettingsScreen({
           </TouchableOpacity>
         </View>
 
-        {selectedWard?.staffRotaEnabled && rosteringEntitled ? (
+        </>}
+        {selectedWard?.serviceType !== "Home care" && selectedWard?.staffRotaEnabled && rosteringEntitled ? (
           <>
             <Text style={styles.settingLabel}>Shifts per day</Text>
             <View style={styles.optionRow}>

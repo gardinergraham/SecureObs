@@ -54,3 +54,12 @@ A manager assigned the manager role at any Home Care location oversees every Hom
 Staff setup supports selecting multiple home locations. Non-managers remain limited to their selected homes. The main Home Care entry is for managers and administrators; carers use My Home Care duties for attendance at assigned homes.
 
 Patient management and combined home intake share their demographic form, date picker and next-of-kin fields. Home patients default to room 1, which can be changed. Use Add another patient / manage patients to add further patients at an existing location; no one-patient-per-home restriction applies. This update needs the backend deployment and a new app build, but no additional database migration beyond the existing Home Care migrations.
+
+### Dashboard entry and separate schedule
+Managers can choose a Home Care site and open its dashboard without choosing a home first. Organisation and site context are sent explicitly, including for administrators. Individual home selection on the login page is optional for managers.
+
+Home Care scheduling remains separate from Rota. Home Care ward/observation screens link to the Home Care schedule; their Rota settings are hidden. The backend rejects new and updated rota assignments and staff-shift cover for Home Care locations, including requests from older builds. Historical rota entries are preserved and are not automatically converted to Home Care duties. Enter the intended cover in the Home Care schedule.
+
+Schedule cover uses the shared local date/time picker and sends UTC timestamps, supports overnight periods, and validates positive durations up to 24 hours. The dashboard distinguishes scheduled carers from checked-in carers. Awaiting check-in means the duty has started without arrival being recorded; signing into the app is not a duty check-in. Breaks and wellness visits do not provide continuous cover. Ended duties without arrival and overdue check-outs are displayed separately. Selecting a home focuses the view on its patients, named staffing status and duties; All home locations returns to the overview.
+
+Validation is local (TypeScript, Expo export, route/permission/coverage tests); deploy Railway and install a new Expo build to use these changes. No new database migration is needed.

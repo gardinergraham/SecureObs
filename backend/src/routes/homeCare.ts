@@ -54,7 +54,7 @@ homeCareRouter.get('/', route(async (req, res) => {
     const staff = req.auth!.staff;
     const homes = await pool.query(`select w.id,w.site_id as "siteId",w.name,p.address,p.access_notes as "accessNotes",p.emergency_contact as "emergencyContact",p.care_summary as "careSummary",p.required_carers as "requiredCarers",p.continuous_cover as "continuousCover",p.updated_at as "updatedAt"
  from wards w join sites s on s.id=w.site_id left join home_care_profiles p on p.ward_id=w.id
- where s.organisation_id=$1 and w.service_type='Home care' and ($2::boolean or w.id=any($3::text[])) order by w.name`, [req.homeCareOrganisationId, staff.role === 'super_admin', staff.allowedWardIds]);
+ where s.organisation_id=$1 and w.service_type='Home care' and ($2::boolean or w.id=any($3::text[])) and ($4::text is null or w.site_id=$4) order by w.name`, [req.homeCareOrganisationId, staff.role === 'super_admin', staff.allowedWardIds, typeof req.query?.siteId === 'string' ? req.query.siteId : null]);
     const ids = homes.rows.map(h => h.id);
     const duties = await pool.query(`select d.*,m.display_name as staff_name from home_care_duties d join staff_members m on m.id=d.staff_id where d.ward_id=any($1::text[]) and (d.ends_at>now()-interval '7 days' and d.starts_at<now()+interval '31 days' or d.state in ('present','break')) order by d.starts_at`, [ids]);
     const residents = await pool.query('select id,ward_id as "wardId",first_name as "firstName",surname from patients where organisation_id=$1 and ward_id=any($2::text[]) and archived=false', [req.homeCareOrganisationId, ids]);

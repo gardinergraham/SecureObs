@@ -48,3 +48,8 @@ export function homeCareManagerAccess(staff: StaffMember, wards: Ward[]): StaffM
     allowedSiteIds: [...new Set([...staff.allowedSiteIds,...managedSites])],
     wardRoles: {...staff.wardRoles,...Object.fromEntries(managedHomes.map(w=>[w.id,"manager" as const]))}};
 }
+
+export function canOpenHomeCareDashboard(staff: StaffMember | undefined, siteId:string, wards:Ward[]):boolean {
+  if (!staff || staff.loginPinMustChange || !siteId) return false;
+  return wards.some(w=>w.siteId===siteId && w.serviceType==='Home care' && (hasAdminAccess(staff) || (staff.allowedWardIds.includes(w.id) && (staff.wardRoles?.[w.id] ?? staff.role)==='manager')));
+}

@@ -644,19 +644,22 @@ function withOptionalQuery(path: string, key: string, value?: string) {
 }
 
 // Attendance is confirmed online, never optimistically queued as physical presence.
-export function loadHomeCare() {
-  return request<import('../types/homeCare').HomeCareSnapshot>('/api/home-care');
+function homeCareOptions(organisationId: string | undefined, init: RequestInit = {}): RequestInit {
+  return {...init, headers: {...init.headers, ...(organisationId ? {"X-Organisation-Id":organisationId} : {})}};
 }
-export function saveHomeCareProfile(profile: {wardId:string;address:string;accessNotes:string;emergencyContact:string;careSummary:string;requiredCarers:number;continuousCover:boolean}) {
-  return request('/api/home-care/profile', {method:'POST',body:JSON.stringify(profile)});
+export function loadHomeCare(organisationId?:string, siteId?:string) {
+  return request<import('../types/homeCare').HomeCareSnapshot>(`/api/home-care${siteId ? '?siteId='+encodeURIComponent(siteId) : ''}`, homeCareOptions(organisationId));
 }
-export function saveHomeCareDuty(duty: {id:string;wardId:string;staffId:string;kind:string;startsAt:string;endsAt:string;notes:string}) {
-  return request('/api/home-care/duties', {method:'POST',body:JSON.stringify(duty)});
+export function saveHomeCareProfile(profile: {wardId:string;address:string;accessNotes:string;emergencyContact:string;careSummary:string;requiredCarers:number;continuousCover:boolean}, organisationId?:string) {
+  return request('/api/home-care/profile', homeCareOptions(organisationId,{method:'POST',body:JSON.stringify(profile)}));
 }
-export function saveHomeCareEvent(dutyId:string,event:{id:string;action:string;notes:string;wellnessOutcome?:string}) {
-  return request(`/api/home-care/duties/${encodeURIComponent(dutyId)}/events`, {method:'POST',body:JSON.stringify(event)});
+export function saveHomeCareDuty(duty: {id:string;wardId:string;staffId:string;kind:string;startsAt:string;endsAt:string;notes:string}, organisationId?:string) {
+  return request('/api/home-care/duties', homeCareOptions(organisationId,{method:'POST',body:JSON.stringify(duty)}));
+}
+export function saveHomeCareEvent(dutyId:string,event:{id:string;action:string;notes:string;wellnessOutcome?:string}, organisationId?:string) {
+  return request(`/api/home-care/duties/${encodeURIComponent(dutyId)}/events`, homeCareOptions(organisationId,{method:'POST',body:JSON.stringify(event)}));
 }
 
-export function createHomeCareLocation(location:import('../types/homeCare').HomeCareIntake) {
-  return request<{id:string;patientId:string|null}>('/api/home-care/locations',{method:'POST',body:JSON.stringify(location)});
+export function createHomeCareLocation(location:import('../types/homeCare').HomeCareIntake, organisationId?:string) {
+  return request<{id:string;patientId:string|null}>('/api/home-care/locations',homeCareOptions(organisationId,{method:'POST',body:JSON.stringify(location)}));
 }

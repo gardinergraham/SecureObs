@@ -475,8 +475,8 @@ export function WardDashboard({
           onPress={onOpenMedicationChart}
         />
         <ModeButton
-          disabled={!selectedWard?.staffRotaEnabled}
-          label="Staff rota"
+          disabled={selectedWard?.serviceType !== "Home care" && !selectedWard?.staffRotaEnabled}
+          label={selectedWard?.serviceType === "Home care" ? "Home Care schedule" : "Staff rota"}
           onPress={onOpenStaffRota}
         />
       </View>

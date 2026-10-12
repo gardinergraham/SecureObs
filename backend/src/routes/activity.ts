@@ -1,3 +1,4 @@
+import { isHomeCareRotaLocation } from "../rotaAccess.js";
 import { Router } from "express";
 import { z } from "zod";
 
@@ -2107,6 +2108,10 @@ router.post("/rota-assignments", requireStaffRole(["nurse", "manager", "super_ad
       response.status(403).json({ error: "Staff rostering is not included in this SecureObs package. Please upgrade or add the feature." });
       return;
     }
+    if (await isHomeCareRotaLocation(organisationId, parsed.data.wardId)) {
+      response.status(409).json({error:"Home Care uses a separate schedule. Open the Home Care dashboard to schedule cover; Rota assignments are disabled for this location."});
+      return;
+    }
     const assignment = { ...parsed.data, organisationId };
     const result = await pool.query(
       `
@@ -2224,6 +2229,10 @@ router.post("/staff-shift-assignments", requireStaffRole(["nurse", "manager", "s
     if (!organisationId) return;
     if (!(await organisationHasRostering(organisationId))) {
       response.status(403).json({ error: "Staff rostering is not included in this SecureObs package. Please upgrade or add the feature." });
+      return;
+    }
+    if (await isHomeCareRotaLocation(organisationId, parsed.data.wardId)) {
+      response.status(409).json({error:"Home Care uses a separate schedule. Open the Home Care dashboard to schedule cover; Rota assignments are disabled for this location."});
       return;
     }
     const assignment = { ...parsed.data, organisationId };

@@ -12,7 +12,7 @@ assert.equal(rules.nextDutyState('break','resume'),'present');
 assert.equal(rules.nextDutyState('break','check_out'),'completed');
 assert.equal(rules.nextDutyState('completed','check_in'),undefined);
 assert.equal(rules.nextDutyState('present','cancel'),undefined);
-const {homeCoverage,parseLocalDutyDate}=moduleAt('../../src/utils/homeCare.ts');
+const {homeCoverage,parseLocalDutyDate,validateDutyPeriod}=moduleAt('../../src/utils/homeCare.ts');
 const now=Date.parse('2026-10-12T12:00:00Z');
 const home={id:'home',requiredCarers:2,continuousCover:true};
 const duty={id:'a',ward_id:'home',state:'present',kind:'day',starts_at:'2026-10-12T08:00:00Z',ends_at:'2026-10-12T20:00:00Z'};
@@ -27,6 +27,16 @@ assert.equal(homeCoverage({...home,continuousCover:false},[],now).gap,false);
 assert.throws(()=>parseLocalDutyDate('2026-02-30 12:00'));
 assert.throws(()=>parseLocalDutyDate('12/10/26'));
 assert.ok(parseLocalDutyDate('2026-10-12 12:00'));
+const plannedDuty={...duty,state:'planned',staff_id:'carer-a',staff_name:'Test Carer'};
+const pending=homeCoverage({...home,requiredCarers:1},[plannedDuty],now);
+assert.equal(pending.planned,1);assert.equal(pending.present,0);assert.equal(pending.late,1);assert.equal(pending.gap,true);
+assert.equal(pending.awaitingStaff[0].staff_name,'Test Carer');
+assert.equal(homeCoverage(home,[plannedDuty,{...plannedDuty,id:'duplicate'}],now).planned,1);
+assert.equal(homeCoverage(home,[{...plannedDuty,ends_at:'2026-10-12T11:00:00Z'}],now).missed,1);
+assert.equal(homeCoverage(home,[{...duty,state:'break'}],now).onBreak,1);
+validateDutyPeriod('2026-10-12T20:00:00Z','2026-10-13T08:00:00Z');
+for(const [start,end] of [['',''],['2026-10-12T08:00:00Z','2026-10-12T07:00:00Z'],['2026-10-12T08:00:00Z','2026-10-13T09:00:00Z']]) assert.throws(()=>validateDutyPeriod(start,end));
+
 let locationMode=false,siteAllowed=true,locationLimit=null,failPatient=false,duplicatePatient=false,previousHome;
 const routes={},middleware=[];let queries=[],resultDuty={id:'47f992bd-1b24-4611-b621-9b31c5910b03',ward_id:'home',staff_id:'11111111-1111-4111-8111-111111111111',state:'planned',starts_at:new Date(Date.now()-60000),ends_at:new Date(Date.now()+3600000)},org='org',replay;
 const query=async(sql,args)=>{queries.push({sql,args});if(locationMode){if(sql.startsWith('insert into patients')&&failPatient)throw Error('simulated patient insert failure');if(sql.startsWith('select id from patients'))return {rows:duplicatePatient?[{id:'existing'}]:[]};if(sql.startsWith('select w.site_id,w.name,p.address'))return {rows:previousHome?[previousHome]:[]};if(sql.startsWith('select id from sites'))return {rows:siteAllowed?[{id:'site'}]:[]};if(sql.startsWith('select id from wards where site_id'))return {rows:[{id:'home'}]};if(sql.startsWith('select w.id,w.site_id from wards'))return {rows:[{id:'home',site_id:'site'}]};return {rows:[]};}if(sql.includes('from wards w'))return {rows:[{id:'home',organisation_id:org,service_type:'Home care'}]};if(sql.includes('from home_care_duties where id'))return {rows:[resultDuty]};if(sql.includes('from home_care_events where id'))return {rows:replay?[replay]:[]};return {rows:[]};};
@@ -39,7 +49,7 @@ const intakeRoutes=moduleAt('../src/routes/homeCare.ts',{
  '../homeCare/rules.js':rules
 });
 const staff={id:resultDuty.staff_id,organisationId:'org',role:'hcf',allowedWardIds:['home']};
-async function run(path,body,member=staff,headers={}){const req={header:name=>headers[name],body,auth:member?{staff:member}:undefined,params:{id:resultDuty.id},query:{}};const res={code:200,setHeader(){},status(n){this.code=n;return this;}};await new Promise((resolve,reject)=>{res.json=x=>{res.body=x;resolve();};Promise.resolve(middleware[0](req,res,error=>error?reject(error):routes[path](req,res,reject))).catch(reject);});return res;}
+async function run(path,body,member=staff,headers={},queryParams={}){const req={header:name=>headers[name],body,auth:member?{staff:member}:undefined,params:{id:resultDuty.id},query:queryParams};const res={code:200,setHeader(){},status(n){this.code=n;return this;}};await new Promise((resolve,reject)=>{res.json=x=>{res.body=x;resolve();};Promise.resolve(middleware[0](req,res,error=>error?reject(error):routes[path](req,res,reject))).catch(reject);});return res;}
 assert.equal((await run('GET /',{},null)).code,401);
 const event={id:'7b7d4f7e-99bc-48ae-b7d5-17e79f62db6b',action:'check_in',notes:''};
 assert.equal((await run('POST /duties/:id/events',event,{...staff,allowedWardIds:[]})).code,403);
@@ -96,3 +106,12 @@ queries=[];const retried=await run('POST /locations',combined,manager);assert.eq
 assert.equal((await run('POST /locations',{...combined,careSummary:'Changed'},manager)).code,409);previousHome=undefined;
 queries=[];assert.equal((await run('POST /locations',newHome,manager)).code,201);assert.ok(!queries.some(q=>q.sql.startsWith('insert into patients')));
 console.log('PASS: combined intake validation, scoped patient creation, care storage, rollback on patient failure, duplicate reference rejection, idempotent replay and location-only mode.');
+
+locationMode=false;queries=[];
+const noWardAdmin={...staff,role:'super_admin'};
+await run('GET /',{},noWardAdmin,{'x-organisation-id':'11111111-1111-4111-8111-111111111111'},{siteId:'chosen-site'});
+const homeRead=queries.find(q=>q.sql.includes('left join home_care_profiles'));
+assert.equal(homeRead.args[0],'11111111-1111-4111-8111-111111111111');
+assert.equal(homeRead.args[3],'chosen-site');
+assert.ok(homeRead.sql.includes('w.site_id=$4'));
+console.log('PASS: site dashboard without a selected ward, planned versus attended cover, named arrivals, missed duties, and overnight picker times.');
