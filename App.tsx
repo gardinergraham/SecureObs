@@ -14,6 +14,7 @@ import { BankAgencyStaffScreen } from "./src/screens/BankAgencyStaffScreen";
 import { EnhancedObservationScreen } from "./src/screens/EnhancedObservationScreen";
 import { FamilyPortalScreen } from "./src/screens/FamilyPortalScreen";
 import { FoodFluidChartScreen } from "./src/screens/FoodFluidChartScreen";
+import { HomeCareScreen } from "./src/screens/HomeCareScreen";
 import { HomeScreen } from "./src/screens/HomeScreen";
 import { MedicationChartScreen } from "./src/screens/MedicationChartScreen";
 import { News2Screen } from "./src/screens/News2Screen";
@@ -161,6 +162,7 @@ const defaultOrganisationSettings: OrganisationSettings = {
 };
 
 type AppScreen =
+  | "homeCare"
   | "home"
   | "wardOverview"
   | "adminSettings"
@@ -1769,6 +1771,7 @@ export default function App() {
             onBankStaffPinLogin={handleBankStaffPinLogin}
             onUnlockStaffAccess={handleUnlockStaffAccess}
             onScanStaffCard={handleScanStaffCard}
+            onOpenHomeCare={() => setScreen("homeCare")}
             onOpenAdminSettings={() => setScreen("adminSettings")}
             onOpenWardSettings={() => setScreen("wardSettings")}
             complianceGovernanceEnabled={cqcReportingEnabled}
@@ -1778,6 +1781,8 @@ export default function App() {
               setScreen(selectedWard?.landingPage === "observations" ? "observations" : "wardOverview");
             }}
           />
+        ) : screen === "homeCare" && selectedStaff ? (
+          <HomeCareScreen key={selectedStaff.id} staff={staffMembers.find(s => s.id === selectedStaff.id) ?? selectedStaff} staffMembers={staffMembers} onBack={() => setScreen("home")} onOpenCare={(wardId,siteId)=>{setSelectedWardId(wardId);setSelectedSiteId(siteId);setScreen("wardOverview");}} />
         ) : screen === "adminSettings" ? (
           <AdminSettingsScreen
             customerOrganisations={customerOrganisations}

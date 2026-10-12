@@ -12,7 +12,7 @@ import { writeNfcTextPayload } from "../utils/nfcWriter";
 import { defaultObservationLocations } from "../utils/observationLocations";
 import { createBillingPortalSession, loadBillingReport, syncBillingCustomerDetails } from "../services/api";
 
-const serviceTypes: ServiceType[] = ["High secure hospital", "Medium secure hospital", "Care home"];
+const serviceTypes: ServiceType[] = ["High secure hospital", "Medium secure hospital", "Care home", "Home care"];
 const intervals = [5, 10, 15, 30, 60];
 const plans: Array<{ id: OrganisationSettings["subscriptionPlan"]; label: string; price: string }> = [
   { id: "essential", label: "Essential", price: "£149/month" },
@@ -1171,7 +1171,7 @@ export function AdminSettingsScreen({
           <Text style={styles.listMeta}>{selectedSiteWards.length} of {effectiveWardLimit ?? "unlimited"} wards used at this site</Text>
           <TextInput placeholderTextColor="#6f7f87"
             onChangeText={setWardName}
-            placeholder="Ward name"
+            placeholder={serviceType === "Home care" ? "Home location name" : "Ward name"}
             style={styles.input}
             value={wardName}
           />

@@ -20,6 +20,8 @@ import { showRouter } from "./routes/show.js";
 
 import { leadsRouter } from './routes/leads.js';
 
+import { homeCareRouter } from './routes/homeCare.js';
+
 const app = express();
 
 app.use(helmet());
@@ -30,6 +32,7 @@ app.use(authenticateRequest);
 app.use(enforceActiveSubscription);
 
 if (!config.demoMode) app.use("/api/leads", leadsRouter);
+app.use("/api/home-care", homeCareRouter);
 app.use("/health", healthRouter);
 app.use("/api/staff", staffRouter);
 if (!config.demoMode) app.use("/api/billing", billingRouter);

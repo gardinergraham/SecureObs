@@ -642,3 +642,17 @@ function withOptionalQuery(path: string, key: string, value?: string) {
   const separator = path.includes("?") ? "&" : "?";
   return `${path}${separator}${key}=${encodeURIComponent(value)}`;
 }
+
+// Attendance is confirmed online, never optimistically queued as physical presence.
+export function loadHomeCare() {
+  return request<import('../types/homeCare').HomeCareSnapshot>('/api/home-care');
+}
+export function saveHomeCareProfile(profile: {wardId:string;address:string;accessNotes:string;emergencyContact:string;careSummary:string;requiredCarers:number;continuousCover:boolean}) {
+  return request('/api/home-care/profile', {method:'POST',body:JSON.stringify(profile)});
+}
+export function saveHomeCareDuty(duty: {id:string;wardId:string;staffId:string;kind:string;startsAt:string;endsAt:string;notes:string}) {
+  return request('/api/home-care/duties', {method:'POST',body:JSON.stringify(duty)});
+}
+export function saveHomeCareEvent(dutyId:string,event:{id:string;action:string;notes:string;wellnessOutcome?:string}) {
+  return request(`/api/home-care/duties/${encodeURIComponent(dutyId)}/events`, {method:'POST',body:JSON.stringify(event)});
+}

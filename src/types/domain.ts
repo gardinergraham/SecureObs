@@ -16,7 +16,7 @@ export type PatientPresentation = "Awake" | "Asleep";
 export type ObservationSource = "General observations" | "Enhanced/TESO";
 export type News2Consciousness = "Alert" | "New confusion" | "Voice" | "Pain" | "Unresponsive";
 export type Spo2Scale = "Scale 1" | "Scale 2";
-export type ServiceType = "High secure hospital" | "Medium secure hospital" | "Care home";
+export type ServiceType = "High secure hospital" | "Medium secure hospital" | "Care home" | "Home care";
 export type WardLandingPage = "overview" | "observations";
 export type FoodFluidMealPeriod =
   | "Breakfast"

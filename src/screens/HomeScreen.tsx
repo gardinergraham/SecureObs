@@ -41,6 +41,7 @@ type HomeScreenProps = {
   onOpenWardSettings: () => void;
   onOpenComplianceGovernance: () => void;
   complianceGovernanceEnabled: boolean;
+  onOpenHomeCare: () => void;
   onStart: () => void;
 };
 
@@ -68,6 +69,7 @@ export function HomeScreen({
   onOpenWardSettings,
   onOpenComplianceGovernance,
   complianceGovernanceEnabled,
+  onOpenHomeCare,
   onStart
 }: HomeScreenProps) {
   const appVersion = appConfig.expo.version;
@@ -508,6 +510,7 @@ export function HomeScreen({
       ) : null}
 
       <View style={styles.menu}>
+        <MenuTile title="Home Care" meta="Home locations, continuous cover and wellness checks" disabled={!hasStaffSession || pinChangeRequired} onPress={onOpenHomeCare} />
         <MenuTile
           disabled={!canStart}
           meta={
@@ -524,7 +527,7 @@ export function HomeScreen({
         <MenuTile
           disabled={!selectedWard || !canEditWardSettings}
           meta={canEditWardSettings ? "Intervals, modules, rota and staff setup" : "Manager access required"}
-          title="Ward settings"
+          title={selectedWard?.serviceType === "Home care" ? "Home settings" : "Ward settings"}
           onPress={onOpenWardSettings}
         />
         <MenuTile
