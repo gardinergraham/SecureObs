@@ -5,11 +5,34 @@ import { pool } from '../db/pool.js';
 import { requireAuthenticated, type AuthenticatedRequest } from '../auth.js';
 import { roleInWard } from '../wardAccess.js';
 import { dutyKinds, nextDutyState } from '../homeCare/rules.js';
+type HomeCareRequest = AuthenticatedRequest & { homeCareOrganisationId?: string };
 export const homeCareRouter = Router();
-const route = (fn: (req: AuthenticatedRequest, res: Response) => Promise<unknown>) => (req: AuthenticatedRequest, res: Response, next: NextFunction) => { fn(req, res).catch(next); };
-homeCareRouter.use((req: AuthenticatedRequest, res, next) => { res.setHeader('Cache-Control', 'no-store'); if (requireAuthenticated(req, res))
-    next(); });
-async function location(req: AuthenticatedRequest, res: Response, wardId: string, manager = false) {
+const route = (fn: (req: HomeCareRequest, res: Response) => Promise<unknown>) => (req: HomeCareRequest, res: Response, next: NextFunction) => { fn(req, res).catch(next); };
+// Older app builds already send the selected location in X-Ward-Id.
+// Resolve that context for super-admins instead of silently loading their home organisation.
+homeCareRouter.use(async (req: HomeCareRequest, res, next) => {
+ res.setHeader('Cache-Control','no-store');
+ if(!requireAuthenticated(req,res))return;
+ try {
+  const staff=req.auth!.staff;
+  const requested=req.header('x-organisation-id');
+  if(requested && !z.string().uuid().safeParse(requested).success){res.status(400).json({error:'Invalid organisation context.'});return;}
+  if(staff.role!=='super_admin'){
+   if(requested && requested!==staff.organisationId){res.status(403).json({error:'This account cannot access another organisation.'});return;}
+   req.homeCareOrganisationId=staff.organisationId;
+  }else if(requested){req.homeCareOrganisationId=requested;}
+  else {
+   const wardId=req.header('x-ward-id');
+   if(wardId){
+    const selected=await pool.query('select s.organisation_id from wards w join sites s on s.id=w.site_id where w.id=$1',[wardId]);
+    if(!selected.rows[0]){res.status(404).json({error:'Selected home location no longer exists. Select the site again.'});return;}
+    req.homeCareOrganisationId=selected.rows[0].organisation_id;
+   }else req.homeCareOrganisationId=staff.organisationId;
+  }
+  next();
+ }catch(error){next(error);}
+});
+async function location(req: HomeCareRequest, res: Response, wardId: string, manager = false) {
     const staff = req.auth!.staff, role = roleInWard(staff, wardId);
     if (!role || (manager && !['manager', 'super_admin'].includes(role))) {
         res.status(403).json({ error: 'You do not have access to manage or view this home.' });
@@ -17,7 +40,7 @@ async function location(req: AuthenticatedRequest, res: Response, wardId: string
     }
     const found = await pool.query(`select w.id,w.service_type,s.organisation_id from wards w join sites s on s.id=w.site_id where w.id=$1`, [wardId]);
     const w = found.rows[0];
-    if (!w || w.organisation_id !== staff.organisationId || w.service_type !== 'Home care') {
+    if (!w || w.organisation_id !== req.homeCareOrganisationId || w.service_type !== 'Home care') {
         res.status(404).json({ error: 'Home location not found in your organisation.' });
         return;
     }
@@ -30,11 +53,11 @@ homeCareRouter.get('/', route(async (req, res) => {
     const staff = req.auth!.staff;
     const homes = await pool.query(`select w.id,w.site_id as "siteId",w.name,p.address,p.access_notes as "accessNotes",p.emergency_contact as "emergencyContact",p.care_summary as "careSummary",p.required_carers as "requiredCarers",p.continuous_cover as "continuousCover",p.updated_at as "updatedAt"
  from wards w join sites s on s.id=w.site_id left join home_care_profiles p on p.ward_id=w.id
- where s.organisation_id=$1 and w.service_type='Home care' and ($2::boolean or w.id=any($3::text[])) order by w.name`, [staff.organisationId, staff.role === 'super_admin', staff.allowedWardIds]);
+ where s.organisation_id=$1 and w.service_type='Home care' and ($2::boolean or w.id=any($3::text[])) order by w.name`, [req.homeCareOrganisationId, staff.role === 'super_admin', staff.allowedWardIds]);
     const ids = homes.rows.map(h => h.id);
     const duties = await pool.query(`select d.*,m.display_name as staff_name from home_care_duties d join staff_members m on m.id=d.staff_id where d.ward_id=any($1::text[]) and (d.ends_at>now()-interval '7 days' and d.starts_at<now()+interval '31 days' or d.state in ('present','break')) order by d.starts_at`, [ids]);
-    const residents = await pool.query('select id,ward_id as "wardId",first_name as "firstName",surname from patients where organisation_id=$1 and ward_id=any($2::text[]) and archived=false', [staff.organisationId, ids]);
-    const tasks = await pool.query(`select t.ward_id as "wardId",count(*)::int as outstanding,count(*) filter(where t.due_at<now())::int as overdue from patient_tasks t join patients p on p.id=t.patient_id where t.organisation_id=$1 and t.ward_id=any($2::text[]) and t.status in ('open','accepted') and p.archived=false group by t.ward_id`, [staff.organisationId, ids]);
+    const residents = await pool.query('select id,ward_id as "wardId",first_name as "firstName",surname from patients where organisation_id=$1 and ward_id=any($2::text[]) and archived=false', [req.homeCareOrganisationId, ids]);
+    const tasks = await pool.query(`select t.ward_id as "wardId",count(*)::int as outstanding,count(*) filter(where t.due_at<now())::int as overdue from patient_tasks t join patients p on p.id=t.patient_id where t.organisation_id=$1 and t.ward_id=any($2::text[]) and t.status in ('open','accepted') and p.archived=false group by t.ward_id`, [req.homeCareOrganisationId, ids]);
     const events = await pool.query(`select e.*,m.display_name as actor_name from home_care_events e join home_care_duties d on d.id=e.duty_id join staff_members m on m.id=e.actor_id where d.ward_id=any($1::text[]) and e.recorded_at>now()-interval '7 days' order by e.recorded_at desc limit 500`, [ids]);
     res.json({ homes: homes.rows.map(h => ({ ...h, canManage: ['manager', 'super_admin'].includes(roleInWard(staff, h.id) ?? '') })), tasks: tasks.rows, patients: residents.rows, duties: duties.rows, events: events.rows, serverTime: new Date().toISOString() });
 }));
@@ -63,7 +86,7 @@ homeCareRouter.post('/duties', route(async (req, res) => {
     const db = await pool.connect();
     try {
         await db.query('begin');
-        const member = (await db.query('select * from staff_members where id=$1 and organisation_id=$2 and active=true for update', [d.staffId, req.auth!.staff.organisationId])).rows[0];
+        const member = (await db.query('select * from staff_members where id=$1 and organisation_id=$2 and active=true for update', [d.staffId, req.homeCareOrganisationId])).rows[0];
         if (!member || !member.allowed_ward_ids.includes(d.wardId) || (member.access_expires_at && Date.parse(member.access_expires_at) < Date.parse(d.endsAt)) || (member.access_starts_at && Date.parse(member.access_starts_at) > Date.parse(d.startsAt))) {
             await db.query('rollback');
             res.status(400).json({ error: 'Select an active carer with access to this home throughout the duty.' });
@@ -176,26 +199,26 @@ const newHomeSchema = z.object({id:z.string().uuid(),siteId:z.string().min(1).ma
 homeCareRouter.post('/locations',route(async(req,res)=>{
  const parsed=newHomeSchema.safeParse(req.body);
  if(!parsed.success){res.status(400).json({error:'Choose a home-care site and enter the location name and address.'});return;}
- const d=parsed.data,staff=req.auth!.staff;
+ const d=parsed.data,staff=req.auth!.staff,organisationId=req.homeCareOrganisationId!;
  // Existing home-management access is required; a request cannot promote an ordinary carer.
- const site=(await pool.query('select id from sites where id=$1 and organisation_id=$2',[d.siteId,staff.organisationId])).rows[0];
+ const site=(await pool.query('select id from sites where id=$1 and organisation_id=$2',[d.siteId,organisationId])).rows[0];
  const existingHomes=(await pool.query("select id from wards where site_id=$1 and service_type='Home care'",[d.siteId])).rows;
  if(!site || !existingHomes.length || !existingHomes.some(h=>['manager','super_admin'].includes(roleInWard(staff,h.id)??''))){res.status(403).json({error:'You must manage an existing home in this home-care site to add a location.'});return;}
  const [limit,medication,rostering,security,verified]=await Promise.all([
-  organisationResourceLimit(staff.organisationId,'wardsPerSite'),organisationFeatureEnabled(staff.organisationId,'medication'),organisationFeatureEnabled(staff.organisationId,'rostering'),organisationFeatureEnabled(staff.organisationId,'securityChecks'),organisationFeatureEnabled(staff.organisationId,'verifiedObservations')]);
+  organisationResourceLimit(organisationId,'wardsPerSite'),organisationFeatureEnabled(organisationId,'medication'),organisationFeatureEnabled(organisationId,'rostering'),organisationFeatureEnabled(organisationId,'securityChecks'),organisationFeatureEnabled(organisationId,'verifiedObservations')]);
  const db=await pool.connect();
  try{
   await db.query('begin');
-  await db.query('select id from organisations where id=$1 for update',[staff.organisationId]);
+  await db.query('select id from organisations where id=$1 for update',[organisationId]);
   const previous=(await db.query('select w.site_id,w.name,p.address from wards w left join home_care_profiles p on p.ward_id=w.id where w.id=$1',[d.id])).rows[0];
   if(previous){await db.query('rollback');const same=previous.site_id===d.siteId&&previous.name===d.name&&previous.address===d.address;res.status(same?200:409).json(same?{id:d.id}:{error:'This location reference is already in use.'});return;}
-  const counts=(await db.query('select w.id,w.site_id from wards w join sites s on s.id=w.site_id where s.organisation_id=$1',[staff.organisationId])).rows;
-  const licensed=(await db.query('select licensed_ward_quantity from billing_accounts where organisation_id=$1 and package_selection is not null',[staff.organisationId])).rows[0];
+  const counts=(await db.query('select w.id,w.site_id from wards w join sites s on s.id=w.site_id where s.organisation_id=$1',[organisationId])).rows;
+  const licensed=(await db.query('select licensed_ward_quantity from billing_accounts where organisation_id=$1 and package_selection is not null',[organisationId])).rows[0];
   if((licensed&&counts.length>=licensed.licensed_ward_quantity)||(limit!==null&&counts.filter(w=>w.site_id===d.siteId).length>=limit)){await db.query('rollback');res.status(403).json({error:'The current location allowance is fully used. Increase the subscription allowance before adding another home.'});return;}
   await db.query(`insert into wards(id,site_id,name,service_type,medication_chart_enabled,staff_rota_enabled,security_checks_enabled,verified_observations_enabled,assessment_forms_enabled,food_fluid_chart_enabled) values($1,$2,$3,'Home care',$4,$5,$6,$7,true,true)`,[d.id,d.siteId,d.name,medication,rostering,security,verified]);
   await db.query('insert into home_care_profiles(ward_id,address) values($1,$2)',[d.id,d.address]);
-  await db.query(`update staff_members set allowed_ward_ids=array_append(allowed_ward_ids,$1),allowed_site_ids=case when $2=any(allowed_site_ids) then allowed_site_ids else array_append(allowed_site_ids,$2) end,ward_roles=coalesce(ward_roles,'{}'::jsonb)||jsonb_build_object($1::text,'manager'),updated_at=now() where id=$3 and organisation_id=$4`,[d.id,d.siteId,staff.id,staff.organisationId]);
-  await db.query(`insert into audit_events(id,organisation_id,actor_staff_id,actor_staff_code,event_type,entity_type,entity_id,outcome,details) values($1,$2,$3,$4,'home_care.location_created','ward',$5,'success',$6::jsonb)`,['home-created-'+d.id,staff.organisationId,staff.id,staff.staffCode,d.id,JSON.stringify({siteId:d.siteId})]);
+  if(staff.role!=='super_admin') await db.query(`update staff_members set allowed_ward_ids=array_append(allowed_ward_ids,$1),allowed_site_ids=case when $2=any(allowed_site_ids) then allowed_site_ids else array_append(allowed_site_ids,$2) end,ward_roles=coalesce(ward_roles,'{}'::jsonb)||jsonb_build_object($1::text,'manager'),updated_at=now() where id=$3 and organisation_id=$4`,[d.id,d.siteId,staff.id,organisationId]);
+  await db.query(`insert into audit_events(id,organisation_id,actor_staff_id,actor_staff_code,event_type,entity_type,entity_id,outcome,details) values($1,$2,$3,$4,'home_care.location_created','ward',$5,'success',$6::jsonb)`,['home-created-'+d.id,organisationId,staff.id,staff.staffCode,d.id,JSON.stringify({siteId:d.siteId})]);
   await db.query('commit');res.status(201).json({id:d.id});
  }catch(e){await db.query('rollback');throw e;}finally{db.release();}
 }));

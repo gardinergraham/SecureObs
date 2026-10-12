@@ -39,7 +39,7 @@ moduleAt('../src/routes/homeCare.ts',{
  '../homeCare/rules.js':rules
 });
 const staff={id:resultDuty.staff_id,organisationId:'org',role:'hcf',allowedWardIds:['home']};
-async function run(path,body,member=staff){const req={body,auth:member?{staff:member}:undefined,params:{id:resultDuty.id},query:{}};const res={code:200,setHeader(){},status(n){this.code=n;return this;}};await new Promise((resolve,reject)=>{res.json=x=>{res.body=x;resolve();};middleware[0](req,res,()=>routes[path](req,res,reject));});return res;}
+async function run(path,body,member=staff,headers={}){const req={header:name=>headers[name],body,auth:member?{staff:member}:undefined,params:{id:resultDuty.id},query:{}};const res={code:200,setHeader(){},status(n){this.code=n;return this;}};await new Promise((resolve,reject)=>{res.json=x=>{res.body=x;resolve();};Promise.resolve(middleware[0](req,res,error=>error?reject(error):routes[path](req,res,reject))).catch(reject);});return res;}
 assert.equal((await run('GET /',{},null)).code,401);
 const event={id:'7b7d4f7e-99bc-48ae-b7d5-17e79f62db6b',action:'check_in',notes:''};
 assert.equal((await run('POST /duties/:id/events',event,{...staff,allowedWardIds:[]})).code,403);
@@ -61,3 +61,13 @@ siteAllowed=false;assert.equal((await run('POST /locations',newHome,manager)).co
 locationLimit=1;queries=[];assert.equal((await run('POST /locations',newHome,manager)).code,403);assert.ok(!queries.some(q=>q.sql.startsWith('insert into wards')));
 locationLimit=null;queries=[];assert.equal((await run('POST /locations',newHome,manager)).code,201);assert.ok(queries.some(q=>q.sql.startsWith('update staff_members')&&q.args[2]===manager.id));assert.ok(queries.some(q=>q.sql.includes('home_care.location_created')));assert.ok(queries.some(q=>q.sql==='commit'));
 console.log('PASS: manager home creation, carer denial, unrelated-site denial, location limits, manager access grant and audit.');
+
+locationMode=false;queries=[];org='selected-customer';
+const superAdmin={...staff,role:'super_admin',organisationId:'admin-org'};
+await run('GET /',{},superAdmin,{'x-ward-id':'selected-home'});
+assert.equal(queries.find(q=>q.sql.includes('left join home_care_profiles'))?.args[0],'selected-customer');
+queries=[];await run('GET /',{},staff,{'x-ward-id':'selected-home'});
+assert.equal(queries.find(q=>q.sql.includes('left join home_care_profiles'))?.args[0],staff.organisationId);
+assert.equal((await run('GET /',{},staff,{'x-organisation-id':'11111111-1111-4111-8111-111111111111'})).code,403);
+org='org';
+console.log('PASS: super-admin selected-home organisation context and manager cross-organisation isolation.');
