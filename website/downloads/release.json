@@ -1,15 +1,15 @@
 {
-  "version": "0.1.32",
-  "androidVersionCode": 31,
+  "version": "0.2.00",
+  "androidVersionCode": 32,
   "minimumSupportedVersion": "0.1.7",
-  "publishedAt": "2026-10-03",
+  "publishedAt": "2026-10-12",
   "size": "91.7 MB",
-  "downloadUrl": "https://ziydoaoxastnvilu.public.blob.vercel-storage.com/android/SecureObs-0.1.32.apk",
+  "downloadUrl": "https://ziydoaoxastnvilu.public.blob.vercel-storage.com/android/SecureObs-0.2.00.apk",
   "downloadPageUrl": "https://secure-obs.com/download",
-  "sha256": "1ed1d5f4d8734d73ad7baceee1dcdf2bbfb1b6ee2a437a77ca2bae39b578c9e4",
+  "sha256": "b38079466773a7162968feab1fcbd36d319bce59cc30660e8d565d10c49a9ea9",
   "signingCertificateSha256": "62cbdb9832aa007b14daf1b97a703ac9c153825f9fe6b560693d1853d176af09",
   "releaseNotes": [
-    "Update the screen so force landscape view",
-    "This whill improve fuctionality"
+    "Addded the new Home Care service",
+    "for individual home care"
   ]
 }
