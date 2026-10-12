@@ -1,16 +1,18 @@
 {
-  "version": "0.2.3",
-  "androidVersionCode": 36,
+  "version": "0.2.4",
+  "androidVersionCode": 37,
   "minimumSupportedVersion": "0.1.7",
   "publishedAt": "2026-10-12",
   "size": "91.7 MB",
-  "downloadUrl": "https://ziydoaoxastnvilu.public.blob.vercel-storage.com/android/SecureObs-0.2.3.apk",
+  "downloadUrl": "https://ziydoaoxastnvilu.public.blob.vercel-storage.com/android/SecureObs-0.2.4.apk",
   "downloadPageUrl": "https://secure-obs.com/download",
-  "sha256": "b1ea03e24f14c54fb137d5b4c2bacfa933cea9878cf1a1d94f4a2da1df89d10c",
+  "sha256": "c1ca08c5bbe296acc8e65b2cbc88629004319f29dc36f5f07ac80051451acda2",
   "signingCertificateSha256": "62cbdb9832aa007b14daf1b97a703ac9c153825f9fe6b560693d1853d176af09",
   "releaseNotes": [
-    "Updated the Home Care to",
-    "Staff can be assigned to more than one patients home",
-    "and Managers dashboard has more options"
+    "Created a special Rota service for",
+    "Home Care staff. Included a check in",
+    "facility to monitor staff making sure that",
+    "care is maintained and a carer is always at the patients",
+    "home"
   ]
 }
