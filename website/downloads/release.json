@@ -1,15 +1,16 @@
 {
-  "version": "0.2.01",
-  "androidVersionCode": 33,
+  "version": "0.2.2",
+  "androidVersionCode": 35,
   "minimumSupportedVersion": "0.1.7",
   "publishedAt": "2026-10-12",
   "size": "91.7 MB",
-  "downloadUrl": "https://ziydoaoxastnvilu.public.blob.vercel-storage.com/android/SecureObs-0.2.01.apk",
+  "downloadUrl": "https://ziydoaoxastnvilu.public.blob.vercel-storage.com/android/SecureObs-0.2.2.apk",
   "downloadPageUrl": "https://secure-obs.com/download",
-  "sha256": "3e93cb7aff8a54d2bec8ec82d85a41464b098f0961e4c768932e65024ef22321",
+  "sha256": "4e739385c86b6a78b7fc2306bda1cae572ac65f641b81718fc8b12479a535b07",
   "signingCertificateSha256": "62cbdb9832aa007b14daf1b97a703ac9c153825f9fe6b560693d1853d176af09",
   "releaseNotes": [
-    "Updated the New addition",
-    "on the Home Care section"
+    "Added to the Home Care the ability for",
+    "managers to add new care patients and",
+    "set their detail"
   ]
 }
