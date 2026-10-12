@@ -1,3 +1,4 @@
+import { explicitStaff } from "../homeCareAccess.js";
 import crypto from "node:crypto";
 import { Router } from "express";
 import { z } from "zod";
@@ -1114,6 +1115,6 @@ function verifyPin(pin: string, staff: Pick<StaffMemberRecord, "loginPin" | "log
 }
 
 function toPublicStaff(staff: StaffMemberRecord) {
-  const { loginPin: _loginPin, loginPinHash: _loginPinHash, ...publicStaff } = staff;
+  const { loginPin: _loginPin, loginPinHash: _loginPinHash, ...publicStaff } = explicitStaff(staff);
   return publicStaff;
 }

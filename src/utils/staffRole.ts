@@ -1,4 +1,4 @@
-import type { StaffMember } from "../types/domain";
+import type { Ward, StaffMember } from "../types/domain";
 
 export function normaliseStaffRole(role: StaffMember["role"] | string | undefined): StaffMember["role"] {
   const normalisedRole = role?.toLowerCase();
@@ -35,4 +35,16 @@ export function staffForWard(staff: StaffMember, wardId: string): StaffMember {
     ? staff.wardRoles?.[wardId] ?? normaliseStaffRole(staff.role)
     : "nurse";
   return role === staff.role ? staff : { ...staff, role };
+}
+
+export function homeCareManagerAccess(staff: StaffMember, wards: Ward[]): StaffMember {
+  if (hasAdminAccess(staff)) return staff;
+  const homes = wards.filter(w => w.serviceType === "Home care");
+  const managedSites = new Set(homes.filter(w => staff.allowedWardIds.includes(w.id) &&
+    (staff.wardRoles?.[w.id] ?? staff.role) === "manager").map(w => w.siteId));
+  if (!managedSites.size) return staff;
+  const managedHomes = homes.filter(w => managedSites.has(w.siteId));
+  return {...staff, allowedWardIds: [...new Set([...staff.allowedWardIds,...managedHomes.map(w=>w.id)])],
+    allowedSiteIds: [...new Set([...staff.allowedSiteIds,...managedSites])],
+    wardRoles: {...staff.wardRoles,...Object.fromEntries(managedHomes.map(w=>[w.id,"manager" as const]))}};
 }

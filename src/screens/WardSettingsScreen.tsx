@@ -1,3 +1,4 @@
+import { homeCareManagerAccess } from "../utils/staffRole";
 import React, { useEffect, useState } from "react";
 import { ActivityIndicator, Alert, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 
@@ -51,7 +52,7 @@ export function WardSettingsScreen({
 }: WardSettingsScreenProps) {
   const selectedWard = wards.find((ward) => ward.id === selectedWardId);
   const selectedStaffRecord = staff.find((member) => member.id === selectedStaffId);
-  const selectedStaff = selectedStaffRecord ? staffForWard(selectedStaffRecord, selectedWardId) : undefined;
+  const selectedStaff = selectedStaffRecord ? staffForWard(homeCareManagerAccess(selectedStaffRecord, wards), selectedWardId) : undefined;
   const canEditWardSettings = hasStaffRole(selectedStaff, "manager") || hasAdminAccess(selectedStaff);
   const medicationEntitled = isPackageFeatureEnabled(organisationSettings, "medication");
   const securityChecksEntitled = isPackageFeatureEnabled(organisationSettings, "securityChecks");
@@ -333,7 +334,7 @@ export function WardSettingsScreen({
     const existingStaff = staff.find((member) => member.id === editingStaffId);
     const wardRoles = Object.fromEntries(newStaffWardIds.map((wardId) => [wardId,
       wardId === selectedWardId ? newStaffRole : existingStaff?.wardRoles?.[wardId]
-        ?? (existingStaff?.allowedWardIds.includes(wardId) ? existingStaff.role : "nurse")
+        ?? (existingStaff?.allowedWardIds.includes(wardId) ? existingStaff.role : newStaffRole)
     ])) as NonNullable<StaffMember["wardRoles"]>;
     const staffMember: StaffMember = {
       id: editingStaffId || `staff-${newStaffCode.trim().toLowerCase()}`,
@@ -549,19 +550,22 @@ export function WardSettingsScreen({
               </TouchableOpacity>
             ))}
           </View>
-          <Text style={styles.subLabel}>Ward access</Text>
+          <Text style={styles.subLabel}>{selectedWard?.serviceType === "Home care" ? "Home location access" : "Ward access"}</Text>
+          <Text style={styles.meta}>Select one or more locations. Tap each to select or remove it. {newStaffWardIds.length} selected.</Text>
+          {selectedWard?.serviceType === "Home care" ? <Text style={styles.meta}>Managers oversee every Home Care location in each site they manage. Other staff can access only their selected locations.</Text> : null}
           <View style={styles.optionRow}>
             {wards.map((ward) => {
               const active = newStaffWardIds.includes(ward.id);
               return (
                 <TouchableOpacity
-                  accessibilityRole="button"
+                  accessibilityRole="checkbox"
+                  accessibilityState={{checked:active,disabled:!canEditWardSettings}}
                   disabled={!canEditWardSettings}
                   key={ward.id}
                   onPress={() => toggleStaffWard(ward.id)}
                   style={[styles.optionButton, active && styles.optionButtonActive, !canEditWardSettings && styles.disabledControl]}
                 >
-                  <Text style={[styles.optionText, active && styles.optionTextActive]}>{ward.name}</Text>
+                  <Text style={[styles.optionText, active && styles.optionTextActive]}>{active ? "✓ " : ""}{ward.name}</Text>
                 </TouchableOpacity>
               );
             })}

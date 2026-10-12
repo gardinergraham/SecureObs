@@ -1,3 +1,4 @@
+import { homeCareManagerAccess } from "./src/utils/staffRole";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Alert, AppState, Image, Keyboard, Modal, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { StatusBar } from "expo-status-bar";
@@ -233,7 +234,7 @@ export default function App() {
   const [selectedStaffId, setSelectedStaffId] = useState("");
   const [selectedSiteId, setSelectedSiteId] = useState("");
   const [selectedWardId, setSelectedWardId] = useState("");
-  const scopedStaffMembers = useMemo(() => staffMembers.map((staff) => staffForWard(staff, selectedWardId)), [staffMembers, selectedWardId]);
+  const scopedStaffMembers = useMemo(() => staffMembers.map((staff) => staffForWard(homeCareManagerAccess(staff, wards), selectedWardId)), [staffMembers, selectedWardId, wards]);
   const selectedStaff = scopedStaffMembers.find((staff) => staff.id === selectedStaffId);
   const activeStaff = selectedStaff;
   const selectedStaffCanPrescribe = Boolean(activeStaff?.canPrescribe || hasStaffRole(activeStaff, "doctor"));

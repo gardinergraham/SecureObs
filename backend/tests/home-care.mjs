@@ -75,6 +75,10 @@ console.log('PASS: super-admin selected-home organisation context and manager cr
 locationMode=true;locationLimit=null;siteAllowed=true;
 const combined={...newHome,careSummary:'Daily personal care; assess needs on admission.',requiredCarers:2,continuousCover:true,patient:{firstName:'Test',surname:'Person',reference:'TEST-ONLY-001',dateOfBirth:'1970-02-28',nextOfKinName:'Test Relative',nextOfKinRelationship:'Sibling',nextOfKinTelephone:'',nextOfKinEmail:''}};
 assert.equal(intakeRoutes.newHomeSchema.safeParse(combined).success,true);
+assert.equal(intakeRoutes.newHomeSchema.parse(combined).patient.roomNumber,1);
+assert.equal(intakeRoutes.newHomeSchema.parse({...combined,patient:{...combined.patient,roomNumber:2}}).patient.roomNumber,2);
+for(const roomNumber of [0,-1,1.5]) assert.equal(intakeRoutes.newHomeSchema.safeParse({...combined,patient:{...combined.patient,roomNumber}}).success,false);
+
 assert.equal(intakeRoutes.newHomeSchema.safeParse({...combined,patient:{...combined.patient,dateOfBirth:'2026-02-30'}}).success,false);
 assert.equal(intakeRoutes.newHomeSchema.safeParse({...combined,patient:{...combined.patient,dateOfBirth:'2999-01-01'}}).success,false);
 assert.equal(intakeRoutes.newHomeSchema.safeParse({...combined,patient:{...combined.patient,firstName:''}}).success,false);

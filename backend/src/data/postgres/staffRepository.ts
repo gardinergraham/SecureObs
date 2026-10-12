@@ -1,3 +1,4 @@
+import { explicitStaff, homeCareManagerAccess } from "../../homeCareAccess.js";
 import { pool } from "../../db/pool.js";
 import {
   DuplicateStaffCodeError,
@@ -15,6 +16,7 @@ export const postgresStaffRepository: StaffRepository = {
   },
 
   async upsert(staff) {
+    staff = explicitStaff(staff);
     try {
       const result = await pool.query(
         `
@@ -90,7 +92,7 @@ export const postgresStaffRepository: StaffRepository = {
       [id, organisationId]
     );
 
-    return result.rows[0] ?? null;
+    return withHomeCareAccess(result.rows[0] ?? null);
   },
 
   async findActiveByCode(staffCode, organisationId) {
@@ -111,7 +113,7 @@ export const postgresStaffRepository: StaffRepository = {
       throw new StaffLookupAmbiguousError();
     }
 
-    return result.rows[0] ?? null;
+    return withHomeCareAccess(result.rows[0] ?? null);
   }
 };
 
@@ -167,4 +169,10 @@ const staffReturningSql = `
 
 function isUniqueConflict(error: unknown) {
   return typeof error === "object" && error !== null && "code" in error && error.code === "23505";
+}
+
+async function withHomeCareAccess(staff: StaffMemberRecord | null) {
+  if (!staff || staff.role === "super_admin" || !staff.allowedWardIds.some(id => (staff.wardRoles?.[id] ?? staff.role) === "manager")) return staff;
+  const homes = await pool.query(`select w.id, w.site_id as "siteId" from wards w join sites s on s.id=w.site_id where s.organisation_id=$1 and w.service_type='Home care'`, [staff.organisationId]);
+  return homeCareManagerAccess(staff, homes.rows);
 }

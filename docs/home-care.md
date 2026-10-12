@@ -47,3 +47,10 @@ The combined save writes the location, care profile, patient, manager access and
 Deploy Railway with migration **056_home_care_intake.sql**, then build/distribute the updated Expo app. Existing app versions can still create a location without a patient. No backfill of existing patients is performed. The UI clears a confirmed save before refreshing, so a later refresh failure does not invite another submission of the same patient.
 
 Focused mocked-database tests also cover intake validation, calendar-valid birth dates, future birth-date rejection, patient scoping, care storage, rollback, duplicate references, idempotent replay and location-only saves. Complete a save/reopen walkthrough on a test deployment before real intake.
+
+### Manager scope and patient intake
+A manager assigned the manager role at any Home Care location oversees every Home Care location in that same site, including future locations. This is recalculated on authenticated requests within the organisation. Institutional wards and other sites are not included. Derived access is not saved as individual ward assignments; removing the last manager assignment in a site removes the derived access.
+
+Staff setup supports selecting multiple home locations. Non-managers remain limited to their selected homes. The main Home Care entry is for managers and administrators; carers use My Home Care duties for attendance at assigned homes.
+
+Patient management and combined home intake share their demographic form, date picker and next-of-kin fields. Home patients default to room 1, which can be changed. Use Add another patient / manage patients to add further patients at an existing location; no one-patient-per-home restriction applies. This update needs the backend deployment and a new app build, but no additional database migration beyond the existing Home Care migrations.

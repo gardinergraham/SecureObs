@@ -1,9 +1,9 @@
 import React, { useMemo, useState } from "react";
 import { Alert, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 
-import { SecureDateTimeField } from "../components/SecureDateTimeField";
+import { PatientDetailsFields } from "../components/PatientDetailsFields";
 import type { ObservationLevel, Patient, StaffMember, Ward } from "../types/domain";
-import { calculateAge, formatDateOfBirth } from "../utils/patientDemographics";
+import { calculateAge } from "../utils/patientDemographics";
 import { hasAdminAccess, hasStaffRole } from "../utils/staffRole";
 
 const observationLevels: ObservationLevel[] = ["Intermittent", "Eyesight", "Within arms length"];
@@ -54,7 +54,7 @@ export function PatientManagementScreen({
   const selectedWard = wards.find((ward) => ward.id === selectedWardId);
   const canManagePatients = hasStaffRole(selectedStaff, "manager") || hasAdminAccess(selectedStaff);
   const [selectedPatientId, setSelectedPatientId] = useState("");
-  const [draft, setDraft] = useState<PatientDraft>(() => createDraft());
+  const [draft, setDraft] = useState<PatientDraft>(() => createDraft(selectedWard?.serviceType === "Home care"));
   const [targetWardId, setTargetWardId] = useState(selectedWardId);
   const [transferReason, setTransferReason] = useState("");
   const [archiveReason, setArchiveReason] = useState("");
@@ -161,7 +161,7 @@ export function PatientManagementScreen({
   const clearDraft = () => {
     setSelectedPatientId("");
     setTargetWardId(selectedWardId);
-    setDraft(createDraft());
+    setDraft(createDraft(selectedWard?.serviceType === "Home care"));
   };
 
   const savePatient = async () => {
@@ -169,8 +169,8 @@ export function PatientManagementScreen({
       return;
     }
 
-    const roomNumber = Number.parseInt(draft.roomNumber, 10);
-    if (!draft.hospitalNumber.trim() || !draft.firstName.trim() || !draft.surname.trim() || Number.isNaN(roomNumber)) {
+    const roomNumber = Number(draft.roomNumber);
+    if (!draft.hospitalNumber.trim() || !draft.firstName.trim() || !draft.surname.trim() || !draft.roomNumber.trim() || !Number.isInteger(roomNumber) || roomNumber < (selectedWard?.serviceType === "Home care" ? 1 : 0)) {
       Alert.alert("Patient details needed", "Enter patient number, name and room number before saving.");
       return;
     }
@@ -199,7 +199,7 @@ export function PatientManagementScreen({
       wardId: targetWardId || selectedWardId,
       roomNumber,
       observationLevel: draft.observationLevel,
-      latestObservationPlace: selectedPatient?.latestObservationPlace ?? "Side room",
+      latestObservationPlace: selectedPatient?.latestObservationPlace ?? (selectedWard?.serviceType === "Home care" ? "Home" : "Side room"),
       latestObservationTime: selectedPatient?.latestObservationTime ?? now,
       latestObservedBy: selectedPatient?.latestObservedBy ?? "",
       latestPresentation: selectedPatient?.latestPresentation ?? "Awake",
@@ -367,105 +367,7 @@ export function PatientManagementScreen({
 
         <View style={styles.editor}>
           <Text style={styles.panelTitle}>{selectedPatient ? "Edit patient" : "Add patient"}</Text>
-          <TextInput placeholderTextColor="#6f7f87"
-            editable={canManagePatients}
-            onChangeText={(hospitalNumber) => setDraft((current) => ({ ...current, hospitalNumber }))}
-            placeholder="Hospital / local patient number"
-            style={styles.input}
-            value={draft.hospitalNumber}
-          />
-          <View style={styles.formRow}>
-            <TextInput placeholderTextColor="#6f7f87"
-              editable={canManagePatients}
-              onChangeText={(firstName) => setDraft((current) => ({ ...current, firstName }))}
-              placeholder="First name"
-              style={[styles.input, styles.flexInput]}
-              value={draft.firstName}
-            />
-            <TextInput placeholderTextColor="#6f7f87"
-              editable={canManagePatients}
-              onChangeText={(surname) => setDraft((current) => ({ ...current, surname }))}
-              placeholder="Surname"
-              style={[styles.input, styles.flexInput]}
-              value={draft.surname}
-            />
-          </View>
-          <View style={styles.demographicPanel}>
-            <Text style={styles.label}>Date of birth</Text>
-            <View style={styles.formRow}>
-              <SecureDateTimeField
-                disabled={!canManagePatients}
-                label="Choose date of birth"
-                maximumDate={new Date()}
-                mode="date"
-                onChange={(dateOfBirth) => setDraft((current) => ({ ...current, dateOfBirth }))}
-                optional
-                style={styles.flexInput}
-                value={draft.dateOfBirth}
-              />
-              <View style={styles.ageBox}>
-                <Text style={styles.currentWardLabel}>Age</Text>
-                <Text style={styles.currentWardText}>
-                  {calculateAge(draft.dateOfBirth) ?? "—"}
-                </Text>
-              </View>
-            </View>
-            {selectedPatient?.dateOfBirth ? (
-              <Text style={styles.helperText}>Recorded date: {formatDateOfBirth(selectedPatient.dateOfBirth)}</Text>
-            ) : null}
-          </View>
-          <TextInput placeholderTextColor="#6f7f87"
-            editable={canManagePatients}
-            keyboardType="number-pad"
-            onChangeText={(roomNumber) => setDraft((current) => ({ ...current, roomNumber }))}
-            placeholder="Room number"
-            style={styles.input}
-            value={draft.roomNumber}
-          />
-
-          <View style={styles.demographicPanel}>
-            <Text style={styles.label}>Next of kin / primary contact</Text>
-            <View style={styles.formRow}>
-              <TextInput
-                placeholderTextColor="#6f7f87"
-                editable={canManagePatients}
-                onChangeText={(nextOfKinName) => setDraft((current) => ({ ...current, nextOfKinName }))}
-                placeholder="Contact name"
-                style={[styles.input, styles.flexInput]}
-                value={draft.nextOfKinName}
-              />
-              <TextInput
-                placeholderTextColor="#6f7f87"
-                editable={canManagePatients}
-                onChangeText={(nextOfKinRelationship) => setDraft((current) => ({ ...current, nextOfKinRelationship }))}
-                placeholder="Relationship to patient"
-                style={[styles.input, styles.flexInput]}
-                value={draft.nextOfKinRelationship}
-              />
-            </View>
-            <View style={styles.formRow}>
-              <TextInput
-                placeholderTextColor="#6f7f87"
-                editable={canManagePatients}
-                keyboardType="phone-pad"
-                onChangeText={(nextOfKinTelephone) => setDraft((current) => ({ ...current, nextOfKinTelephone }))}
-                placeholder="Telephone"
-                style={[styles.input, styles.flexInput]}
-                value={draft.nextOfKinTelephone}
-              />
-              <TextInput
-                placeholderTextColor="#6f7f87"
-                autoCapitalize="none"
-                editable={canManagePatients}
-                keyboardType="email-address"
-                onChangeText={(nextOfKinEmail) => setDraft((current) => ({ ...current, nextOfKinEmail }))}
-                placeholder="Email address"
-                style={[styles.input, styles.flexInput]}
-                value={draft.nextOfKinEmail}
-              />
-            </View>
-            <Text style={styles.helperText}>Optional. Record only authorised contact information.</Text>
-          </View>
+          <PatientDetailsFields draft={draft} editable={canManagePatients} homeCare={selectedWard?.serviceType === "Home care"} recordedDateOfBirth={selectedPatient?.dateOfBirth} onChange={(field,value)=>setDraft(current=>({...current,[field]:value}))}/>
 
           <View style={styles.currentWardBox}>
             <Text style={styles.currentWardLabel}>{selectedWard?.serviceType === "Home care" ? "Home location" : "Current ward"}</Text>
@@ -585,7 +487,7 @@ export function PatientManagementScreen({
   );
 }
 
-function createDraft(): PatientDraft {
+function createDraft(homeCare = false): PatientDraft {
   return {
     hospitalNumber: "",
     firstName: "",
@@ -595,7 +497,7 @@ function createDraft(): PatientDraft {
     nextOfKinRelationship: "",
     nextOfKinTelephone: "",
     nextOfKinEmail: "",
-    roomNumber: "",
+    roomNumber: homeCare ? "1" : "",
     observationLevel: "Intermittent"
   };
 }

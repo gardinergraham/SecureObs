@@ -204,6 +204,7 @@ const birthDateSchema=z.string().refine(value=>{
 },'Enter a valid date of birth that is not in the future.');
 const intakePatientSchema=z.object({
  firstName:z.string().trim().min(1).max(255),surname:z.string().trim().min(1).max(255),
+ roomNumber:z.number().int().min(1).max(99999).default(1),
  reference:z.string().trim().min(1).max(100),dateOfBirth:birthDateSchema.default(''),
  nextOfKinName:z.string().trim().max(255).default(''),nextOfKinRelationship:z.string().trim().max(255).default(''),
  nextOfKinTelephone:z.string().trim().max(100).default(''),nextOfKinEmail:z.union([z.literal(''),z.string().trim().email().max(254)]).default('')
@@ -243,7 +244,7 @@ homeCareRouter.post('/locations',route(async(req,res)=>{
   if(d.patient){
    const patient=d.patient;
    const number=(await db.query('select coalesce(max(patient_number),0)+1 as next_number from patients where organisation_id=$1',[organisationId])).rows[0]?.next_number??1;
-   await db.query(`insert into patients(id,organisation_id,patient_number,hospital_number,first_name,surname,date_of_birth,next_of_kin_name,next_of_kin_relationship,next_of_kin_telephone,next_of_kin_email,ward_id,room_number,latest_observation_place) values($1,$2,$3,$4,$5,$6,nullif($7,'')::date,$8,$9,$10,$11,$12,1,'Home')`,[patientId,organisationId,number,patient.reference,patient.firstName,patient.surname,patient.dateOfBirth,patient.nextOfKinName,patient.nextOfKinRelationship,patient.nextOfKinTelephone,patient.nextOfKinEmail,d.id]);
+   await db.query(`insert into patients(id,organisation_id,patient_number,hospital_number,first_name,surname,date_of_birth,next_of_kin_name,next_of_kin_relationship,next_of_kin_telephone,next_of_kin_email,ward_id,room_number,latest_observation_place) values($1,$2,$3,$4,$5,$6,nullif($7,'')::date,$8,$9,$10,$11,$12,$13,'Home')`,[patientId,organisationId,number,patient.reference,patient.firstName,patient.surname,patient.dateOfBirth,patient.nextOfKinName,patient.nextOfKinRelationship,patient.nextOfKinTelephone,patient.nextOfKinEmail,d.id,patient.roomNumber]);
    await db.query(`insert into audit_events(id,organisation_id,actor_staff_id,actor_staff_code,event_type,entity_type,entity_id,outcome,details) values($1,$2,$3,$4,'patient.created','patient',$5,'success',$6::jsonb)`,['home-patient-created-'+d.id,organisationId,staff.id,staff.staffCode,patientId,JSON.stringify({wardId:d.id,source:'home_care_intake'})]);
   }
   if(staff.role!=='super_admin') await db.query(`update staff_members set allowed_ward_ids=array_append(allowed_ward_ids,$1),allowed_site_ids=case when $2=any(allowed_site_ids) then allowed_site_ids else array_append(allowed_site_ids,$2) end,ward_roles=coalesce(ward_roles,'{}'::jsonb)||jsonb_build_object($1::text,'manager'),updated_at=now() where id=$3 and organisation_id=$4`,[d.id,d.siteId,staff.id,organisationId]);

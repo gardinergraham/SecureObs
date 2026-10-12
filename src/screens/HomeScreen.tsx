@@ -102,6 +102,7 @@ export function HomeScreen({
   const canStart = Boolean(selectedStaff && selectedSite && selectedWard && selectedWard.siteId === selectedSiteId && !pinChangeRequired && !defaultsBusy);
   const canOpenAdminSettings = !pinChangeRequired && hasAdminAccess(selectedStaff);
   const canEditWardSettings = !pinChangeRequired && (hasStaffRole(selectedStaff, "manager") || hasAdminAccess(selectedStaff));
+  const canOpenHomeCare = isHomeCareSite && canEditWardSettings;
   const canOpenCompliance = !pinChangeRequired && Boolean(selectedWard) && canEditWardSettings && complianceGovernanceEnabled;
   const updateAvailable = Boolean(availableRelease && compareVersions(availableRelease.version, appVersion) > 0);
   const updateRequired = Boolean(availableRelease && compareVersions(availableRelease.minimumSupportedVersion, appVersion) > 0);
@@ -513,19 +514,20 @@ export function HomeScreen({
       <View style={styles.menu}>
 
         <MenuTile
-          disabled={isHomeCareSite ? !hasStaffSession || pinChangeRequired || defaultsBusy : !canStart}
-          meta={isHomeCareSite ? "Home locations, continuous cover and wellness checks" :
+          disabled={canOpenHomeCare ? !hasStaffSession || pinChangeRequired || defaultsBusy : !canStart}
+          meta={canOpenHomeCare ? "Home locations, continuous cover and wellness checks" :
             pinChangeRequired
               ? "Update your temporary PIN first"
               : canStart
                 ? `Confirm location: ${selectedSite?.name} — ${selectedWard?.name}`
                 : "Select staff, site and ward"
           }
-          title={isHomeCareSite ? "Continue to Home Care" : selectedWard ? `Continue to ${selectedWard.name}` : "Select a ward to continue"}
+          title={canOpenHomeCare ? "Continue to Home Care" : selectedWard ? `Continue to ${selectedWard.name}` : "Select a ward to continue"}
           tone="primary"
-          onPress={isHomeCareSite ? onOpenHomeCare : onStart}
+          onPress={canOpenHomeCare ? onOpenHomeCare : onStart}
         />
-        {isHomeCareSite ? <MenuTile title={selectedWard ? `Continue to ${selectedWard.name}` : "Select a home location"} meta="Open this home’s patient care records" disabled={!canStart} onPress={onStart} /> : null}
+        {isHomeCareSite && hasStaffSession && !canOpenHomeCare ? <MenuTile title="My Home Care duties" meta="Record attendance, breaks and wellness checks at your assigned homes" disabled={!canStart} onPress={onOpenHomeCare}/> : null}
+        {canOpenHomeCare ? <MenuTile title={selectedWard ? `Continue to ${selectedWard.name}` : "Select a home location"} meta="Open this home’s patient care records" disabled={!canStart} onPress={onStart} /> : null}
         <MenuTile
           disabled={!selectedWard || !canEditWardSettings}
           meta={canEditWardSettings ? "Intervals, modules, rota and staff setup" : "Manager access required"}
