@@ -51,3 +51,10 @@ export type HomeCareSnapshot = {
     events: HomeCareEvent[];
     serverTime: string;
 };
+
+export type HomeCareIntake = {
+ id:string;siteId:string;name:string;address:string;
+ accessNotes:string;emergencyContact:string;careSummary:string;
+ requiredCarers:number;continuousCover:boolean;
+ patient?:{firstName:string;surname:string;reference:string;dateOfBirth:string;nextOfKinName:string;nextOfKinRelationship:string;nextOfKinTelephone:string;nextOfKinEmail:string};
+};

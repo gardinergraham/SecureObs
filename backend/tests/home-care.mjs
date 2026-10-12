@@ -27,10 +27,10 @@ assert.equal(homeCoverage({...home,continuousCover:false},[],now).gap,false);
 assert.throws(()=>parseLocalDutyDate('2026-02-30 12:00'));
 assert.throws(()=>parseLocalDutyDate('12/10/26'));
 assert.ok(parseLocalDutyDate('2026-10-12 12:00'));
-let locationMode=false,siteAllowed=true,locationLimit=null;
+let locationMode=false,siteAllowed=true,locationLimit=null,failPatient=false,duplicatePatient=false,previousHome;
 const routes={},middleware=[];let queries=[],resultDuty={id:'47f992bd-1b24-4611-b621-9b31c5910b03',ward_id:'home',staff_id:'11111111-1111-4111-8111-111111111111',state:'planned',starts_at:new Date(Date.now()-60000),ends_at:new Date(Date.now()+3600000)},org='org',replay;
-const query=async(sql,args)=>{queries.push({sql,args});if(locationMode){if(sql.startsWith('select id from sites'))return {rows:siteAllowed?[{id:'site'}]:[]};if(sql.startsWith('select id from wards where site_id'))return {rows:[{id:'home'}]};if(sql.startsWith('select w.id,w.site_id from wards'))return {rows:[{id:'home',site_id:'site'}]};return {rows:[]};}if(sql.includes('from wards w'))return {rows:[{id:'home',organisation_id:org,service_type:'Home care'}]};if(sql.includes('from home_care_duties where id'))return {rows:[resultDuty]};if(sql.includes('from home_care_events where id'))return {rows:replay?[replay]:[]};return {rows:[]};};
-moduleAt('../src/routes/homeCare.ts',{
+const query=async(sql,args)=>{queries.push({sql,args});if(locationMode){if(sql.startsWith('insert into patients')&&failPatient)throw Error('simulated patient insert failure');if(sql.startsWith('select id from patients'))return {rows:duplicatePatient?[{id:'existing'}]:[]};if(sql.startsWith('select w.site_id,w.name,p.address'))return {rows:previousHome?[previousHome]:[]};if(sql.startsWith('select id from sites'))return {rows:siteAllowed?[{id:'site'}]:[]};if(sql.startsWith('select id from wards where site_id'))return {rows:[{id:'home'}]};if(sql.startsWith('select w.id,w.site_id from wards'))return {rows:[{id:'home',site_id:'site'}]};return {rows:[]};}if(sql.includes('from wards w'))return {rows:[{id:'home',organisation_id:org,service_type:'Home care'}]};if(sql.includes('from home_care_duties where id'))return {rows:[resultDuty]};if(sql.includes('from home_care_events where id'))return {rows:replay?[replay]:[]};return {rows:[]};};
+const intakeRoutes=moduleAt('../src/routes/homeCare.ts',{
  './config.js':{organisationResourceLimit:async()=>locationLimit,organisationFeatureEnabled:async()=>true},
  express:{Router:()=>({use:f=>middleware.push(f),get:(p,f)=>routes['GET '+p]=f,post:(p,f)=>routes['POST '+p]=f})},
  '../db/pool.js':{pool:{query,connect:async()=>({query,release(){}})}},
@@ -71,3 +71,24 @@ assert.equal(queries.find(q=>q.sql.includes('left join home_care_profiles'))?.ar
 assert.equal((await run('GET /',{},staff,{'x-organisation-id':'11111111-1111-4111-8111-111111111111'})).code,403);
 org='org';
 console.log('PASS: super-admin selected-home organisation context and manager cross-organisation isolation.');
+
+locationMode=true;locationLimit=null;siteAllowed=true;
+const combined={...newHome,careSummary:'Daily personal care; assess needs on admission.',requiredCarers:2,continuousCover:true,patient:{firstName:'Test',surname:'Person',reference:'TEST-ONLY-001',dateOfBirth:'1970-02-28',nextOfKinName:'Test Relative',nextOfKinRelationship:'Sibling',nextOfKinTelephone:'',nextOfKinEmail:''}};
+assert.equal(intakeRoutes.newHomeSchema.safeParse(combined).success,true);
+assert.equal(intakeRoutes.newHomeSchema.safeParse({...combined,patient:{...combined.patient,dateOfBirth:'2026-02-30'}}).success,false);
+assert.equal(intakeRoutes.newHomeSchema.safeParse({...combined,patient:{...combined.patient,dateOfBirth:'2999-01-01'}}).success,false);
+assert.equal(intakeRoutes.newHomeSchema.safeParse({...combined,patient:{...combined.patient,firstName:''}}).success,false);
+assert.equal(intakeRoutes.newHomeSchema.safeParse({...combined,requiredCarers:0}).success,false);
+queries=[];assert.equal((await run('POST /locations',combined,manager)).code,201);
+const patientWrite=queries.find(q=>q.sql.startsWith('insert into patients'));
+assert.equal(patientWrite.args[1],manager.organisationId);assert.equal(patientWrite.args[11],combined.id);
+assert.equal(queries.find(q=>q.sql.startsWith('insert into home_care_profiles')).args[5],2);
+assert.ok(queries.some(q=>q.sql.includes("'patient.created'")));
+failPatient=true;queries=[];await assert.rejects(()=>run('POST /locations',combined,manager),/simulated patient insert failure/);
+assert.ok(queries.some(q=>q.sql==='rollback'));assert.ok(!queries.some(q=>q.sql==='commit'));failPatient=false;
+duplicatePatient=true;queries=[];assert.equal((await run('POST /locations',combined,manager)).code,409);assert.ok(!queries.some(q=>q.sql.startsWith('insert into wards')));duplicatePatient=false;
+previousHome={site_id:combined.siteId,setup_fingerprint:require('node:crypto').createHash('sha256').update(JSON.stringify(intakeRoutes.newHomeSchema.parse(combined))).digest('hex')};
+queries=[];const retried=await run('POST /locations',combined,manager);assert.equal(retried.code,200);assert.equal(retried.body.patientId,'home-patient-'+combined.id);assert.ok(!queries.some(q=>q.sql.startsWith('insert into')));
+assert.equal((await run('POST /locations',{...combined,careSummary:'Changed'},manager)).code,409);previousHome=undefined;
+queries=[];assert.equal((await run('POST /locations',newHome,manager)).code,201);assert.ok(!queries.some(q=>q.sql.startsWith('insert into patients')));
+console.log('PASS: combined intake validation, scoped patient creation, care storage, rollback on patient failure, duplicate reference rejection, idempotent replay and location-only mode.');

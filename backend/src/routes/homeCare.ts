@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { Router, type Response, type NextFunction } from 'express';
 import { z } from 'zod';
 import { organisationFeatureEnabled, organisationResourceLimit } from './config.js';
@@ -195,10 +196,26 @@ homeCareRouter.post('/duties/:id/events', route(async (req, res) => {
     }
 }));
 
-const newHomeSchema = z.object({id:z.string().uuid(),siteId:z.string().min(1).max(150),name:z.string().trim().min(1).max(200),address:z.string().trim().min(1).max(1000)}).strict();
+const birthDateSchema=z.string().refine(value=>{
+ if(value==='')return true;
+ if(!/^\d{4}-\d{2}-\d{2}$/.test(value))return false;
+ const date=new Date(value+'T00:00:00Z');
+ return Number.isFinite(date.getTime())&&date.toISOString().slice(0,10)===value&&value<=new Date().toISOString().slice(0,10);
+},'Enter a valid date of birth that is not in the future.');
+const intakePatientSchema=z.object({
+ firstName:z.string().trim().min(1).max(255),surname:z.string().trim().min(1).max(255),
+ reference:z.string().trim().min(1).max(100),dateOfBirth:birthDateSchema.default(''),
+ nextOfKinName:z.string().trim().max(255).default(''),nextOfKinRelationship:z.string().trim().max(255).default(''),
+ nextOfKinTelephone:z.string().trim().max(100).default(''),nextOfKinEmail:z.union([z.literal(''),z.string().trim().email().max(254)]).default('')
+}).strict();
+export const newHomeSchema = z.object({id:z.string().uuid(),siteId:z.string().min(1).max(150),name:z.string().trim().min(1).max(200),address:z.string().trim().min(1).max(1000),
+ accessNotes:z.string().trim().max(2000).default(''),emergencyContact:z.string().trim().max(1000).default(''),
+ careSummary:z.string().trim().max(4000).default(''),requiredCarers:z.number().int().min(1).max(10).default(1),continuousCover:z.boolean().default(true),
+ patient:intakePatientSchema.optional()
+}).strict();
 homeCareRouter.post('/locations',route(async(req,res)=>{
  const parsed=newHomeSchema.safeParse(req.body);
- if(!parsed.success){res.status(400).json({error:'Choose a home-care site and enter the location name and address.'});return;}
+ if(!parsed.success){res.status(400).json({error:parsed.error.issues[0]?.message === 'Enter a valid date of birth that is not in the future.' ? parsed.error.issues[0].message : 'Complete the home details, valid carer count and patient name/reference if adding a patient. Check the next-of-kin email address.'});return;}
  const d=parsed.data,staff=req.auth!.staff,organisationId=req.homeCareOrganisationId!;
  // Existing home-management access is required; a request cannot promote an ordinary carer.
  const site=(await pool.query('select id from sites where id=$1 and organisation_id=$2',[d.siteId,organisationId])).rows[0];
@@ -206,19 +223,31 @@ homeCareRouter.post('/locations',route(async(req,res)=>{
  if(!site || !existingHomes.length || !existingHomes.some(h=>['manager','super_admin'].includes(roleInWard(staff,h.id)??''))){res.status(403).json({error:'You must manage an existing home in this home-care site to add a location.'});return;}
  const [limit,medication,rostering,security,verified]=await Promise.all([
   organisationResourceLimit(organisationId,'wardsPerSite'),organisationFeatureEnabled(organisationId,'medication'),organisationFeatureEnabled(organisationId,'rostering'),organisationFeatureEnabled(organisationId,'securityChecks'),organisationFeatureEnabled(organisationId,'verifiedObservations')]);
+ const fingerprint=createHash('sha256').update(JSON.stringify(d)).digest('hex');
+ const patientId=d.patient?'home-patient-'+d.id:null;
  const db=await pool.connect();
  try{
   await db.query('begin');
   await db.query('select id from organisations where id=$1 for update',[organisationId]);
-  const previous=(await db.query('select w.site_id,w.name,p.address from wards w left join home_care_profiles p on p.ward_id=w.id where w.id=$1',[d.id])).rows[0];
-  if(previous){await db.query('rollback');const same=previous.site_id===d.siteId&&previous.name===d.name&&previous.address===d.address;res.status(same?200:409).json(same?{id:d.id}:{error:'This location reference is already in use.'});return;}
+  const previous=(await db.query('select w.site_id,w.name,p.address,p.setup_fingerprint from wards w left join home_care_profiles p on p.ward_id=w.id where w.id=$1',[d.id])).rows[0];
+  if(previous){await db.query('rollback');const same=previous.site_id===d.siteId&&previous.setup_fingerprint===fingerprint;res.status(same?200:409).json(same?{id:d.id,patientId}:{error:'This location reference is already in use.'});return;}
   const counts=(await db.query('select w.id,w.site_id from wards w join sites s on s.id=w.site_id where s.organisation_id=$1',[organisationId])).rows;
   const licensed=(await db.query('select licensed_ward_quantity from billing_accounts where organisation_id=$1 and package_selection is not null',[organisationId])).rows[0];
   if((licensed&&counts.length>=licensed.licensed_ward_quantity)||(limit!==null&&counts.filter(w=>w.site_id===d.siteId).length>=limit)){await db.query('rollback');res.status(403).json({error:'The current location allowance is fully used. Increase the subscription allowance before adding another home.'});return;}
+  if(d.patient){
+   const duplicate=await db.query('select id from patients where organisation_id=$1 and lower(hospital_number)=lower($2)',[organisationId,d.patient.reference]);
+   if(duplicate.rows.length){await db.query('rollback');res.status(409).json({error:'This patient reference already exists. Use patient management to transfer or restore the existing patient instead.'});return;}
+  }
   await db.query(`insert into wards(id,site_id,name,service_type,medication_chart_enabled,staff_rota_enabled,security_checks_enabled,verified_observations_enabled,assessment_forms_enabled,food_fluid_chart_enabled) values($1,$2,$3,'Home care',$4,$5,$6,$7,true,true)`,[d.id,d.siteId,d.name,medication,rostering,security,verified]);
-  await db.query('insert into home_care_profiles(ward_id,address) values($1,$2)',[d.id,d.address]);
+  await db.query('insert into home_care_profiles(ward_id,address,access_notes,emergency_contact,care_summary,required_carers,continuous_cover,setup_fingerprint) values($1,$2,$3,$4,$5,$6,$7,$8)',[d.id,d.address,d.accessNotes,d.emergencyContact,d.careSummary,d.requiredCarers,d.continuousCover,fingerprint]);
+  if(d.patient){
+   const patient=d.patient;
+   const number=(await db.query('select coalesce(max(patient_number),0)+1 as next_number from patients where organisation_id=$1',[organisationId])).rows[0]?.next_number??1;
+   await db.query(`insert into patients(id,organisation_id,patient_number,hospital_number,first_name,surname,date_of_birth,next_of_kin_name,next_of_kin_relationship,next_of_kin_telephone,next_of_kin_email,ward_id,room_number,latest_observation_place) values($1,$2,$3,$4,$5,$6,nullif($7,'')::date,$8,$9,$10,$11,$12,1,'Home')`,[patientId,organisationId,number,patient.reference,patient.firstName,patient.surname,patient.dateOfBirth,patient.nextOfKinName,patient.nextOfKinRelationship,patient.nextOfKinTelephone,patient.nextOfKinEmail,d.id]);
+   await db.query(`insert into audit_events(id,organisation_id,actor_staff_id,actor_staff_code,event_type,entity_type,entity_id,outcome,details) values($1,$2,$3,$4,'patient.created','patient',$5,'success',$6::jsonb)`,['home-patient-created-'+d.id,organisationId,staff.id,staff.staffCode,patientId,JSON.stringify({wardId:d.id,source:'home_care_intake'})]);
+  }
   if(staff.role!=='super_admin') await db.query(`update staff_members set allowed_ward_ids=array_append(allowed_ward_ids,$1),allowed_site_ids=case when $2=any(allowed_site_ids) then allowed_site_ids else array_append(allowed_site_ids,$2) end,ward_roles=coalesce(ward_roles,'{}'::jsonb)||jsonb_build_object($1::text,'manager'),updated_at=now() where id=$3 and organisation_id=$4`,[d.id,d.siteId,staff.id,organisationId]);
   await db.query(`insert into audit_events(id,organisation_id,actor_staff_id,actor_staff_code,event_type,entity_type,entity_id,outcome,details) values($1,$2,$3,$4,'home_care.location_created','ward',$5,'success',$6::jsonb)`,['home-created-'+d.id,organisationId,staff.id,staff.staffCode,d.id,JSON.stringify({siteId:d.siteId})]);
-  await db.query('commit');res.status(201).json({id:d.id});
+  await db.query('commit');res.status(201).json({id:d.id,patientId});
  }catch(e){await db.query('rollback');throw e;}finally{db.release();}
 }));

@@ -37,3 +37,13 @@ Before real care use, validate on a test deployment with a manager and two carer
 The sign-in screen shows Home Care as the primary action only when the selected site has a Home care location, with Home location wording and a secondary entry to the selected home’s clinical records. This update requires a backend deployment and a new Expo build, but no additional migration beyond 055. Manager location creation is transactional, respects organisation and site boundaries and subscription limits, and records an audit event.
 
 Super-admin context regression: Home Care now resolves the selected location’s organisation from X-Ward-Id (or an explicit validated X-Organisation-Id). Managers cannot use these headers to access another organisation. The app also refreshes the selected customer, rather than the admin account’s own organisation, after creating a location.
+
+## Combined home and patient intake
+
+The **Add home location / patient** form now offers **Add home and patient** (default) or **Add location only**. It collects the home name/address/access instructions, care needs and risks, emergency contact, required carers and continuous-care/visit preference. Patient mode also collects first name, surname, a required unique organisation patient reference, optional date of birth and optional next-of-kin contacts.
+
+The combined save writes the location, care profile, patient, manager access and audit events in one transaction. A patient insert failure rolls the complete setup back. Identical retries return the original location/patient; reuse of that write ID with changed details is rejected. Existing patient references are rejected so an existing patient must be transferred/restored through patient management rather than duplicated. The care summary is the home's setup summary, not a completed clinical assessment or signed care plan.
+
+Deploy Railway with migration **056_home_care_intake.sql**, then build/distribute the updated Expo app. Existing app versions can still create a location without a patient. No backfill of existing patients is performed. The UI clears a confirmed save before refreshing, so a later refresh failure does not invite another submission of the same patient.
+
+Focused mocked-database tests also cover intake validation, calendar-valid birth dates, future birth-date rejection, patient scoping, care storage, rollback, duplicate references, idempotent replay and location-only saves. Complete a save/reopen walkthrough on a test deployment before real intake.

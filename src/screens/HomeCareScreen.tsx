@@ -4,6 +4,7 @@ import type { StaffMember, Site } from '../types/domain';
 import type { HomeCareSnapshot, HomeCareProfile, HomeCareDuty } from '../types/homeCare';
 import { createHomeCareLocation, loadHomeCare, saveHomeCareDuty, saveHomeCareEvent, saveHomeCareProfile } from '../services/api';
 import { homeCoverage, parseLocalDutyDate } from '../utils/homeCare';
+const emptyIntake={accessNotes:'',emergencyContact:'',careSummary:'',requiredCarers:'1',continuousCover:true,firstName:'',surname:'',reference:'',dateOfBirth:'',nextOfKinName:'',nextOfKinRelationship:'',nextOfKinTelephone:'',nextOfKinEmail:''};
 const kinds: HomeCareDuty['kind'][] = ['day', 'waking_night', 'sleep_in', 'live_in', 'wellness'];
 const label = (s: string) => s.replace(/_/g, ' ');
 const date = (s: string | number) => new Date(s).toLocaleString();
@@ -38,6 +39,9 @@ export function HomeCareScreen({ staff, staffMembers, sites, onLocationsChanged,
     const [newSite,setNewSite]=useState('');
     const [newName,setNewName]=useState('');
     const [newAddress,setNewAddress]=useState('');
+    const [withPatient,setWithPatient]=useState(true);
+    const [intake,setIntake]=useState(emptyIntake);
+    const [savedMessage,setSavedMessage]=useState('');
     const [refreshed, setRefreshed] = useState(0);
     const [now, setNow] = useState(Date.now());
     const [address, setAddress] = useState(''), [access, setAccess] = useState(''), [emergency, setEmergency] = useState(''), [summary, setSummary] = useState(''), [required, setRequired] = useState('1'), [continuous, setContinuous] = useState(true);
@@ -79,7 +83,48 @@ export function HomeCareScreen({ staff, staffMembers, sites, onLocationsChanged,
     const home = snapshot?.homes.find(h => h.id === selected);
     async function event(d: HomeCareDuty, actionName: string) { const data = { action: actionName, notes: notes[d.id] ?? '', ...(actionName === 'wellness' ? { wellnessOutcome: outcomes[d.id] } : {}) }; await saveHomeCareEvent(d.id, { id: retryId(d.id + actionName, data), ...data }); delete pending.current[d.id + actionName]; setNotes(n => ({ ...n, [d.id]: '' })); }
     return <View style={styles.page}><View style={styles.row}><Button title="Back" onPress={onBack}/><Button title="Refresh" disabled={busy} onPress={() => void action(refresh)}/></View><Text style={styles.title}>Home Care</Text><Text style={styles.muted}>Continuous care, live-in duty periods and wellness checks</Text><Text>Last successful update: {refreshed ? date(refreshed) : 'Loading…'}{refreshed && now - refreshed > 90000 ? ' — OUT OF DATE: refresh before relying on cover' : ''}</Text><Text style={styles.muted}>Attendance is a carer’s recorded confirmation, not verified physical presence. Live-in cover must include duty periods, breaks and relief.</Text>{error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}
- {managedSites.length ? <View style={styles.card}><Button title={adding ? "Close new location form" : "Add home location"} disabled={busy} onPress={()=>{setAdding(!adding);if(!newSite)setNewSite(managedSites[0]!.id);}}/>{adding ? <><Text style={styles.heading}>New home location</Text><Text>Choose the site/company, then enter the home name and address. You will have manager access to the new home.</Text><View style={styles.row}>{managedSites.map(site=><Button key={site.id} title={(newSite===site.id?'✓ ':'')+site.name} onPress={()=>setNewSite(site.id)}/>)}</View><Field label="Home location name" value={newName} onChange={setNewName}/><Field label="Home address" value={newAddress} onChange={setNewAddress} multi/><Button title="Save location" disabled={busy||!newName.trim()||!newAddress.trim()||!newSite} onPress={()=>void action(async()=>{const data={siteId:newSite,name:newName.trim(),address:newAddress.trim()};const result=await createHomeCareLocation({id:retryId('newHome',data),...data});await onLocationsChanged();const dataAfter=await refresh();const created=dataAfter.homes.find(h=>h.id===result.id);if(created)choose(created);delete pending.current.newHome;setAdding(false);setNewName('');setNewAddress('');})}/></>:null}</View>:null}
+ {savedMessage?<Text accessibilityRole="alert" style={styles.good}>{savedMessage}</Text>:null}
+ {managedSites.length ? <View style={styles.card}>
+  <Button title={adding ? "Close new home form" : "Add home location / patient"} disabled={busy} onPress={()=>{setAdding(!adding);setSavedMessage('');if(!newSite)setNewSite(managedSites[0]!.id);}}/>
+  {adding ? <>
+   <Text style={styles.heading}>Home, patient &amp; care setup</Text>
+   <Text>Save the home and patient together, or add just the location. Detailed clinical assessments and care plans can be completed afterwards.</Text>
+   <View style={styles.row}>{managedSites.map(site=><Button key={site.id} title={(newSite===site.id?'✓ ':'')+site.name} onPress={()=>setNewSite(site.id)}/>)}</View>
+   <Field label="Home location name *" value={newName} onChange={setNewName}/>
+   <Field label="Home address *" value={newAddress} onChange={setNewAddress} multi/>
+   <Field label="Access instructions" value={intake.accessNotes} onChange={v=>setIntake(d=>({...d,accessNotes:v}))} multi/>
+   <View style={styles.row}>
+    <Button title={(withPatient?'✓ ':'')+'Add home and patient'} disabled={busy} onPress={()=>setWithPatient(true)}/>
+    <Button title={(!withPatient?'✓ ':'')+'Add location only'} disabled={busy} onPress={()=>setWithPatient(false)}/>
+   </View>
+   {withPatient?<>
+    <Text style={styles.heading}>Patient details</Text>
+    <Field label="First name *" value={intake.firstName} onChange={v=>setIntake(d=>({...d,firstName:v}))}/>
+    <Field label="Surname *" value={intake.surname} onChange={v=>setIntake(d=>({...d,surname:v}))}/>
+    <Field label="Patient reference *" value={intake.reference} onChange={v=>setIntake(d=>({...d,reference:v}))}/>
+    <Field label="Date of birth (YYYY-MM-DD, optional)" value={intake.dateOfBirth} onChange={v=>setIntake(d=>({...d,dateOfBirth:v}))}/>
+    <Text style={styles.heading}>Next of kin (optional)</Text>
+    <Field label="Next-of-kin name" value={intake.nextOfKinName} onChange={v=>setIntake(d=>({...d,nextOfKinName:v}))}/>
+    <Field label="Relationship" value={intake.nextOfKinRelationship} onChange={v=>setIntake(d=>({...d,nextOfKinRelationship:v}))}/>
+    <Field label="Next-of-kin telephone" value={intake.nextOfKinTelephone} onChange={v=>setIntake(d=>({...d,nextOfKinTelephone:v}))}/>
+    <Field label="Next-of-kin email" value={intake.nextOfKinEmail} onChange={v=>setIntake(d=>({...d,nextOfKinEmail:v}))}/>
+   </>:null}
+   <Text style={styles.heading}>Care requirements</Text>
+   <Field label="Care needed and risks" value={intake.careSummary} onChange={v=>setIntake(d=>({...d,careSummary:v}))} multi/>
+   <Field label="Emergency contact" value={intake.emergencyContact} onChange={v=>setIntake(d=>({...d,emergencyContact:v}))}/>
+   <Field label="Carers required at a time (1–10)" value={intake.requiredCarers} onChange={v=>setIntake(d=>({...d,requiredCarers:v}))}/>
+   <Button title={intake.continuousCover?'Continuous / live-in care ✓':'Scheduled visits / wellness checks'} disabled={busy} onPress={()=>setIntake(d=>({...d,continuousCover:!d.continuousCover}))}/>
+   <Button title={withPatient?'Save home and patient':'Save location only'} disabled={busy||!newName.trim()||!newAddress.trim()||!newSite||(withPatient&&(!intake.firstName.trim()||!intake.surname.trim()||!intake.reference.trim()))} onPress={()=>void action(async()=>{
+    const data={siteId:newSite,name:newName.trim(),address:newAddress.trim(),accessNotes:intake.accessNotes.trim(),emergencyContact:intake.emergencyContact.trim(),careSummary:intake.careSummary.trim(),requiredCarers:Number(intake.requiredCarers),continuousCover:intake.continuousCover,
+     ...(withPatient?{patient:{firstName:intake.firstName.trim(),surname:intake.surname.trim(),reference:intake.reference.trim(),dateOfBirth:intake.dateOfBirth.trim(),nextOfKinName:intake.nextOfKinName.trim(),nextOfKinRelationship:intake.nextOfKinRelationship.trim(),nextOfKinTelephone:intake.nextOfKinTelephone.trim(),nextOfKinEmail:intake.nextOfKinEmail.trim()}}:{})};
+    const result=await createHomeCareLocation({id:retryId('newHome',data),...data});
+    setSavedMessage(result.patientId?'Home, patient and care requirements saved.':'Home and care requirements saved.');
+    // Once saved, clear the intake before refreshing: a failed refresh must not encourage duplicate creation.
+    delete pending.current.newHome;setAdding(false);setNewName('');setNewAddress('');setIntake(emptyIntake);
+    await onLocationsChanged();const dataAfter=await refresh();const created=dataAfter.homes.find(h=>h.id===result.id);if(created)choose(created);
+   })}/>
+  </>:null}
+ </View>:null}
  {!snapshot?.homes.length ? <Text style={styles.card}>No home locations available. A SecureObs administrator can create a location in Admin settings using service type “Home care”, then assign staff and patients using the existing setup.</Text> : null}
  <View style={styles.row}>{snapshot?.homes.map(h => { const c = homeCoverage(h, snapshot.duties, Date.parse(snapshot.serverTime) + Math.max(0, now - refreshed)); return <TouchableOpacity accessibilityRole="button" key={h.id} onPress={() => choose(h)} style={[styles.card, styles.tile, selected === h.id && styles.selected]}><Text style={styles.heading}>{h.name}</Text><Text>{h.address || 'Home profile needs setup'}</Text><Text style={c.gap ? styles.error : styles.good}>{h.address ? (h.continuousCover ? `${c.present}/${c.required} carers checked in for current cover` : `${c.present} carers on duty · scheduled visits`) : 'Set address and cover requirements'}</Text>{c.gap && h.address ? <Text style={styles.error}>Coverage needs attention</Text> : null}{c.plannedGap ? <Text style={styles.error}>Planned cover gap: {date(c.plannedGap)}</Text> : null}{snapshot.events.some(e => snapshot.duties.some(d => d.id === e.duty_id && d.ward_id === h.id) && ['concern', 'no_answer'].includes(e.wellness_outcome ?? '')) ? <Text style={styles.error}>Wellness concern recorded — review duty notes</Text> : null}<Text>{c.late} awaiting arrival · {c.overdue} overdue check-outs</Text><Text>{c.next ? `Next: ${c.next.staff_name} · ${date(c.next.starts_at)}` : 'No upcoming duty scheduled'}</Text>{c.coverEnds ? <Text>Current cover first ends: {date(c.coverEnds)}</Text> : null}<Text>Care tasks: {snapshot.tasks.find(t => t.wardId === h.id)?.outstanding ?? 0} outstanding · {snapshot.tasks.find(t => t.wardId === h.id)?.overdue ?? 0} overdue</Text><Text>{snapshot.patients.filter(p => p.wardId === h.id).map(p => `${p.firstName} ${p.surname}`).join(', ') || 'Open care records to review patients'}</Text></TouchableOpacity>; })}</View>
  {home ? <><View style={styles.card}><Text style={styles.heading}>{home.name}</Text><Button title="Open patient care records & handovers" onPress={() => onOpenCare(home.id, home.siteId)}/>{home.canManage?<Button title="Add / manage patient at this home" disabled={busy} onPress={()=>onOpenPatients(home.id,home.siteId)}/>:null}<Text>{home.careSummary}</Text><Text>Emergency contact: {home.emergencyContact || 'Not recorded'}</Text><Text>Access instructions: {home.accessNotes || 'Not recorded'}</Text></View>
