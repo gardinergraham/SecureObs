@@ -1,15 +1,15 @@
 {
-  "version": "0.2.00",
-  "androidVersionCode": 32,
+  "version": "0.2.01",
+  "androidVersionCode": 33,
   "minimumSupportedVersion": "0.1.7",
   "publishedAt": "2026-10-12",
   "size": "91.7 MB",
-  "downloadUrl": "https://ziydoaoxastnvilu.public.blob.vercel-storage.com/android/SecureObs-0.2.00.apk",
+  "downloadUrl": "https://ziydoaoxastnvilu.public.blob.vercel-storage.com/android/SecureObs-0.2.01.apk",
   "downloadPageUrl": "https://secure-obs.com/download",
-  "sha256": "b38079466773a7162968feab1fcbd36d319bce59cc30660e8d565d10c49a9ea9",
+  "sha256": "3e93cb7aff8a54d2bec8ec82d85a41464b098f0961e4c768932e65024ef22321",
   "signingCertificateSha256": "62cbdb9832aa007b14daf1b97a703ac9c153825f9fe6b560693d1853d176af09",
   "releaseNotes": [
-    "Addded the new Home Care service",
-    "for individual home care"
+    "Updated the New addition",
+    "on the Home Care section"
   ]
 }
