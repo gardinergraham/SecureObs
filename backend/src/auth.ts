@@ -73,14 +73,25 @@ export async function authenticateRequest(request: AuthenticatedRequest, _respon
     return;
   }
 
+  let session: SessionPayload;
   try {
-    const session = verifyToken(token);
+    session = verifyToken(token);
+  } catch {
+    request.auth = undefined;
+    next();
+    return;
+  }
+
+  try {
     const staff = await dataProvider.staff.findActiveById(session.staffId, session.organisationId);
     if (staff) {
       request.auth = { staff, session };
     }
-  } catch {
-    request.auth = undefined;
+  } catch (error) {
+    // A database failure does not mean the staff token is invalid.
+    // Return a server error rather than a 401 that signs the device out.
+    next(error);
+    return;
   }
 
   next();

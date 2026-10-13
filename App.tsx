@@ -1439,7 +1439,7 @@ export default function App() {
       () =>
         persistPatientNote({
           ...note,
-          organisationId: selectedStaff?.organisationId,
+          organisationId: activePatientOrganisationId(),
           actorStaffId: selectedStaff?.id,
           actorStaffCode: selectedStaff?.staffCode
         }),

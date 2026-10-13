@@ -79,7 +79,11 @@ export async function expireAuthSession(expectedToken?: string) {
   }
 
   expiryNotificationSent = true;
-  await storeAuthSession(undefined);
+  const clearing = storeAuthSession(undefined);
+  const expiryGeneration = sessionGeneration;
+  await clearing;
+  // A fresh sign-in can complete while storage is clearing the old session.
+  if (sessionGeneration !== expiryGeneration) return false;
   expiryListeners.forEach((listener) => listener());
   return true;
 }
