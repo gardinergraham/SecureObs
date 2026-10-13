@@ -1,18 +1,15 @@
 {
-  "version": "0.2.4",
-  "androidVersionCode": 37,
+  "version": "0.2.5",
+  "androidVersionCode": 38,
   "minimumSupportedVersion": "0.1.7",
-  "publishedAt": "2026-10-12",
+  "publishedAt": "2026-10-13",
   "size": "91.7 MB",
-  "downloadUrl": "https://ziydoaoxastnvilu.public.blob.vercel-storage.com/android/SecureObs-0.2.4.apk",
+  "downloadUrl": "https://ziydoaoxastnvilu.public.blob.vercel-storage.com/android/SecureObs-0.2.5.apk",
   "downloadPageUrl": "https://secure-obs.com/download",
-  "sha256": "c1ca08c5bbe296acc8e65b2cbc88629004319f29dc36f5f07ac80051451acda2",
+  "sha256": "e821b3dfcb8498ab948b85e3888804596285070271703d559101229c1f7f6e79",
   "signingCertificateSha256": "62cbdb9832aa007b14daf1b97a703ac9c153825f9fe6b560693d1853d176af09",
   "releaseNotes": [
-    "Created a special Rota service for",
-    "Home Care staff. Included a check in",
-    "facility to monitor staff making sure that",
-    "care is maintained and a carer is always at the patients",
-    "home"
+    "Added a new Home Care section to SecureObs.",
+    "This is where individual patients can be looked after in a home care environment"
   ]
 }
