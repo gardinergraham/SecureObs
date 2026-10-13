@@ -1,14 +1,15 @@
 {
-  "version": "0.2.6",
-  "androidVersionCode": 39,
+  "version": "0.2.7",
+  "androidVersionCode": 40,
   "minimumSupportedVersion": "0.1.7",
   "publishedAt": "2026-10-13",
   "size": "91.7 MB",
-  "downloadUrl": "https://ziydoaoxastnvilu.public.blob.vercel-storage.com/android/SecureObs-0.2.6.apk",
+  "downloadUrl": "https://ziydoaoxastnvilu.public.blob.vercel-storage.com/android/SecureObs-0.2.7.apk",
   "downloadPageUrl": "https://secure-obs.com/download",
-  "sha256": "d20157166704371abbfedc636507b7b843796bc19b4b083ecc2409c9367aca5e",
+  "sha256": "3679f45f15c93d29d48c4d4df77f168f2529faeea6ed468e10ba8683652213dc",
   "signingCertificateSha256": "62cbdb9832aa007b14daf1b97a703ac9c153825f9fe6b560693d1853d176af09",
   "releaseNotes": [
-    "Update the Patient Notes section so person who wrote a note can edit it within that day"
+    "Added the new Home Care section to the application",
+    "Updated the Patient notes so staff can edit their note on same day they wrote it"
   ]
 }
