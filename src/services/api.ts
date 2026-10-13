@@ -185,28 +185,28 @@ export async function createObservationDirect(observation: OrganisationScoped<Om
   });
 }
 
-export async function lookupStaffByCode(staffCode: string, organisationId?: string) {
+export async function lookupStaffByCode(staffCode: string, organisationId?: string, organisationName?: string) {
   const result = await request<{ staff: StaffMember; session?: AuthSession }>("/api/staff/lookup", {
     method: "POST",
-    body: JSON.stringify({ staffCode, organisationId })
+    body: JSON.stringify({ staffCode, organisationId, organisationName })
   });
   await storeAuthSession(result.session);
   return { staff: result.staff };
 }
 
-export async function loginBankStaffByPin(staffCode: string, loginPin: string, organisationId?: string) {
+export async function loginBankStaffByPin(staffCode: string, loginPin: string, organisationId?: string, organisationName?: string) {
   const result = await request<{ staff: StaffMember; session?: AuthSession }>("/api/staff/bank-pin-login", {
     method: "POST",
-    body: JSON.stringify({ staffCode, loginPin, organisationId })
+    body: JSON.stringify({ staffCode, loginPin, organisationId, organisationName })
   });
   await storeAuthSession(result.session);
   return { staff: result.staff };
 }
 
-export async function loginStaffByPin(staffCode: string, loginPin: string, organisationId?: string) {
+export async function loginStaffByPin(staffCode: string, loginPin: string, organisationId?: string, organisationName?: string) {
   const result = await request<{ staff: StaffMember; session?: AuthSession }>("/api/staff/pin-login", {
     method: "POST",
-    body: JSON.stringify({ staffCode, loginPin, organisationId })
+    body: JSON.stringify({ staffCode, loginPin, organisationId, organisationName })
   });
   await storeAuthSession(result.session);
   return { staff: result.staff };

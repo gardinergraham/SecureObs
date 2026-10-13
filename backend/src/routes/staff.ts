@@ -1,6 +1,6 @@
 import { explicitStaff } from "../homeCareAccess.js";
 import crypto from "node:crypto";
-import { Router } from "express";
+import { Router, type Request, type Response, type NextFunction } from "express";
 import { z } from "zod";
 
 import { auditActorFromBody, recordAuditEvent } from "../audit.js";
@@ -296,7 +296,26 @@ router.get("/by-code/:staffCode", async (request, response, next) => {
   }
 });
 
-router.post("/lookup", async (request, response, next) => {
+// Resolve an explicitly entered company before looking up a reused staff code.
+async function resolveLoginOrganisation(request: Request, response: Response, next: NextFunction) {
+  const name = request.body?.organisationName;
+  if (name === undefined || name === "") { next(); return; }
+  const parsed = z.string().trim().min(1).max(255).safeParse(name);
+  if (!parsed.success) { response.status(400).json({ error: "Enter your organisation name" }); return; }
+  try {
+    const result = await pool.query(
+      "select id from organisations where lower(trim(name)) = lower($1) limit 2", [parsed.data]
+    );
+    if (result.rows.length !== 1) {
+      response.status(409).json({ error: "Organisation name could not be uniquely matched. Ask your administrator for the exact organisation name." });
+      return;
+    }
+    request.body.organisationId = result.rows[0].id;
+    next();
+  } catch (error) { next(error); }
+}
+
+router.post("/lookup", resolveLoginOrganisation, async (request, response, next) => {
   try {
     const parsed = staffLookupSchema.safeParse(request.body);
 
@@ -358,7 +377,7 @@ router.post("/lookup", async (request, response, next) => {
   }
 });
 
-router.post("/pin-login", async (request, response, next) => {
+router.post("/pin-login", resolveLoginOrganisation, async (request, response, next) => {
   try {
     const parsed = staffPinLookupSchema.safeParse(request.body);
 
@@ -533,7 +552,7 @@ router.post("/reset-pin", requireStaffRole(["manager", "super_admin"]), async (r
   }
 });
 
-router.post("/bank-pin-login", async (request, response, next) => {
+router.post("/bank-pin-login", resolveLoginOrganisation, async (request, response, next) => {
   try {
     const parsed = bankStaffPinLookupSchema.safeParse(request.body);
 

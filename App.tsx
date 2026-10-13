@@ -1001,7 +1001,7 @@ export default function App() {
     };
   }, [lockInactiveStaffSession, persistActivityDeadline, selectedStaffId, selectedWard?.sessionTimeoutMinutes]);
 
-  const handleReadStaffCardData = async (cardData: string) => {
+  const handleReadStaffCardData = async (cardData: string, organisationName?: string) => {
     const parsedCard = parseStaffCardData(cardData, organisationSettings.nfcStaffCodeFormat);
 
     if (!parsedCard) {
@@ -1013,10 +1013,13 @@ export default function App() {
     );
     const localOrganisationId =
       matchingLocalStaff.length === 1 ? matchingLocalStaff[0]?.organisationId : undefined;
-    const organisationHint = selectedStaff?.organisationId ?? localOrganisationId;
+    // The previous user may belong to a different customer (especially an
+    // administrator). Only scope a card lookup using this card's own match.
+    // Otherwise the server resolves a unique active code or rejects ambiguity.
+    const organisationHint = localOrganisationId;
 
     try {
-      const { staff } = await lookupStaffByCode(parsedCard.staffCode, organisationHint);
+      const { staff } = await lookupStaffByCode(parsedCard.staffCode, organisationName ? undefined : organisationHint, organisationName);
       setStaffMembers((currentStaff) => upsertStaffByCode(currentStaff, staff));
       selectStaffSession(staff);
       void flushSyncQueue();
@@ -1024,7 +1027,7 @@ export default function App() {
     } catch (error) {
       const matchedStaff = matchingLocalStaff.length === 1 ? matchingLocalStaff[0] : undefined;
 
-      if (!matchedStaff) {
+      if (!matchedStaff || organisationName) {
         return error instanceof Error
           ? `NFC card read, but sign-in was not completed: ${error.message}`
           : `No staff found for STAFFCODE ${parsedCard.staffCode}.`;
@@ -1039,7 +1042,7 @@ export default function App() {
     }
   };
 
-  const handleBankStaffPinLogin = async (staffCode: string, loginPin: string) => {
+  const handleBankStaffPinLogin = async (staffCode: string, loginPin: string, organisationName?: string) => {
     const matchingLocalStaff = staffMembers.filter(
       (staff) =>
         staff.employmentType === "bank" &&
@@ -1052,7 +1055,8 @@ export default function App() {
     const { staff } = await loginBankStaffByPin(
       staffCode,
       loginPin,
-      organisationHint
+      organisationName ? undefined : organisationHint,
+      organisationName
     );
     setStaffMembers((currentStaff) => upsertStaffByCode(currentStaff, staff));
     selectStaffSession(staff);
@@ -1060,7 +1064,7 @@ export default function App() {
     return `Selected ${staff.name} for bank/temp access.`;
   };
 
-  const handleStaffPinLogin = async (staffCode: string, loginPin: string) => {
+  const handleStaffPinLogin = async (staffCode: string, loginPin: string, organisationName?: string) => {
     const matchingLocalStaff = staffMembers.filter(
       (staff) => staff.staffCode.toLowerCase() === staffCode.trim().toLowerCase()
     );
@@ -1071,7 +1075,8 @@ export default function App() {
     const { staff } = await loginStaffByPin(
       staffCode,
       loginPin,
-      organisationHint
+      organisationName ? undefined : organisationHint,
+      organisationName
     );
     setStaffMembers((currentStaff) => upsertStaffByCode(currentStaff, staff));
     selectStaffSession(staff);
@@ -1096,10 +1101,10 @@ export default function App() {
     return result.message;
   };
 
-  const handleScanStaffCard = async () => {
+  const handleScanStaffCard = async (organisationName?: string) => {
     const cardData = await readNfcTextPayload();
 
-    return handleReadStaffCardData(cardData);
+    return handleReadStaffCardData(cardData, organisationName);
   };
 
   const handleSelectSite = async (siteId: string) => {

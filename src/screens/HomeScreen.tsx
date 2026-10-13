@@ -33,11 +33,11 @@ type HomeScreenProps = {
   onSelectStaff: (staffId: string) => void;
   onSelectSite: (siteId: string) => void;
   onSelectWard: (wardId: string) => void;
-  onStaffPinLogin: (staffCode: string, loginPin: string) => Promise<string>;
+  onStaffPinLogin: (staffCode: string, loginPin: string, organisationName?: string) => Promise<string>;
   onChangeStaffPin: (currentPin: string, newPin: string) => Promise<string>;
-  onBankStaffPinLogin: (staffCode: string, loginPin: string) => Promise<string>;
+  onBankStaffPinLogin: (staffCode: string, loginPin: string, organisationName?: string) => Promise<string>;
   onUnlockStaffAccess: (lockedStaffCode: string, nurseInChargeStaffCode: string) => Promise<string>;
-  onScanStaffCard: () => Promise<string>;
+  onScanStaffCard: (organisationName?: string) => Promise<string>;
   onOpenAdminSettings: () => void;
   onOpenWardSettings: () => void;
   onOpenComplianceGovernance: () => void;
@@ -73,6 +73,7 @@ export function HomeScreen({
   onOpenHomeCare,
   onStart
 }: HomeScreenProps) {
+  const [loginOrganisationName, setLoginOrganisationName] = useState("");
   const appVersion = appConfig.expo.version;
   const [staffCardMessage, setStaffCardMessage] = useState("");
   const [staffPinCode, setStaffPinCode] = useState("");
@@ -148,7 +149,7 @@ export function HomeScreen({
     setStaffCardMessage("Hold the staff card against the tablet.");
 
     try {
-      setStaffCardMessage(await onScanStaffCard());
+      setStaffCardMessage(await onScanStaffCard(loginOrganisationName.trim() || undefined));
     } catch (error) {
       setStaffCardMessage(error instanceof Error ? error.message : "Unable to read that NFC card.");
     } finally {
@@ -193,7 +194,7 @@ export function HomeScreen({
 
     setIsBankStaffSigningIn(true);
     try {
-      setBankStaffMessage(await onBankStaffPinLogin(bankStaffCode.trim(), bankStaffPin.trim()));
+      setBankStaffMessage(await onBankStaffPinLogin(bankStaffCode.trim(), bankStaffPin.trim(), loginOrganisationName.trim() || undefined));
       setBankStaffPin("");
     } catch (error) {
       setBankStaffMessage(error instanceof Error ? error.message : "Bank staff sign-in failed.");
@@ -210,7 +211,7 @@ export function HomeScreen({
 
     setIsStaffPinSigningIn(true);
     try {
-      setStaffPinMessage(await onStaffPinLogin(staffPinCode.trim(), staffPin.trim()));
+      setStaffPinMessage(await onStaffPinLogin(staffPinCode.trim(), staffPin.trim(), loginOrganisationName.trim() || undefined));
       setStaffPin("");
     } catch (error) {
       setStaffPinMessage(error instanceof Error ? error.message : "Staff PIN sign-in failed.");
@@ -290,6 +291,12 @@ export function HomeScreen({
           )}
 
           <View style={styles.nfcPanel}>
+            <Text style={styles.nfcTitle}>Sign-in organisation</Text>
+            <Text style={styles.cardMessage}>If your staff code exists in more than one organisation, enter your exact company name before scanning or signing in.</Text>
+            <TextInput accessibilityLabel="Sign-in organisation name" placeholder="Organisation name (when needed)" value={loginOrganisationName} onChangeText={setLoginOrganisationName} autoCorrect={false} style={styles.cardInput} />
+          </View>
+
+          <View style={styles.nfcPanel}>
             <View style={styles.nfcHeader}>
               <Text style={styles.nfcTitle}>NFC staff card</Text>
               <TouchableOpacity
@@ -349,7 +356,7 @@ export function HomeScreen({
           ) : null}
 
           <View style={styles.nfcPanel}>
-            <View style={styles.nfcHeader}>
+              <View style={styles.nfcHeader}>
               <Text style={styles.nfcTitle}>Staff PIN sign-in</Text>
             </View>
             <TextInput placeholderTextColor="#6f7f87"
@@ -380,7 +387,7 @@ export function HomeScreen({
           </View>
 
           <View style={styles.nfcPanel}>
-            <View style={styles.nfcHeader}>
+              <View style={styles.nfcHeader}>
               <Text style={styles.nfcTitle}>Bank/temp staff PIN</Text>
             </View>
             <TextInput placeholderTextColor="#6f7f87"
@@ -413,7 +420,7 @@ export function HomeScreen({
           </View>
 
           <View style={styles.nfcPanel}>
-            <View style={styles.nfcHeader}>
+              <View style={styles.nfcHeader}>
               <Text style={styles.nfcTitle}>Clear failed-attempt lock</Text>
             </View>
             <Text style={styles.noticeText}>
