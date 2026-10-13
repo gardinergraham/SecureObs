@@ -1,3 +1,4 @@
+import { HomeCareCheckInPanel } from "../components/HomeCareCheckInPanel";
 import React, { useEffect, useMemo, useState } from "react";
 import { Linking, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 
@@ -73,7 +74,6 @@ export function HomeScreen({
   onStart
 }: HomeScreenProps) {
   const appVersion = appConfig.expo.version;
-  const [chooseIndividualHome, setChooseIndividualHome] = useState(false);
   const [staffCardMessage, setStaffCardMessage] = useState("");
   const [staffPinCode, setStaffPinCode] = useState("");
   const [staffPin, setStaffPin] = useState("");
@@ -458,17 +458,15 @@ export function HomeScreen({
                 label="Site"
                 options={sites.map((site) => ({ id: site.id, label: site.name }))}
                 selectedId={selectedSiteId}
-                onSelect={(id)=>{setChooseIndividualHome(false);onSelectSite(id);}}
+                onSelect={onSelectSite}
               />
               {canOpenHomeCare ? <View style={styles.wardSummary}>
                 <Text style={styles.summaryTitle}>{selectedSite?.name} · Home Care</Text>
                 <Text style={styles.summaryMeta}>Open the dashboard to see all home locations. You do not need to choose an individual home first.</Text>
                 <TouchableOpacity accessibilityRole="button" onPress={onOpenHomeCare} disabled={defaultsBusy} style={styles.scanButton}><Text style={styles.scanButtonText}>Open Home Care dashboard</Text></TouchableOpacity>
-                <TouchableOpacity accessibilityRole="button" onPress={()=>setChooseIndividualHome(v=>!v)}><Text style={styles.summaryMeta}>{chooseIndividualHome ? "Hide individual home selection" : "Choose an individual home (optional)"}</Text></TouchableOpacity>
               </View> : null}
-              {!canOpenHomeCare || chooseIndividualHome ? <>
               <SelectorRow
-                label={isHomeCareSite ? "Home location" : "Ward"}
+                label={isHomeCareSite ? (canOpenHomeCare ? "Home location (optional for dashboard)" : "Home location") : "Ward"}
                 options={wards.map((ward) => ({
                   id: ward.id,
                   label: ward.serviceType === "Home care" ? ward.name : `${ward.name} (${ward.observationIntervalMinutes}m)`
@@ -476,6 +474,7 @@ export function HomeScreen({
                 selectedId={selectedWardId}
                 onSelect={onSelectWard}
               />
+              {selectedStaff && !pinChangeRequired && selectedWard?.serviceType === "Home care" && selectedStaff.allowedWardIds.includes(selectedWard.id) && selectedStaff.organisationId ? <HomeCareCheckInPanel key={`${selectedStaff.id}:${selectedWard.id}`} staffId={selectedStaff.id} wardId={selectedWard.id} siteId={selectedWard.siteId} organisationId={selectedWard.organisationId ?? selectedSite?.organisationId ?? selectedStaff.organisationId}/> : null}
               <View style={styles.wardSummary}>
                 <Text style={styles.summaryTitle}>{selectedWard?.name ?? (isHomeCareSite ? "No home location selected" : "No ward selected")}</Text>
                 <Text style={styles.summaryMeta}>
@@ -495,7 +494,6 @@ export function HomeScreen({
                   Opens to {selectedWard?.landingPage === "observations" ? "patient checks" : isHomeCareSite ? "home overview" : "ward overview"}
                 </Text>
               </View>
-              </> : null}
             </>
           ) : (
             <View style={styles.locationLockedPanel}>

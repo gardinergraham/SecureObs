@@ -663,3 +663,7 @@ export function saveHomeCareEvent(dutyId:string,event:{id:string;action:string;n
 export function createHomeCareLocation(location:import('../types/homeCare').HomeCareIntake, organisationId?:string) {
   return request<{id:string;patientId:string|null}>('/api/home-care/locations',homeCareOptions(organisationId,{method:'POST',body:JSON.stringify(location)}));
 }
+
+export function updatePatientNote(id:string,body:string,expectedVersion:number,organisationId?:string) {
+ return request<import('../types/domain').PatientNote>(`/api/patient-notes/${encodeURIComponent(id)}`,{method:'PATCH',body:JSON.stringify({body,expectedVersion,organisationId})});
+}

@@ -1,0 +1,14 @@
+const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict'),ts=require('typescript'),React=require('react'),{renderToStaticMarkup}=require('react-dom/server');
+let viewed='',hook=0;
+const react={...React,useState:initial=>{hook++;return React.useState(hook===1?viewed:initial);}};
+const native={StyleSheet:{create:x=>x},Alert:{alert(){}}};
+for(const [name,tag] of Object.entries({View:'div',Text:'span',TouchableOpacity:'button',TextInput:'textarea'}))native[name]=({children,disabled,value,editable})=>React.createElement(tag,{disabled,...(tag==='textarea'?{defaultValue:value,readOnly:editable===false}:{})},children);
+const exportsObj={};
+vm.runInNewContext(ts.transpileModule(fs.readFileSync('src/screens/ShiftHandoverScreen.tsx','utf8'),{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS,jsx:ts.JsxEmit.React,esModuleInterop:true}}).outputText,{exports:exportsObj,require:n=>n==='react'?react:n==='react-native'?native:n==='../utils/staffRole'?{hasStaffRole:(s,r)=>s?.role===r,hasAdminAccess:s=>s?.role==='super_admin'}:n==='../utils/patientNoteEditing'?{ukNoteDay:()=> '13/10/2026'}:n==='../components/PatientDayNotes'?{PatientDayNotes:({patientId,day})=>React.createElement('span',null,`Notes selector for ${patientId} on ${day}`)}:n.startsWith('expo-')?{}:require(n)});
+const record={id:'saved',wardId:'ward',shiftLabel:'Yesterday night',shiftStartedAt:'2026-10-12T20:00:00Z',createdAt:'2026-10-13T07:00:00Z',createdByName:'Nurse A',overallSummary:'ORIGINAL SAVED SUMMARY',patientSummaries:[{patientId:'old-patient',patientName:'Historical Patient',roomNumber:1,observationCount:3,narrative:'ORIGINAL PATIENT SNAPSHOT',staffNotes:'ORIGINAL STAFF NOTES'}]};
+const props={foodFluidEntries:[],handovers:[record],patientNotes:[],incidents:[],medicationAdministrations:[],medicationPrescriptions:[],missedObservations:[],news2Readings:[],observations:[],patients:[],patientTasks:[],selectedStaffId:'staff',staff:[{id:'staff',role:'nurse'}],ward:{id:'ward',name:'Test ward',rotaShifts:[]},onBack(){},onViewChange(){},onCreateHandover:async()=>{}};
+viewed='saved';hook=0;const saved=renderToStaticMarkup(React.createElement(exportsObj.ShiftHandoverScreen,props));
+assert.match(saved,/ORIGINAL SAVED SUMMARY/);assert.match(saved,/ORIGINAL PATIENT SNAPSHOT/);assert.match(saved,/ORIGINAL STAFF NOTES/);assert.match(saved,/readOnly=""/);assert.match(saved,/Notes selector for old-patient/);assert.match(saved,/Return to current handover/);
+viewed='';hook=0;const current=renderToStaticMarkup(React.createElement(exportsObj.ShiftHandoverScreen,props));
+assert.doesNotMatch(current,/ORIGINAL SAVED SUMMARY|ORIGINAL PATIENT SNAPSHOT/);assert.match(current,/Save handover/);assert.match(current,/Previous handovers/);
+console.log('PASS: saved handover displays original snapshot and read-only staff notes, patient notes selector available, return to draft restores current view and Save label.');

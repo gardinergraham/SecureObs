@@ -196,6 +196,8 @@ export type BillingCatalogueSummary = {
 };
 
 export type PatientNote = {
+  version?: number;
+  editedAt?: string;
   id: string;
   patientId: string;
   wardId: string;

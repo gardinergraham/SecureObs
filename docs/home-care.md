@@ -63,3 +63,10 @@ Home Care scheduling remains separate from Rota. Home Care ward/observation scre
 Schedule cover uses the shared local date/time picker and sends UTC timestamps, supports overnight periods, and validates positive durations up to 24 hours. The dashboard distinguishes scheduled carers from checked-in carers. Awaiting check-in means the duty has started without arrival being recorded; signing into the app is not a duty check-in. Breaks and wellness visits do not provide continuous cover. Ended duties without arrival and overdue check-outs are displayed separately. Selecting a home focuses the view on its patients, named staffing status and duties; All home locations returns to the overview.
 
 Validation is local (TypeScript, Expo export, route/permission/coverage tests); deploy Railway and install a new Expo build to use these changes. No new database migration is needed.
+
+### Direct carer check-in and dedicated schedule
+The sign-in page shows My duty at this home immediately below the selected location for an assigned, authenticated staff member. It shows only their active/current or upcoming Home Care duties; expired unstarted duties are omitted, while unfinished attendance remains available for check-out. Changing user/home remounts the panel, clearing notes and old duty data. The panel refreshes online every 30 seconds and uses the server clock for the check-in window.
+
+Home Care overview now has View / manage schedule (or View schedule / my duties) and Edit home profile buttons. The schedule is a dedicated view containing cover creation and duty cards, rather than being below patient setup. Both the schedule and sign-in panel share the same duty card, attendance actions, handover requirements, wellness controls and retry-safe updates. After an acknowledged save whose refresh fails, further actions stay locked until a successful refresh.
+
+These UI changes need a new Expo build; the existing Home Care backend and migrations are unchanged.

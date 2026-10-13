@@ -480,7 +480,7 @@ router.get("/patient-notes", async (request, response, next) => {
           id,
           patient_id as "patientId",
           ward_id as "wardId",
-          body,
+          body, version, edited_at as "editedAt",
           recorded_by_staff_id as "recordedByStaffId",
           recorded_by_name as "recordedByName",
           recorded_by_staff_code as "recordedByStaffCode",
@@ -498,6 +498,31 @@ router.get("/patient-notes", async (request, response, next) => {
   } catch (error) {
     next(error);
   }
+});
+
+router.patch("/patient-notes/:id", async (request: AuthenticatedRequest, response, next) => {
+  const staff=request.auth?.staff;
+  if(!staff?.id){response.status(401).json({error:"Sign in to edit a note."});return;}
+  const parsed=z.object({body:z.string().trim().min(1).max(20000),expectedVersion:z.number().int().positive(),organisationId:optionalOrganisationIdSchema}).strict().safeParse(request.body);
+  if(!parsed.success){response.status(400).json({error:"Enter a note and its current version."});return;}
+  const organisationId=requireOrganisationId(request,response);if(!organisationId)return;
+  const db=await pool.connect().catch(error=>{next(error);return null;});
+  if(!db)return;
+  try {
+    await db.query('begin');
+    const found=await db.query(`select *, (recorded_at at time zone 'Europe/London')::date = (current_timestamp at time zone 'Europe/London')::date as editable_today from patient_notes where id=$1 and organisation_id=$2 for update`,[request.params.id,organisationId]);
+    const note=found.rows[0];
+    if(!note){await db.query('rollback');response.status(404).json({error:"Note not found."});return;}
+    if(note.recorded_by_staff_id!==staff.id || (staff.role!=='super_admin'&&!staff.allowedWardIds.includes(note.ward_id)) || !note.editable_today){await db.query('rollback');response.status(403).json({error:"Only the original author can edit this note, on the same UK calendar day."});return;}
+    if(note.version!==parsed.data.expectedVersion){await db.query('rollback');response.status(409).json({error:"This note has changed. Reload the notes before editing again."});return;}
+    if(note.body!==parsed.data.body){
+      await db.query(`insert into patient_note_revisions(note_id,version,organisation_id,previous_body,replacement_body,edited_by_staff_id) values($1,$2,$3,$4,$5,$6)`,[note.id,note.version,organisationId,note.body,parsed.data.body,staff.id]);
+      await db.query(`update patient_notes set body=$2,version=version+1,edited_at=now() where id=$1`,[note.id,parsed.data.body]);
+      await db.query(`insert into audit_events(id,organisation_id,actor_staff_id,actor_staff_code,event_type,entity_type,entity_id,outcome,details) values($1,$2,$3,$4,'patient_note.edited','patient_note',$5,'success',$6::jsonb)`,[`note-edit-${note.id}-${note.version}`,organisationId,staff.id,staff.staffCode,note.id,JSON.stringify({previousVersion:note.version,version:note.version+1})]);
+    }
+    const result=await db.query(`select id,patient_id as "patientId",ward_id as "wardId",body,version,edited_at as "editedAt",recorded_by_staff_id as "recordedByStaffId",recorded_by_name as "recordedByName",recorded_by_staff_code as "recordedByStaffCode",recorded_at as "recordedAt" from patient_notes where id=$1 and organisation_id=$2`,[note.id,organisationId]);
+    await db.query('commit');response.json(result.rows[0]);
+  } catch(error){await db.query('rollback');next(error);} finally {db.release();}
 });
 
 router.post("/patient-notes", requireStaffRole([...anyWardStaff]), async (request, response, next) => {

@@ -1,3 +1,4 @@
+import { canEditPatientNote } from "../utils/patientNoteEditing";
 import React, { useEffect, useMemo, useState } from "react";
 import { Alert, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import * as Print from "expo-print";
@@ -15,6 +16,7 @@ type PatientNotesScreenProps = {
   staff: StaffMember[];
   ward?: Ward;
   onBack: () => void;
+  onEditNote: (note:PatientNote,body:string)=>Promise<void>;
   onCreateNote: (note: PatientNote) => Promise<void>;
   onSelectPatient: (patientId: string) => void;
 };
@@ -28,6 +30,7 @@ export function PatientNotesScreen({
   ward,
   onBack,
   onCreateNote,
+  onEditNote,
   onSelectPatient
 }: PatientNotesScreenProps) {
   const orderedPatients = useMemo(
@@ -36,6 +39,8 @@ export function PatientNotesScreen({
   );
   const selectedPatient = orderedPatients.find((patient) => patient.id === selectedPatientId) ?? orderedPatients[0];
   const selectedStaff = staff.find((member) => member.id === selectedStaffId);
+  const [editingNote,setEditingNote]=useState<PatientNote>();
+  const [editBody,setEditBody]=useState("");
   const [noteBody, setNoteBody] = useState("");
   const [staffFilter, setStaffFilter] = useState("all");
   const [sortOrder, setSortOrder] = useState<NoteSortOrder>("newest");
@@ -76,9 +81,10 @@ export function PatientNotesScreen({
 
   useEffect(() => {
     setNoteBody("");
+    setEditingNote(undefined);setEditBody("");
     setStaffFilter("all");
     setSelectedNoteIds([]);
-  }, [selectedPatient?.id]);
+  }, [selectedPatient?.id, selectedStaffId]);
 
   const selectPatient = (patientId: string) => {
     onSelectPatient(patientId);
@@ -233,7 +239,7 @@ export function PatientNotesScreen({
               <View style={styles.entryPanel}>
                 <Text style={styles.sectionTitle}>Add patient note</Text>
                 <Text style={styles.panelMeta}>
-                  Notes are signed with your staff identity and cannot be edited after saving.
+                  Notes are signed with your staff identity. You can edit your own notes on the same UK calendar day; earlier versions are retained in the audit history.
                 </Text>
                 <TextInput
                   accessibilityLabel="Patient note"
@@ -343,6 +349,12 @@ export function PatientNotesScreen({
                 ) : null}
               </View>
 
+              {editingNote ? <View style={styles.emptyPanel}>
+                <Text style={styles.emptyTitle}>Edit my note</Text>
+                <TextInput accessibilityLabel="Edit patient note" multiline value={editBody} editable={!isSaving} onChangeText={setEditBody} style={{minHeight:140,borderWidth:1,borderColor:'#91abb9',padding:12,color:'#142f40'}}/>
+                <TouchableOpacity accessibilityRole="button" disabled={isSaving||!editBody.trim()} style={styles.saveButton} onPress={()=>{if(isSaving)return;setIsSaving(true);void onEditNote(editingNote,editBody.trim()).then(()=>{setEditingNote(undefined);setEditBody('');Alert.alert('Note saved','Your correction has been saved and the previous version retained.');}).catch(e=>Alert.alert('Note not saved',e.message)).finally(()=>setIsSaving(false));}}><Text style={styles.saveButtonText}>{isSaving?'Saving…':'Save changes'}</Text></TouchableOpacity>
+                <TouchableOpacity accessibilityRole="button" disabled={isSaving} onPress={()=>setEditingNote(undefined)}><Text>Cancel editing</Text></TouchableOpacity>
+              </View>:null}
               <ScrollView nestedScrollEnabled style={styles.noteHistory}>
                 {visibleNotes.length === 0 ? (
                   <View style={styles.emptyPanel}>
@@ -374,6 +386,9 @@ export function PatientNotesScreen({
                           </View>
                           <Text selectable style={styles.noteBody}>{note.body}</Text>
                           <Text style={styles.noteStaffCode}>Staff code: {note.recordedByStaffCode}</Text>
+                          {note.editedAt?<Text style={styles.noteDate}>Edited {formatDateTime(note.editedAt)} · version {note.version}</Text>:null}
+                          {canEditPatientNote(note,selectedStaffId)?<TouchableOpacity accessibilityRole="button" onPress={()=>{setEditingNote(note);setEditBody(note.body);}} style={styles.saveButton}><Text style={styles.saveButtonText}>Edit my note</Text></TouchableOpacity>:null}
+
                         </View>
                       </TouchableOpacity>
                     );

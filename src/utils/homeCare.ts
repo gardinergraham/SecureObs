@@ -34,3 +34,13 @@ export function parseLocalDutyDate(value: string) {
         throw Error('Enter a valid local date and time.');
     return d.toISOString();
 }
+
+// Keep the sign-in page focused: unfinished attendance plus today's upcoming duties,
+// or the next booked duty when none are due today. Never include another carer's work.
+export function ownHomeCareDuties(duties:HomeCareDuty[],staffId:string,wardId:string,now:number) {
+ const own=duties.filter(d=>d.staff_id===staffId&&d.ward_id===wardId&&!['cancelled','completed'].includes(d.state));
+ const active=own.filter(d=>['present','break'].includes(d.state));
+ const planned=own.filter(d=>d.state==='planned'&&Date.parse(d.ends_at)>now).sort((a,b)=>Date.parse(a.starts_at)-Date.parse(b.starts_at));
+ const today=planned.filter(d=>Date.parse(d.starts_at)<=now+24*60*60*1000);
+ return [...active,...(today.length?today:planned.slice(0,1))];
+}

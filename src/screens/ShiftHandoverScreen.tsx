@@ -1,3 +1,5 @@
+import { PatientDayNotes } from "../components/PatientDayNotes";
+import { ukNoteDay } from "../utils/patientNoteEditing";
 import React, { useMemo, useState } from "react";
 import { Alert, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import * as Print from "expo-print";
@@ -11,6 +13,7 @@ import type {
   News2Reading,
   Observation,
   Patient,
+  PatientNote,
   PatientTask,
   SafetyIncident,
   ShiftHandover,
@@ -23,6 +26,8 @@ import { hasAdminAccess, hasStaffRole } from "../utils/staffRole";
 type ShiftHandoverScreenProps = {
   foodFluidEntries: FoodFluidEntry[];
   handovers: ShiftHandover[];
+  patientNotes: PatientNote[];
+  onViewChange:()=>void;
   incidents: SafetyIncident[];
   medicationAdministrations: MedicationAdministration[];
   medicationPrescriptions: MedicationPrescription[];
@@ -41,6 +46,8 @@ type ShiftHandoverScreenProps = {
 export function ShiftHandoverScreen({
   foodFluidEntries,
   handovers,
+  patientNotes,
+  onViewChange,
   incidents,
   medicationAdministrations,
   medicationPrescriptions,
@@ -59,6 +66,8 @@ export function ShiftHandoverScreen({
   const now = Date.now();
   const shift = ward ? getCurrentShift(ward, now) : undefined;
   const shiftCutoff = shift ? Math.min(now, shift.endsAt) : now;
+  const [viewingId,setViewingId]=useState("");
+  const [historyOpen,setHistoryOpen]=useState(false);
   const [staffNotes, setStaffNotes] = useState<Record<string, string>>({});
   const [isSaving, setIsSaving] = useState(false);
   const [pdfHandoverId, setPdfHandoverId] = useState("");
@@ -126,6 +135,9 @@ export function ShiftHandoverScreen({
   const wardHandovers = handovers
     .filter((handover) => handover.wardId === ward?.id)
     .sort((left, right) => right.shiftStartedAt.localeCompare(left.shiftStartedAt));
+  const viewingHandover=wardHandovers.find(h=>h.id===viewingId);
+  const displayedSummaries=viewingHandover?.patientSummaries ?? patientSummaries;
+  const notesDay=ukNoteDay(viewingHandover?.createdAt ?? now);
   const canSign = Boolean(
     hasStaffRole(selectedStaff, "nurse") ||
       hasStaffRole(selectedStaff, "manager") ||
@@ -154,14 +166,14 @@ export function ShiftHandoverScreen({
   const saveHandover = async () => {
     const handover = currentHandover();
     if (!handover || !canSign) {
-      Alert.alert("Unable to sign handover", "An active shift and nurse, doctor or manager session are required.");
+      Alert.alert("Unable to save handover", "An active shift and nurse, doctor or manager session are required.");
       return;
     }
     setIsSaving(true);
     try {
       await onCreateHandover(handover);
       setStaffNotes({});
-      Alert.alert("Shift handover signed", `${handover.shiftLabel} has been saved as a clinical record.`);
+      Alert.alert("Shift handover saved", `${handover.shiftLabel} has been saved as a clinical record.`);
     } catch (error) {
       Alert.alert("Handover not saved", error instanceof Error ? error.message : "Please try again.");
     } finally {
@@ -213,8 +225,7 @@ export function ShiftHandoverScreen({
           <Text style={styles.eyebrow}>Clinical handover</Text>
           <Text style={styles.title}>Shift handover</Text>
           <Text style={styles.meta}>
-            {ward?.name ?? "Ward"} · {shift?.label ?? "No active shift"} · evidence through{" "}
-            {formatTime(new Date(shiftCutoff).toISOString())}
+            {ward?.name ?? "Ward"} · {viewingHandover?.shiftLabel ?? shift?.label ?? "No active shift"} · {viewingHandover ? `Saved ${formatDateTime(viewingHandover.createdAt)} by ${viewingHandover.createdByName}` : `Evidence through ${formatTime(new Date(shiftCutoff).toISOString())}`}
           </Text>
         </View>
         <TouchableOpacity accessibilityRole="button" onPress={onBack} style={styles.outlineButton}>
@@ -222,11 +233,14 @@ export function ShiftHandoverScreen({
         </TouchableOpacity>
       </View>
 
+      <TouchableOpacity accessibilityRole="button" accessibilityState={{expanded:historyOpen}} style={styles.outlineButton} onPress={()=>setHistoryOpen(v=>!v)}><Text style={styles.outlineButtonText}>Previous handovers ({wardHandovers.length}) {historyOpen?'▲':'▼'}</Text></TouchableOpacity>
+      {historyOpen ? <View style={styles.historyPanel}>{wardHandovers.length===0?<Text>No saved handovers.</Text>:wardHandovers.map(h=><TouchableOpacity accessibilityRole="button" key={h.id} style={styles.outlineButton} onPress={()=>{setViewingId(h.id);setHistoryOpen(false);onViewChange();}}><Text style={styles.outlineButtonText}>{formatDateTime(h.shiftStartedAt)} · {h.shiftLabel} · {h.createdByName}</Text></TouchableOpacity>)}</View>:null}
+      {viewingHandover ? <TouchableOpacity accessibilityRole="button" style={styles.primaryButton} onPress={()=>{setViewingId('');onViewChange();}}><Text style={styles.primaryButtonText}>Return to current handover</Text></TouchableOpacity> : null}
       <View style={styles.notice}>
-        <Text style={styles.noticeTitle}>Generated from recorded evidence</Text>
+        <Text style={styles.noticeTitle}>{viewingHandover ? "Saved handover — read-only snapshot" : "Generated from recorded evidence"}</Text>
         <Text style={styles.noticeText}>
           Location and sleep statements describe recorded checks during this shift. They do not claim continuous
-          monitoring between observations. Review every summary and add clinical context before signing.
+          monitoring between observations. Review every summary and add clinical context before saving. Saving records your staff identity.
         </Text>
       </View>
 
@@ -234,31 +248,31 @@ export function ShiftHandoverScreen({
         <View style={styles.summaryHeading}>
           <View style={styles.summaryCopy}>
             <Text style={styles.sectionTitle}>Ward summary</Text>
-            <Text style={styles.overallSummary}>{overallSummary}</Text>
+            <Text style={styles.overallSummary}>{viewingHandover?.overallSummary ?? overallSummary}</Text>
           </View>
           <View style={styles.headerActions}>
             <TouchableOpacity
               accessibilityRole="button"
-              disabled={!shift || Boolean(pdfHandoverId)}
-              onPress={() => void printHandover()}
-              style={[styles.outlineButton, (!shift || Boolean(pdfHandoverId)) && styles.disabledButton]}
+              disabled={(!shift && !viewingHandover) || Boolean(pdfHandoverId)}
+              onPress={() => void printHandover(viewingHandover)}
+              style={[styles.outlineButton, ((!shift && !viewingHandover) || Boolean(pdfHandoverId)) && styles.disabledButton]}
             >
-              <Text style={styles.outlineButtonText}>Print draft</Text>
+              <Text style={styles.outlineButtonText}>{viewingHandover ? "Print saved handover" : "Print draft"}</Text>
             </TouchableOpacity>
             <TouchableOpacity
               accessibilityRole="button"
-              disabled={!shift || !canSign || isSaving}
+              disabled={Boolean(viewingHandover) || !shift || !canSign || isSaving}
               onPress={() => void saveHandover()}
-              style={[styles.primaryButton, (!shift || !canSign || isSaving) && styles.disabledButton]}
+              style={[styles.primaryButton, (Boolean(viewingHandover) || !shift || !canSign || isSaving) && styles.disabledButton]}
             >
-              <Text style={styles.primaryButtonText}>{isSaving ? "Signing…" : "Review and sign handover"}</Text>
+              <Text style={styles.primaryButtonText}>{viewingHandover ? "Viewing saved handover" : isSaving ? "Saving…" : "Save handover"}</Text>
             </TouchableOpacity>
           </View>
         </View>
       </View>
 
       <View style={styles.patientGrid}>
-        {patientSummaries.map((summary) => (
+        {displayedSummaries.map((summary) => (
           <View key={summary.patientId} style={styles.patientCard}>
             <View style={styles.patientHeader}>
               <View>
@@ -285,8 +299,10 @@ export function ShiftHandoverScreen({
               label="Patient voice"
               value={summary.patientVoiceSummary ?? "No new patient feedback recorded during this shift."}
             />
+            <PatientDayNotes key={`${summary.patientId}:${notesDay}`} notes={patientNotes} patientId={summary.patientId} wardId={ward?.id ?? ''} day={notesDay}/>
             <Text style={styles.fieldLabel}>Staff handover notes</Text>
             <TextInput
+              editable={!viewingHandover && !isSaving}
               multiline
               onChangeText={(value) =>
                 setStaffNotes((current) => ({ ...current, [summary.patientId]: value }))
@@ -295,7 +311,7 @@ export function ShiftHandoverScreen({
               placeholderTextColor="#77868c"
               style={styles.notesInput}
               textAlignVertical="top"
-              value={staffNotes[summary.patientId] ?? ""}
+              value={viewingHandover ? summary.staffNotes : staffNotes[summary.patientId] ?? ""}
             />
           </View>
         ))}
@@ -319,6 +335,7 @@ export function ShiftHandoverScreen({
                 </Text>
               </View>
               <View style={styles.headerActions}>
+                <TouchableOpacity accessibilityRole="button" onPress={()=>{setViewingId(handover.id);onViewChange();}} style={styles.primaryButton}><Text style={styles.primaryButtonText}>View handover</Text></TouchableOpacity>
                 <TouchableOpacity
                   accessibilityRole="button"
                   disabled={Boolean(pdfHandoverId)}

@@ -235,7 +235,7 @@ export function PatientDashboardScreen({
                 onPress={onOpenPatientVoice}
                 style={styles.patientVoiceButton}
               >
-                <Text style={styles.patientVoiceButtonText}>Patient voice</Text>
+                <Text style={styles.patientVoiceButtonText}>Open Patient Voice →</Text>
               </TouchableOpacity>
               <StatusPill label={selectedPatient.observationLevel} tone="blue" />
               <StatusPill
@@ -1079,13 +1079,11 @@ const styles = StyleSheet.create({
   patientMeta: { color: "#63747b", fontSize: 12, fontWeight: "800", marginTop: 4 },
   heroPills: { alignItems: "flex-end", flexDirection: "row", flexWrap: "wrap", gap: 7 },
   patientVoiceButton: {
-    backgroundColor: "#174f61",
-    borderRadius: 999,
-    justifyContent: "center",
-    minHeight: 34,
-    paddingHorizontal: 12
+    backgroundColor: "#007d89", borderRadius: 10, justifyContent:"center", alignItems:"center",
+    minHeight:56, minWidth:190, paddingHorizontal:20, paddingVertical:12,
+    borderWidth:2, borderColor:"#095f6b"
   },
-  patientVoiceButtonText: { color: "#ffffff", fontSize: 10, fontWeight: "900" },
+  patientVoiceButtonText: { color:"#ffffff",fontSize:17,fontWeight:"800" },
   statusPill: { borderRadius: 999, paddingHorizontal: 10, paddingVertical: 7 },
   statusPillText: { color: "#263c44", fontSize: 10, fontWeight: "900" },
   statusBlue: { backgroundColor: "#dceff4" },

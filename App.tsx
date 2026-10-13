@@ -1,3 +1,4 @@
+import { updatePatientNote } from "./src/services/api";
 import { homeCareManagerAccess } from "./src/utils/staffRole";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Alert, AppState, Image, Keyboard, Modal, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
@@ -1786,7 +1787,7 @@ export default function App() {
             }}
           />
         ) : screen === "homeCare" && selectedStaff ? (
-          <HomeCareScreen key={`${selectedStaff.id}:${selectedSiteId}`} siteId={selectedSiteId} organisationId={accessibleSites.find(s=>s.id===selectedSiteId)?.organisationId ?? selectedStaff.organisationId ?? defaultOrganisationId} staff={staffMembers.find(s => s.id === selectedStaff.id) ?? selectedStaff} staffMembers={staffMembers} sites={sites} onLocationsChanged={async()=>{const organisationId=hasAdminAccess(selectedStaff)?adminOrganisationId:(selectedStaff.organisationId??defaultOrganisationId);const [wardResult,staffResult,patientResult]=await Promise.all([loadWards(organisationId),loadStaff(organisationId),loadPatients(organisationId,true)]);setWards(wardResult.wards);setStaffMembers(current=>mergeById(staffResult.staff,current));setPatients(patientResult.patients);}} onOpenPatients={(wardId,siteId)=>{setWorkspaceBackScreen("homeCare");setSelectedWardId(wardId);setSelectedSiteId(siteId);setScreen("patientManagement");}} onBack={() => setScreen("home")} onOpenCare={(wardId,siteId)=>{setSelectedWardId(wardId);setSelectedSiteId(siteId);setScreen("wardOverview");}} />
+          <HomeCareScreen onViewChanged={()=>{requestAnimationFrame(()=>mainScrollRef.current?.scrollTo({x:0,y:0,animated:false}));}} key={`${selectedStaff.id}:${selectedSiteId}`} siteId={selectedSiteId} organisationId={accessibleSites.find(s=>s.id===selectedSiteId)?.organisationId ?? selectedStaff.organisationId ?? defaultOrganisationId} staff={staffMembers.find(s => s.id === selectedStaff.id) ?? selectedStaff} staffMembers={staffMembers} sites={sites} onLocationsChanged={async()=>{const organisationId=hasAdminAccess(selectedStaff)?adminOrganisationId:(selectedStaff.organisationId??defaultOrganisationId);const [wardResult,staffResult,patientResult]=await Promise.all([loadWards(organisationId),loadStaff(organisationId),loadPatients(organisationId,true)]);setWards(wardResult.wards);setStaffMembers(current=>mergeById(staffResult.staff,current));setPatients(patientResult.patients);}} onOpenPatients={(wardId,siteId)=>{setWorkspaceBackScreen("homeCare");setSelectedWardId(wardId);setSelectedSiteId(siteId);setScreen("patientManagement");}} onBack={() => setScreen("home")} onOpenCare={(wardId,siteId)=>{setSelectedWardId(wardId);setSelectedSiteId(siteId);setScreen("wardOverview");}} />
         ) : screen === "adminSettings" ? (
           <AdminSettingsScreen
             customerOrganisations={customerOrganisations}
@@ -2216,6 +2217,7 @@ export default function App() {
             staff={scopedStaffMembers}
             ward={selectedWard}
             onBack={() => setScreen(workspaceBackScreen)}
+            onEditNote={async(note,body)=>{const saved=await updatePatientNote(note.id,body,note.version??1,activePatientOrganisationId());setPatientNotes(current=>upsertById(current,saved));}}
             onCreateNote={handleCreatePatientNote}
             onSelectPatient={setSelectedPatientId}
           />
@@ -2247,6 +2249,8 @@ export default function App() {
           />
         ) : screen === "shiftHandover" ? (
           <ShiftHandoverScreen
+            onViewChange={()=>{requestAnimationFrame(()=>mainScrollRef.current?.scrollTo({x:0,y:0,animated:false}));}}
+            patientNotes={patientNotes}
             foodFluidEntries={foodFluidEntries}
             handovers={shiftHandovers}
             incidents={safetyIncidents}
