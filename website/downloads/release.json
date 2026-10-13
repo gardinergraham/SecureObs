@@ -1,15 +1,15 @@
 {
-  "version": "0.2.7",
-  "androidVersionCode": 40,
+  "version": "0.2.8",
+  "androidVersionCode": 41,
   "minimumSupportedVersion": "0.1.7",
   "publishedAt": "2026-10-13",
   "size": "91.7 MB",
-  "downloadUrl": "https://ziydoaoxastnvilu.public.blob.vercel-storage.com/android/SecureObs-0.2.7.apk",
+  "downloadUrl": "https://ziydoaoxastnvilu.public.blob.vercel-storage.com/android/SecureObs-0.2.8.apk",
   "downloadPageUrl": "https://secure-obs.com/download",
-  "sha256": "3679f45f15c93d29d48c4d4df77f168f2529faeea6ed468e10ba8683652213dc",
+  "sha256": "fdf662a58942eb4e5d3ec487d21f566d49f78091f8e36f6a1bf70618ad1e375e",
   "signingCertificateSha256": "62cbdb9832aa007b14daf1b97a703ac9c153825f9fe6b560693d1853d176af09",
   "releaseNotes": [
-    "Added the new Home Care section to the application",
-    "Updated the Patient notes so staff can edit their note on same day they wrote it"
+    "Added the new Home Care section",
+    "Updated the security to log in to SecureObs"
   ]
 }
